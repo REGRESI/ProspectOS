@@ -11,4 +11,4 @@ RUN mkdir -p /var/lib/prospectos/assets && chown 10001:10001 /var/lib/prospectos
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 USER 10001:10001
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

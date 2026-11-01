@@ -16,7 +16,7 @@ cd services/api
 uv sync --frozen
 uv run --env-file ../../.env python -m app.migrate
 uv run --env-file ../../.env python -m app.seed
-uv run --env-file ../../.env env -u DATABASE_ADMIN_URL -u DB_APP_PASSWORD -u POSTGRES_PASSWORD -u DEMO_PASSWORD uvicorn app.main:app --host 0.0.0.0 --port 8000
+uv run --env-file ../../.env env -u DATABASE_ADMIN_URL -u DB_APP_PASSWORD -u POSTGRES_PASSWORD -u DEMO_PASSWORD uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log
 ```
 
 In einem zweiten Terminal im Repository:
