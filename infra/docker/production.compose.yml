@@ -1,0 +1,104 @@
+# Standalone deployment EXAMPLE. Requires independently provisioned PostgreSQL,
+# application role, Supabase project and HTTPS ingress. Does not deploy anything.
+x-api-image: &api-image
+  image: prospectos-api
+  build:
+    context: ../..
+    dockerfile: infra/docker/api.Dockerfile
+
+x-runtime-environment: &runtime-environment
+  APP_ENV: production
+  AUTH_PROVIDER: supabase
+  DATABASE_URL: ${DATABASE_URL:?Set a non-owner application-role PostgreSQL DSN}
+  COOKIE_SECURE: "true"
+  APP_BASE_URL: ${APP_BASE_URL:?Set the canonical HTTPS application URL}
+  PUBLIC_WEB_URL: ${APP_BASE_URL:?Set the canonical HTTPS application URL}
+  ASSET_ROOT: /var/lib/prospectos/assets
+  SUPABASE_URL: ${SUPABASE_URL:?Set the verified Supabase project URL}
+  SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?Set the public Supabase anon key}
+  SUPABASE_JWT_ISSUER: ${SUPABASE_JWT_ISSUER:?Set the exact expected JWT issuer}
+  SUPABASE_JWT_AUDIENCE: ${SUPABASE_JWT_AUDIENCE:-authenticated}
+  TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?Set a Fernet key via secure environment injection}
+  LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-}
+  LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
+  LINKEDIN_REDIRECT_URI: ${LINKEDIN_REDIRECT_URI:-}
+  LINKEDIN_API_VERSION: ${LINKEDIN_API_VERSION:-}
+  LINKEDIN_PUBLISHING_APPROVED: ${LINKEDIN_PUBLISHING_APPROVED:-false}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-}
+  LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+  LLM_INPUT_USD_PER_MILLION: ${LLM_INPUT_USD_PER_MILLION:-}
+  LLM_OUTPUT_USD_PER_MILLION: ${LLM_OUTPUT_USD_PER_MILLION:-}
+  LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-1500}
+  PDL_API_KEY: ${PDL_API_KEY:-}
+  PDL_LICENSE_APPROVED: ${PDL_LICENSE_APPROVED:-false}
+  PDL_LICENSE_REFERENCE: ${PDL_LICENSE_REFERENCE:-}
+  RESEARCH_ALLOWED_DOMAINS: ${RESEARCH_ALLOWED_DOMAINS:-}
+  RESEARCH_TERMS_APPROVED: ${RESEARCH_TERMS_APPROVED:-false}
+  RESEARCH_NETWORK_GUARD_APPROVED: ${RESEARCH_NETWORK_GUARD_APPROVED:-false}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  EMAIL_FROM: ${EMAIL_FROM:-}
+  EMAIL_SEND_ENABLED: ${EMAIL_SEND_ENABLED:-false}
+
+x-runtime-hardening: &runtime-hardening
+  init: true
+  restart: unless-stopped
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  read_only: true
+  tmpfs: [/tmp]
+
+services:
+  migrate:
+    <<: *api-image
+    environment:
+      APP_ENV: production
+      DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL:?Set a migrator-only PostgreSQL DSN}
+    command: ["python", "-m", "app.migrate"]
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  api:
+    <<: [*api-image, *runtime-hardening]
+    environment: *runtime-environment
+    volumes: [asset_data:/var/lib/prospectos/assets]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  worker:
+    <<: [*api-image, *runtime-hardening]
+    environment: *runtime-environment
+    volumes: [asset_data:/var/lib/prospectos/assets]
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        API_URL: http://api:8000
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:8000
+      HOSTNAME: 0.0.0.0
+    init: true
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      api:
+        condition: service_healthy
+    ports: ["127.0.0.1:3000:3000"]
+volumes:
+  asset_data:

@@ -1,6 +1,14 @@
 # Managed cloud only: keep the session CA out of image layers.
 services:
+  migrate:
+    build:
+      secrets:
+        - ca_bundle
   api:
+    build:
+      secrets:
+        - ca_bundle
+  worker:
     build:
       secrets:
         - ca_bundle

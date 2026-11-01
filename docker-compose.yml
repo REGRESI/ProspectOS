@@ -1,3 +1,45 @@
+x-api-image: &api-image
+  image: prospectos-api
+  build:
+    context: .
+    dockerfile: infra/docker/api.Dockerfile
+
+x-runtime-environment: &runtime-environment
+  APP_ENV: development
+  DATABASE_URL: postgresql+psycopg://prospectos_app:${DB_APP_PASSWORD:-prospectos_app_dev}@db:5432/prospectos
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  ASSET_ROOT: /var/lib/prospectos/assets
+  APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+  PUBLIC_WEB_URL: ${APP_BASE_URL:-http://localhost:3000}
+  SUPABASE_URL: ${SUPABASE_URL:-}
+  SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+  SUPABASE_JWT_ISSUER: ${SUPABASE_JWT_ISSUER:-}
+  SUPABASE_JWT_AUDIENCE: ${SUPABASE_JWT_AUDIENCE:-authenticated}
+  TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+  LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-}
+  LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
+  LINKEDIN_REDIRECT_URI: ${LINKEDIN_REDIRECT_URI:-}
+  LINKEDIN_API_VERSION: ${LINKEDIN_API_VERSION:-}
+  LINKEDIN_PUBLISHING_APPROVED: ${LINKEDIN_PUBLISHING_APPROVED:-false}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-}
+  LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+  LLM_INPUT_USD_PER_MILLION: ${LLM_INPUT_USD_PER_MILLION:-}
+  LLM_OUTPUT_USD_PER_MILLION: ${LLM_OUTPUT_USD_PER_MILLION:-}
+  LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-1500}
+  PDL_API_KEY: ${PDL_API_KEY:-}
+  PDL_LICENSE_APPROVED: ${PDL_LICENSE_APPROVED:-false}
+  PDL_LICENSE_REFERENCE: ${PDL_LICENSE_REFERENCE:-}
+  RESEARCH_ALLOWED_DOMAINS: ${RESEARCH_ALLOWED_DOMAINS:-}
+  RESEARCH_TERMS_APPROVED: ${RESEARCH_TERMS_APPROVED:-false}
+  RESEARCH_NETWORK_GUARD_APPROVED: ${RESEARCH_NETWORK_GUARD_APPROVED:-false}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  EMAIL_FROM: ${EMAIL_FROM:-}
+  EMAIL_SEND_ENABLED: ${EMAIL_SEND_ENABLED:-false}
+
 services:
   db:
     image: postgres:16.11-bookworm
@@ -14,21 +56,26 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
-  api:
-    build:
-      context: .
-      dockerfile: infra/docker/api.Dockerfile
+  migrate:
+    <<: *api-image
     environment:
       APP_ENV: development
       DATABASE_ADMIN_URL: postgresql+psycopg://prospectos:${POSTGRES_PASSWORD:-prospectos_dev}@db:5432/prospectos
-      DATABASE_URL: postgresql+psycopg://prospectos_app:${DB_APP_PASSWORD:-prospectos_app_dev}@db:5432/prospectos
       DB_APP_PASSWORD: ${DB_APP_PASSWORD:-prospectos_app_dev}
       DEMO_PASSWORD: ${DEMO_PASSWORD:-ProspectDemo!2026}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
-    command: ["sh", "-c", "python -m app.migrate && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    command: ["python", "-m", "app.migrate"]
     depends_on:
       db:
         condition: service_healthy
+    restart: "no"
+  api:
+    <<: *api-image
+    environment: *runtime-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - asset_data:/var/lib/prospectos/assets
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -37,6 +84,16 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
+  worker:
+    <<: *api-image
+    environment: *runtime-environment
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - asset_data:/var/lib/prospectos/assets
+    restart: unless-stopped
   web:
     build:
       context: .
@@ -57,3 +114,4 @@ services:
       start_period: 10s
 volumes:
   postgres_data:
+  asset_data:

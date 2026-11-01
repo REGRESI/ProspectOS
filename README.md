@@ -16,7 +16,7 @@ cd services/api
 uv sync --frozen
 uv run --env-file ../../.env python -m app.migrate
 uv run --env-file ../../.env python -m app.seed
-uv run --env-file ../../.env uvicorn app.main:app --host 0.0.0.0 --port 8000
+uv run --env-file ../../.env env -u DATABASE_ADMIN_URL -u DB_APP_PASSWORD -u POSTGRES_PASSWORD -u DEMO_PASSWORD uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 In einem zweiten Terminal im Repository:
@@ -33,7 +33,7 @@ Lokales Demo-Konto nach dem Seed: `demo@prospectos.local`, Passwort `ProspectDem
 
 ```sh
 docker compose up --build -d
-docker compose exec api python -m app.seed
+docker compose run --rm migrate python -m app.seed
 ```
 
 Für die verwaltete Cloud mit Proxy-CA:
@@ -42,18 +42,22 @@ Für die verwaltete Cloud mit Proxy-CA:
 docker compose -f docker-compose.yml -f infra/docker/cloud.compose.yml up --build -d
 ```
 
-Die getestete Cloud-Abkürzung mit derselben CA-Konfiguration ist `infra/scripts/cloud-compose.sh`. Nach Installation und Build:
+Die Cloud-Abkürzung mit derselben CA-Konfiguration ist `infra/scripts/cloud-compose.sh`. Nach Installation und Build:
 
 ```sh
-infra/scripts/cloud-compose.sh build api web
+infra/scripts/cloud-compose.sh build migrate api worker web
 infra/scripts/cloud-compose.sh up -d --wait
-infra/scripts/cloud-compose.sh exec -T api python -m app.seed
+infra/scripts/cloud-compose.sh run --rm migrate python -m app.seed
 python infra/scripts/smoke.py
 ```
 
 Der Smoke-Check prüft Web-HTML, eingeschränkte DB-Rolle, Anmeldung und übereinstimmende Kontaktsummen. Bei geändertem Demo-Passwort dieses nur als Umgebungsvariable `DEMO_PASSWORD` bereitstellen; niemals in Logs ausgeben.
 
 Die öffentliche CA wird über BuildKit eingebunden, nicht im Image gespeichert. Die vollständige Containerprüfung wird getrennt von lokal gestarteten Komponenten ausgewiesen.
+
+Migration und Demo-Seed laufen im einmaligen `migrate`-Container mit Eigentümerrechten. API und dauerhafter Worker erhalten ausschließlich die Anwendungs-DSN. Beide teilen den privaten Asset-Datenträger; der Webcontainer hat darauf keinen Zugriff. Für Hostentwicklung einen weiteren Prozess aus `services/api` starten: `uv run --env-file ../../.env env -u DATABASE_ADMIN_URL -u DB_APP_PASSWORD -u POSTGRES_PASSWORD -u DEMO_PASSWORD python -m app.worker`.
+
+`infra/docker/production.compose.yml` ist ein **nicht ausgerolltes Deploymentbeispiel** mit externem PostgreSQL, vorab angelegter Laufzeitrolle, echter Supabase-Konfiguration, Secure-Cookies und getrenntem Migrator. Es erfordert HTTPS-Ingress und sichere Wertebereitstellung. Ohne eigene Anbieterzugänge sind externe Authentifizierung und APIs nicht live bestätigt. Details und offene Abnahmen stehen in [docs/MASTER_AUDIT.md](docs/MASTER_AUDIT.md).
 
 ## Prüfungen
 

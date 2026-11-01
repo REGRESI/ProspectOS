@@ -26,6 +26,7 @@ jobs:
       DB_APP_PASSWORD: prospectos_app_dev
     steps:
       - uses: actions/checkout@v4
+      - run: python infra/scripts/validate_compose.py
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -36,6 +37,7 @@ jobs:
           version: 0.12.23
           python-version: '3.12'
       - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level=high
       - run: uv sync --frozen
         working-directory: services/api
       - run: uv run python -m app.migrate
@@ -48,7 +50,8 @@ jobs:
       - run: pnpm --filter @prospectos/web exec playwright install --with-deps chromium
       - name: Start local app
         run: |
-          (cd services/api && uv run uvicorn app.main:app --host 127.0.0.1 --port 8000) > /tmp/prospectos-api.log 2>&1 &
+          (cd services/api && uv run env -u DATABASE_ADMIN_URL -u DB_APP_PASSWORD -u POSTGRES_PASSWORD -u DEMO_PASSWORD uvicorn app.main:app --host 127.0.0.1 --port 8000) > /tmp/prospectos-api.log 2>&1 &
+          (cd services/api && uv run env -u DATABASE_ADMIN_URL -u DB_APP_PASSWORD -u POSTGRES_PASSWORD -u DEMO_PASSWORD python -m app.worker) > /tmp/prospectos-worker.log 2>&1 &
           pnpm --filter @prospectos/web start > /tmp/prospectos-web.log 2>&1 &
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:8000/health/ready && curl --fail --silent http://127.0.0.1:3000 > /dev/null; then exit 0; fi

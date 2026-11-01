@@ -1,2 +1,4 @@
-import WorkspaceApp from '@/components/workspace-app';
-export default function Page() { return <WorkspaceApp />; }
+import WorkspaceApp from "@/components/workspace-app";
+export default function Page() {
+  return <WorkspaceApp />;
+}

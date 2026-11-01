@@ -6,7 +6,7 @@ db:
 dev:
 	pnpm dev
 api:
-	cd services/api && uv run --env-file ../../.env uvicorn app.main:app --host 0.0.0.0 --port 8000
+	cd services/api && uv run --env-file ../../.env env -u DATABASE_ADMIN_URL -u DB_APP_PASSWORD -u POSTGRES_PASSWORD -u DEMO_PASSWORD uvicorn app.main:app --host 0.0.0.0 --port 8000
 migrate:
 	cd services/api && uv run --env-file ../../.env python -m app.migrate
 seed-demo:

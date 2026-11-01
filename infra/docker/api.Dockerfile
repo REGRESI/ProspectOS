@@ -6,7 +6,9 @@ COPY services/api/pyproject.toml services/api/uv.lock ./
 RUN --mount=type=secret,id=ca_bundle \
     if [ -f /run/secrets/ca_bundle ]; then export SSL_CERT_FILE=/run/secrets/ca_bundle; fi; \
     uv sync --frozen --no-dev
-COPY services/api ./
+COPY --chown=10001:10001 services/api ./
+RUN mkdir -p /var/lib/prospectos/assets && chown 10001:10001 /var/lib/prospectos/assets
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
+USER 10001:10001
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
