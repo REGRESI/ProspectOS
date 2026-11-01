@@ -1,0 +1,13 @@
+# Managed cloud only: keep the session CA out of image layers.
+services:
+  api:
+    build:
+      secrets:
+        - ca_bundle
+  web:
+    build:
+      secrets:
+        - ca_bundle
+secrets:
+  ca_bundle:
+    file: /etc/ssl/certs/ca-certificates.crt

@@ -1,0 +1,59 @@
+services:
+  db:
+    image: postgres:16.11-bookworm
+    environment:
+      POSTGRES_USER: prospectos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prospectos_dev}
+      POSTGRES_DB: prospectos
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prospectos -d prospectos"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      APP_ENV: development
+      DATABASE_ADMIN_URL: postgresql+psycopg://prospectos:${POSTGRES_PASSWORD:-prospectos_dev}@db:5432/prospectos
+      DATABASE_URL: postgresql+psycopg://prospectos_app:${DB_APP_PASSWORD:-prospectos_app_dev}@db:5432/prospectos
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:-prospectos_app_dev}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-ProspectDemo!2026}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    command: ["sh", "-c", "python -m app.migrate && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    environment:
+      API_URL: http://api:8000
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+volumes:
+  postgres_data:

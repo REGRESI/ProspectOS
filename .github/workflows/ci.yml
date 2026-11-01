@@ -1,0 +1,63 @@
+name: Quality
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.11-bookworm
+        env:
+          POSTGRES_USER: prospectos
+          POSTGRES_PASSWORD: prospectos_dev
+          POSTGRES_DB: prospectos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prospectos -d prospectos"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      APP_ENV: development
+      DATABASE_ADMIN_URL: postgresql+psycopg://prospectos:prospectos_dev@127.0.0.1:5432/prospectos
+      DATABASE_URL: postgresql+psycopg://prospectos_app:prospectos_app_dev@127.0.0.1:5432/prospectos
+      DB_APP_PASSWORD: prospectos_app_dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: 0.12.23
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen
+        working-directory: services/api
+      - run: uv run python -m app.migrate
+        working-directory: services/api
+      - run: uv run ruff check . && uv run ruff format --check . && uv run pytest
+        working-directory: services/api
+      - run: pnpm lint && pnpm typecheck && pnpm test && pnpm build
+      - run: uv run python -m app.seed
+        working-directory: services/api
+      - run: pnpm --filter @prospectos/web exec playwright install --with-deps chromium
+      - name: Start local app
+        run: |
+          (cd services/api && uv run uvicorn app.main:app --host 127.0.0.1 --port 8000) > /tmp/prospectos-api.log 2>&1 &
+          pnpm --filter @prospectos/web start > /tmp/prospectos-web.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8000/health/ready && curl --fail --silent http://127.0.0.1:3000 > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-results
+          path: apps/web/test-results

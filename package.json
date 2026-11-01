@@ -1,0 +1,14 @@
+{
+  "name": "prospectos",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "engines": { "node": ">=22", "pnpm": ">=11" },
+  "scripts": {
+    "dev": "pnpm --filter @prospectos/web dev",
+    "lint": "pnpm --filter @prospectos/web lint",
+    "typecheck": "pnpm --filter @prospectos/web typecheck",
+    "test": "pnpm --filter @prospectos/web test",
+    "build": "pnpm --filter @prospectos/web build",
+    "test:e2e": "pnpm --filter @prospectos/web exec playwright test"
+  }
+}
