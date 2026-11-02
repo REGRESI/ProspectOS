@@ -73,11 +73,13 @@ uv run python ../../infra/scripts/validate_database.py
 
 Migration und Backendtests benötigen PostgreSQL. Tests nur gegen eine isolierte Entwicklungsdatenbank ausführen. Details und ausgeführte Ergebnisse: [docs/TESTING.md](docs/TESTING.md).
 
-## Neue Workflows
+## Produkt-Workflows
 
-Private Bildbibliothek mit Rechtebestätigung/Alt-Text, Markenprofile, Aufgaben/Notizen, Kampagnen und gespeicherte Outreach-Entwürfe ergänzen die bisherigen Kontakte, ICP, Pipeline und den visuellen Kalender. „Recherche & KI“ erstellt dauerhafte Such-/Textaufträge; „Aufträge & Budget“ zeigt Status, Fehler und den USD-Kostenrahmen.
+Discovery bietet bestätigte strukturierte Suchprofile, gespeicherte Suchen, Quellenprüfung und ausgewählte Übernahme. Kontakte und Unternehmen haben Filter, Segmente, Bulk-Aktionen und verknüpfte Detailansichten. Der Outreach-Workspace verbindet Zielgruppen, Sequenzvorlagen, Entwürfe, Freigaben und dokumentierte manuelle LinkedIn-Schritte. Wiederverwendbare ICP-Profile und ein operativer Startbildschirm verwenden gespeicherte Daten.
 
-Supabase, lizenzierte PDL-Suche, LLM, LinkedIn OAuth/Publishing, Resend und Stripe-Testmodus sind als echte, konfigurationsgebundene Adapter implementiert. Ohne Zugangsdaten erscheint keine simulierte Verbindung oder Veröffentlichung. Details: `.env.example`, [API](docs/API.md) und [aktueller Status](docs/STATUS.md). Realtests dieser Anbieter bleiben extern blockiert. Eine interne Kalenderplanung ist weiterhin keine Publishing-Freigabe.
+Social Studio ergänzt echte konfigurationsgebundene KI-Varianten und Bildjobs mit Budgetprüfung, privater Speicherung und separater Bildfreigabe; Kalender, Revisionen, Vorschau und Engagement-Assistenz sind verbunden. Fehlende Anbieterzugänge bleiben ausdrücklich sichtbar. Onboarding, Teamrollen, Test-Billing und gezielte Anbieterprüfungen liegen unter Einstellungen.
+
+Umfang, genaue Grenzen und Update-Befehle: [Produkt-Upgrade](docs/EXPERIENCE_UPGRADE.md). Vollständiger [Status](docs/STATUS.md), [API](docs/API.md), [Prüfergebnisse](docs/TESTING.md). Keine externe Anbieterfunktion wurde mit echten Credentials live verifiziert.
 
 ## Grenzen
 

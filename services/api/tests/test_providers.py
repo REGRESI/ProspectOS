@@ -167,6 +167,7 @@ def test_licensed_provider_structured_query_provenance(pdl_env):
                     {
                         "id": "company-123",
                         "name": "Fictional licensed result",
+                        "employee_count": 25,
                         "location": {"name": "Offenburg"},
                         "industry": "services",
                         "website": "example.test",
@@ -179,6 +180,7 @@ def test_licensed_provider_structured_query_provenance(pdl_env):
         CompanySearchFilters(city="Offenburg", min_employees=10, max_employees=250),
         client=mock_client(handler),
     )
+    assert output[0].employee_count == 25
     assert output[0].source == "people_data_labs"
     assert output[0].confidence == "provider_reported"
     assert "no marketing consent" in output[0].allowed_uses

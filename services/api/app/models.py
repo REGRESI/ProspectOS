@@ -162,6 +162,7 @@ class Draft(TenantMixin, Base):
     content: Mapped[str] = mapped_column(String(3000))
     source: Mapped[str] = mapped_column(String(40), default="offline")
     __table_args__ = (
+        UniqueConstraint("workspace_id", "id"),
         ForeignKeyConstraint(
             ["workspace_id", "contact_id"], ["contacts.workspace_id", "contacts.id"]
         ),

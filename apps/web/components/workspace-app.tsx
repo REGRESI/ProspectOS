@@ -1,8 +1,11 @@
 "use client";
+import { ICPBuilder } from "./icp-builder";
 import { useEffect, useState, useCallback, FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   ArrowUpRight,
   BookOpen,
   Building2,
@@ -28,7 +31,6 @@ import {
   Users,
   Workflow,
   X,
-  Zap,
   Link2,
   Sun,
   Moon,
@@ -36,6 +38,22 @@ import {
 } from "lucide-react";
 import { Badge, Empty, Modal, Spinner, Heading, ErrorNote } from "./ui";
 import { Social } from "./social-studio";
+import { OperationalHome } from "./operational-home";
+import {
+  WorkspaceOnboarding,
+  TeamSettings,
+  BillingSettings,
+  ProviderChecks,
+} from "./workspace-settings";
+import {
+  DiscoveryWorkbench,
+  LeadDatabase,
+  CompanyDirectory,
+  CompanyProfile,
+  ImportHistory,
+  OutreachWorkbench,
+} from "./journey-workspaces";
+import { EngagementWorkspace } from "./social-tools";
 import { IntelligenceConsole } from "./intelligence-console";
 import {
   AssetLibrary,
@@ -59,7 +77,6 @@ import type {
   Session,
   Workspace,
   Contact,
-  Dashboard,
   Page,
   Deal,
   Icp,
@@ -72,43 +89,79 @@ const navigation: {
   items: { path: string; label: string; icon: LucideIcon }[];
 }[] = [
   {
-    section: "WORKSPACE",
+    section: "START",
+    items: [{ path: "/overview", label: "Übersicht", icon: LayoutDashboard }],
+  },
+  {
+    section: "DISCOVER",
     items: [
-      { path: "/overview", label: "Übersicht", icon: LayoutDashboard },
       { path: "/discover", label: "Lead Discovery", icon: Search },
       { path: "/intelligence", label: "Recherche & KI", icon: Sparkles },
+      { path: "/imports", label: "Import-Verlauf", icon: Upload },
+    ],
+  },
+  {
+    section: "LEADS",
+    items: [
       { path: "/contacts", label: "Kontakte", icon: Users },
       { path: "/companies", label: "Unternehmen", icon: Building2 },
       { path: "/audiences", label: "Zielgruppen & ICP", icon: Target },
     ],
   },
   {
-    section: "WACHSTUM",
+    section: "OUTREACH",
     items: [
-      { path: "/pipeline", label: "CRM / Pipeline", icon: Workflow },
-      { path: "/tasks", label: "Aufgaben & Notizen", icon: CheckCircle2 },
       { path: "/campaigns", label: "Kampagnen", icon: MessageSquare },
-      { path: "/outreach", label: "Outreach-Entwürfe", icon: MessageSquare },
+      { path: "/outreach", label: "Outreach-Entwürfe", icon: FileText },
+    ],
+  },
+  {
+    section: "SOCIAL",
+    items: [
       { path: "/social/studio", label: "Social Studio", icon: Sparkles },
-      { path: "/social/library", label: "Bildbibliothek", icon: FileText },
-      { path: "/brands", label: "Markenprofile", icon: Target },
       {
         path: "/social/calendar",
         label: "Content-Kalender",
         icon: CalendarDays,
       },
+      { path: "/social/library", label: "Bildbibliothek", icon: FileText },
+      { path: "/brands", label: "Markenprofile", icon: Target },
+      { path: "/social/engagement", label: "Engagement", icon: MessageSquare },
     ],
   },
   {
-    section: "VERWALTUNG",
+    section: "CRM",
     items: [
-      { path: "/settings/integrations", label: "Integrationen", icon: Link2 },
+      { path: "/pipeline", label: "CRM / Pipeline", icon: Workflow },
+      { path: "/tasks", label: "Aufgaben & Notizen", icon: CheckCircle2 },
       { path: "/audit", label: "Aktivitäten", icon: ShieldCheck },
+    ],
+  },
+  {
+    section: "EINSTELLUNGEN",
+    items: [
+      {
+        path: "/settings/workspace",
+        label: "Workspace-Einrichtung",
+        icon: Building2,
+      },
+      { path: "/settings/integrations", label: "Integrationen", icon: Link2 },
+      { path: "/settings/team", label: "Team & Rollen", icon: Users },
+      { path: "/settings/billing", label: "Abo & Ressourcen", icon: BookOpen },
       { path: "/operations", label: "Aufträge & Budget", icon: Workflow },
     ],
   },
 ];
 const titles: Record<string, string> = {
+  "/settings/workspace": "Workspace-Einrichtung",
+  "/settings/team": "Team & Rollen",
+  "/settings/billing": "Abo & Ressourcen",
+  "/social/engagement": "Engagement",
+  "/imports": "Import-Verlauf",
+  "/contacts/legacy": "Kontakte",
+  "/companies/legacy": "Unternehmen",
+  "/discover/legacy": "Discovery-Beispiele",
+  "/outreach/legacy": "Outreach-Entwürfe",
   "/overview": "Übersicht",
   "/contacts": "Kontakte",
   "/discover": "Lead Discovery",
@@ -135,7 +188,9 @@ function Logo() {
         <span />
         <span />
       </span>
-      Prospect<span className="brand-os">OS</span>
+      <span className="brand-wordmark">
+        Prospect<span className="brand-os">OS</span>
+      </span>
     </span>
   );
 }
@@ -156,6 +211,7 @@ export default function WorkspaceApp() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   const [mobile, setMobile] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState("light");
   const [revision, setRevision] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
@@ -163,8 +219,10 @@ export default function WorkspaceApp() {
     const nav = document.querySelector<HTMLElement>(".sidebar nav");
     const active = nav?.querySelector<HTMLElement>(".nav-item.active");
     if (nav && active) {
-      const delta=active.getBoundingClientRect().top-nav.getBoundingClientRect().top;
-      if(delta<0||delta+active.offsetHeight>nav.clientHeight) nav.scrollTop+=delta-nav.clientHeight/2+active.offsetHeight/2;
+      const delta =
+        active.getBoundingClientRect().top - nav.getBoundingClientRect().top;
+      if (delta < 0 || delta + active.offsetHeight > nav.clientHeight)
+        nav.scrollTop += delta - nav.clientHeight / 2 + active.offsetHeight / 2;
     }
   }, [route, session?.user.id]);
   const refresh = () => setRevision((v) => v + 1);
@@ -200,7 +258,14 @@ export default function WorkspaceApp() {
             setError(e.message);
         }),
     ]).finally(() => {
-      if (active) setBoot(false);
+      if (active) {
+        try {
+          setCollapsed(
+            localStorage.getItem("prospectos.sidebar.collapsed") === "true",
+          );
+        } catch {}
+        setBoot(false);
+      }
     });
     return () => {
       active = false;
@@ -361,16 +426,38 @@ export default function WorkspaceApp() {
             </div>
           </div>
           <span className="login-caption">
-            Externe Aktionen benötigen explizite Freigaben und verifizierte Berechtigungen.
+            Externe Aktionen benötigen explizite Freigaben und verifizierte
+            Berechtigungen.
           </span>
         </section>
       </main>
     );
   return (
-    <div className="app">
+    <div className={`app ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside className={`sidebar ${mobile ? "open" : ""}`}>
         <div className="sidebar-logo">
           <Logo />
+          <button
+            className="icon-button sidebar-toggle desktop-only"
+            aria-label={
+              collapsed ? "Navigation ausklappen" : "Navigation einklappen"
+            }
+            onClick={() => {
+              setCollapsed(!collapsed);
+              try {
+                localStorage.setItem(
+                  "prospectos.sidebar.collapsed",
+                  String(!collapsed),
+                );
+              } catch {}
+            }}
+          >
+            {collapsed ? (
+              <PanelLeftOpen size={17} />
+            ) : (
+              <PanelLeftClose size={17} />
+            )}
+          </button>
           <button
             className="icon-button mobile-only"
             onClick={() => setMobile(false)}
@@ -419,7 +506,13 @@ export default function WorkspaceApp() {
                 <button
                   key={item.path}
                   aria-label={item.label}
-                  className={`nav-item ${route === item.path ? "active" : ""}`}
+                  title={collapsed ? item.label : undefined}
+                  aria-current={
+                    route === item.path || route.startsWith(item.path + "/")
+                      ? "page"
+                      : undefined
+                  }
+                  className={`nav-item ${route === item.path || route.startsWith(item.path + "/") ? "active" : ""}`}
                   onClick={() => go(item.path)}
                 >
                   <item.icon size={18} />
@@ -489,7 +582,14 @@ export default function WorkspaceApp() {
             </button>
             <span className="desktop-only">Workspace</span>
             <ChevronRight size={14} />
-            <strong>{titles[route] || "Workspace"}</strong>
+            <strong>
+              {titles[route] ||
+                (route.startsWith("/campaigns/")
+                  ? "Kampagnendetails"
+                  : route.startsWith("/companies/")
+                    ? "Unternehmensprofil"
+                    : "Workspace")}
+            </strong>
           </div>
           <div className="topbar-actions">
             <Badge tone="green">
@@ -523,6 +623,127 @@ export default function WorkspaceApp() {
         <main className="main-content" key={workspace?.id}>
           {workspace ? (
             <>
+              {route === "/discover" && (
+                <DiscoveryWorkbench
+                  base={base}
+                  write={write}
+                  csrf={session.csrf_token}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                  onNavigate={go}
+                  onImport={() => setImportOpen(true)}
+                />
+              )}
+              {route === "/contacts" && (
+                <LeadDatabase
+                  base={base}
+                  write={write}
+                  csrf={session.csrf_token}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                  onNavigate={go}
+                  onImport={() => setImportOpen(true)}
+                />
+              )}
+              {route === "/companies" && (
+                <CompanyDirectory
+                  base={base}
+                  write={write}
+                  csrf={session.csrf_token}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                  onNavigate={go}
+                />
+              )}
+              {route.startsWith("/companies/") &&
+                route !== "/companies/legacy" && (
+                  <CompanyProfile
+                    companyId={route.split("/")[2]}
+                    base={base}
+                    write={write}
+                    csrf={session.csrf_token}
+                    notify={notify}
+                    revision={revision}
+                    onChange={refresh}
+                    onNavigate={go}
+                  />
+                )}
+              {route === "/imports" && (
+                <ImportHistory
+                  base={base}
+                  write={write}
+                  csrf={session.csrf_token}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                  onNavigate={go}
+                  onImport={() => setImportOpen(true)}
+                />
+              )}
+              {(route === "/outreach" || route.startsWith("/campaigns/")) && (
+                <OutreachWorkbench
+                  key={route}
+                  initialCampaignId={
+                    route.startsWith("/campaigns/")
+                      ? route.split("/")[2]
+                      : undefined
+                  }
+                  base={base}
+                  write={write}
+                  csrf={session.csrf_token}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                  onNavigate={go}
+                />
+              )}
+              {route === "/social/engagement" && (
+                <EngagementWorkspace
+                  base={base}
+                  write={write}
+                  csrf={session.csrf_token}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                />
+              )}
+              {route === "/settings/workspace" && (
+                <WorkspaceOnboarding
+                  role={workspace.role}
+                  base={base}
+                  write={write}
+                  csrf={session.csrf_token}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                  onNavigate={go}
+                  onImport={() => setImportOpen(true)}
+                />
+              )}
+              {route === "/settings/team" && (
+                <TeamSettings
+                  role={workspace.role}
+                  base={base}
+                  write={write}
+                  csrf={session.csrf_token}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                />
+              )}
+              {route === "/settings/billing" && (
+                <BillingSettings
+                  base={base}
+                  write={write}
+                  csrf={session.csrf_token}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                />
+              )}
               {route === "/overview" && (
                 <Overview
                   base={base}
@@ -532,10 +753,10 @@ export default function WorkspaceApp() {
                   openImport={() => setImportOpen(true)}
                 />
               )}
-              {route === "/discover" && (
+              {route === "/discover/legacy" && (
                 <Discovery write={write} notify={notify} onChange={refresh} />
               )}
-              {route === "/contacts" && (
+              {route === "/contacts/legacy" && (
                 <Contacts
                   base={base}
                   revision={revision}
@@ -545,10 +766,21 @@ export default function WorkspaceApp() {
                   onChange={refresh}
                 />
               )}
-              {route === "/companies" && (
+              {route === "/companies/legacy" && (
                 <Companies base={base} revision={revision} />
               )}
               {route === "/audiences" && (
+                <ICPBuilder
+                  base={base}
+                  write={write}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                  csrf={session.csrf_token}
+                  onNavigate={go}
+                />
+              )}
+              {route === "/audiences/legacy" && (
                 <Audiences
                   base={base}
                   write={write}
@@ -579,7 +811,7 @@ export default function WorkspaceApp() {
                 <Integrations base={base} write={write} />
               )}
               {route === "/audit" && <Audit base={base} />}
-              {route === "/outreach" && (
+              {route === "/outreach/legacy" && (
                 <OutreachDrafts
                   base={base}
                   write={write}
@@ -630,7 +862,14 @@ export default function WorkspaceApp() {
                 />
               )}
               {route === "/intelligence" && (
-                <IntelligenceConsole base={base} write={write} notify={notify} revision={revision} onChange={refresh} csrf={session.csrf_token}/>
+                <IntelligenceConsole
+                  base={base}
+                  write={write}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                  csrf={session.csrf_token}
+                />
               )}
               {route === "/operations" && (
                 <Operations
@@ -642,19 +881,21 @@ export default function WorkspaceApp() {
                   onChange={refresh}
                 />
               )}
-              {!titles[route] && (
-                <Empty
-                  title="Diese Seite gibt es noch nicht"
-                  description="Die verfügbaren Bereiche findest du in der Navigation."
-                >
-                  <button
-                    className="button primary"
-                    onClick={() => go("/overview")}
+              {!titles[route] &&
+                !route.startsWith("/companies/") &&
+                !route.startsWith("/campaigns/") && (
+                  <Empty
+                    title="Diese Seite gibt es noch nicht"
+                    description="Die verfügbaren Bereiche findest du in der Navigation."
                   >
-                    Zur Übersicht
-                  </button>
-                </Empty>
-              )}
+                    <button
+                      className="button primary"
+                      onClick={() => go("/overview")}
+                    >
+                      Zur Übersicht
+                    </button>
+                  </Empty>
+                )}
             </>
           ) : (
             <Empty
@@ -717,7 +958,7 @@ export default function WorkspaceApp() {
                 setWorkspace(created);
                 sessionStorage.setItem("prospectos.workspace", created.id);
                 setWorkspaceOpen(false);
-                go("/overview");
+                go("/settings/workspace");
                 notify(
                   "Workspace erstellt. Starte mit deinem Kundenprofil oder dem ersten Kontakt.",
                 );
@@ -789,295 +1030,17 @@ function Overview({
   go: (path: string) => void;
   openImport: () => void;
 }) {
-  const { data, error, loading } = useData<Dashboard>(
-    `${base}/dashboard`,
-    revision,
-  );
-  const deals = useData<Page<Deal>>(`${base}/deals?limit=100`, revision);
-  const integrations = useData<{
-    items: { name: string; status: string; reason: string }[];
-  }>(`${base}/integrations`);
-  const linkedin = integrations.data?.items.find(
-    (item) => item.name.toLowerCase() === "linkedin",
-  );
-  const counts = Object.keys(stageLabels).map((stage) => ({
-    stage,
-    count: deals.data?.items.filter((d) => d.stage === stage).length || 0,
-  }));
-  const max = Math.max(1, ...counts.map((c) => c.count));
   return (
-    <>
-      <Heading
-        eyebrow="DEIN WORKSPACE IM BLICK"
-        title={`Hallo ${name?.split(" ")[0] || "zusammen"}, auf gute Verbindungen.`}
-        description="Die richtigen Menschen. Die nächsten Schritte. Alles an einem Ort."
-      >
-        <button
-          className="button secondary"
-          onClick={() => go("/social/studio")}
-        >
-          <Sparkles size={16} /> Beitrag erstellen
-        </button>
-        <button className="button primary" onClick={openImport}>
-          <Plus size={17} /> Kontakte importieren
-        </button>
-      </Heading>
-      <ErrorNote message={error} />
-      <section className="welcome-banner">
-        <div className="welcome-copy">
-          <Badge tone="light">
-            <Zap size={12} /> VON KONTAKT ZU CHANCE
-          </Badge>
-          <h2>
-            Weniger suchen.
-            <br />
-            Mehr ins Gespräch kommen.
-          </h2>
-          <p>
-            Baue deine Kontaktbasis auf und erkenne,
-            <br />
-            wer wirklich zu deinem Unternehmen passt.
-          </p>
-          <button onClick={() => go("/contacts")}>
-            Kontakte entdecken <ArrowRight size={16} />
-          </button>
-        </div>
-        <div className="orbit" aria-hidden="true">
-          <span className="orbit-ring ring1" />
-          <span className="orbit-ring ring2" />
-          <span className="orbit-center">
-            <Target size={42} />
-          </span>
-          <span className="orbit-card orbit-card-one">
-            <span className="mini-avatar">MK</span>
-            <div>
-              <b>Der passende Kontakt</b>
-              <small>Fit statt Zufall</small>
-            </div>
-            <span className="mini-check">
-              <Check size={14} />
-            </span>
-          </span>
-          <span className="orbit-card orbit-card-two">
-            <span className="mini-icon">
-              <MessageSquare size={19} />
-            </span>
-            <div>
-              <b>Das nächste Gespräch</b>
-              <small>Persönlich vorbereitet</small>
-            </div>
-          </span>
-          <span className="orbit-spark">✦</span>
-        </div>
-      </section>
-      <div className="stats-grid">
-        {[
-          {
-            label: "Kontakte",
-            value: data?.contacts,
-            icon: Users,
-            sub: "In deiner Kontaktbasis",
-            color: "purple",
-            path: "/contacts",
-          },
-          {
-            label: "Unternehmen",
-            value: data?.companies,
-            icon: Building2,
-            sub: "Mit deinen Kontakten verknüpft",
-            color: "blue",
-            path: "/companies",
-          },
-          {
-            label: "Qualifizierte Kontakte",
-            value: data?.qualified,
-            icon: Target,
-            sub: "Status: qualifiziert",
-            color: "green",
-            path: "/contacts",
-          },
-          {
-            label: "Pipeline-Wert",
-            value: data?.pipeline_value,
-            icon: Workflow,
-            sub: "Offene Verkaufschancen",
-            color: "amber",
-            path: "/pipeline",
-          },
-        ].map((stat) => (
-          <button
-            className="stat-card"
-            key={stat.label}
-            onClick={() => go(stat.path)}
-          >
-            <div className="stat-top">
-              <span>{stat.label}</span>
-              <span className={`stat-icon ${stat.color}`}>
-                <stat.icon size={18} />
-              </span>
-            </div>
-            <strong>
-              {loading
-                ? "—"
-                : stat.value === undefined
-                  ? "—"
-                  : stat.label === "Pipeline-Wert"
-                    ? money(stat.value)
-                    : number(stat.value)}
-            </strong>
-            <small>{stat.sub}</small>
-          </button>
-        ))}
-      </div>
-      <div className="dashboard-grid">
-        <section className="panel">
-          <div className="panel-head">
-            <div>
-              <h2>Dein nächster Schritt</h2>
-              <p>Aus guten Daten wird echtes Potenzial.</p>
-            </div>
-            <span className="panel-icon">
-              <Sparkles size={19} />
-            </span>
-          </div>
-          <div className="next-steps">
-            <button onClick={openImport}>
-              <span className="step-icon purple">
-                <Upload size={20} />
-              </span>
-              <span>
-                <strong>Kontaktbasis aufbauen</strong>
-                <small>CSV hochladen, prüfen und sicher importieren</small>
-              </span>
-              <ArrowUpRight size={18} />
-            </button>
-            <button onClick={() => go("/audiences")}>
-              <span className="step-icon blue">
-                <Target size={20} />
-              </span>
-              <span>
-                <strong>Die richtigen Kontakte erkennen</strong>
-                <small>Dein ideales Kundenprofil definieren</small>
-              </span>
-              <ArrowUpRight size={18} />
-            </button>
-            <button onClick={() => go("/social/studio")}>
-              <span className="step-icon amber">
-                <FileText size={20} />
-              </span>
-              <span>
-                <strong>Deiner Marke eine Stimme geben</strong>
-                <small>Erstelle deinen nächsten LinkedIn-Entwurf</small>
-              </span>
-              <ArrowUpRight size={18} />
-            </button>
-          </div>
-        </section>
-        <section className="panel">
-          <div className="panel-head">
-            <div>
-              <h2>Pipeline auf einen Blick</h2>
-              <p>
-                {data
-                  ? `${number(data.deals)} Verkaufschancen in deinem Workspace`
-                  : "Deine Verkaufschancen nach Phase"}
-              </p>
-            </div>
-            <button className="text-button" onClick={() => go("/pipeline")}>
-              Pipeline <ArrowUpRight size={14} />
-            </button>
-          </div>
-          <div className="pipeline-chart">
-            {counts.slice(0, 6).map((c, i) => (
-              <div className="chart-row" key={c.stage}>
-                <span>{stageLabels[c.stage]}</span>
-                <div className="chart-track">
-                  <span
-                    style={{
-                      width: `${(c.count / max) * 100}%`,
-                      background: `var(--chart-${i % 4})`,
-                    }}
-                  />
-                </div>
-                <b>{c.count}</b>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-      <div className="dashboard-grid bottom-grid">
-        <section className="panel">
-          <div className="panel-head">
-            <div>
-              <h2>Letzte Aktivitäten</h2>
-              <p>Was sich in deinem Workspace bewegt.</p>
-            </div>
-            <button className="text-button" onClick={() => go("/audit")}>
-              Alle ansehen <ArrowUpRight size={14} />
-            </button>
-          </div>
-          {data?.activities?.length ? (
-            <div className="activity-list">
-              {data.activities.slice(0, 4).map((activity) => (
-                <div className="activity-row" key={activity.id}>
-                  <span className="activity-icon">
-                    <CheckCircle2 size={16} />
-                  </span>
-                  <div>
-                    <p>{activity.description}</p>
-                    <small>{dateTime(activity.created_at)}</small>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="quiet-empty">
-              <span className="activity-icon">
-                <BookOpen size={20} />
-              </span>
-              <p>
-                Noch ist es ruhig hier.
-                <br />
-                <small>
-                  Deine ersten Aktionen erscheinen an dieser Stelle.
-                </small>
-              </p>
-            </div>
-          )}
-        </section>
-        <section className="integration-card">
-          <div className="integration-symbol">in</div>
-          <div>
-            <Badge
-              tone={linkedin?.status === "connected" ? "green" : "neutral"}
-            >
-              {linkedin?.status === "connected"
-                ? "VERBUNDEN"
-                : linkedin
-                  ? "NICHT VERBUNDEN"
-                  : "STATUS WIRD GEPRÜFT"}
-            </Badge>
-            <h2>LinkedIn, mit Kontrolle.</h2>
-            <p>
-              {linkedin?.reason ||
-                "Der Verbindungsstatus wird vom Backend geprüft. Entwürfe und Planung sind davon unabhängig verfügbar."}
-            </p>
-            <button
-              className="button secondary"
-              onClick={() => go("/settings/integrations")}
-            >
-              Integrationen ansehen <ArrowUpRight size={14} />
-            </button>
-          </div>
-        </section>
-      </div>
-      <p className="data-caption">
-        <span className="status-dot" /> Alle Kennzahlen stammen aus diesem
-        Workspace. Demo-Datensätze sind synthetisch.
-      </p>
-    </>
+    <OperationalHome
+      base={base}
+      revision={revision}
+      name={name}
+      go={go}
+      openImport={openImport}
+    />
   );
 }
+
 function Contacts({
   base,
   revision,
@@ -2014,10 +1977,48 @@ function Pipeline({
   revision: number;
   onChange: () => void;
 }) {
-  const { data, error, loading } = useData<Page<Deal>>(
-    `${base}/deals?limit=100`,
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState("created");
+  const [view, setView] = useState("board");
+  const [detail, setDetail] = useState<{
+    id: string;
+    title: string;
+    amount: number;
+    stage: string;
+    contact: { id: string; name: string } | null;
+    company: { id: string; name: string } | null;
+    tasks: {
+      id: string;
+      title: string;
+      state: string;
+      due_at: string | null;
+    }[];
+    notes: { id: string; body: string; created_at: string }[];
+    notice: string;
+  } | null>(null);
+  const { data, error, loading } = useData<
+    Page<Deal> & { open_value: number; won_value: number }
+  >(
+    `${base}/deals?limit=100&page=${page}&search=${encodeURIComponent(search)}&sort=${sort}`,
     revision,
   );
+  async function moveDeal(id: string, stage: string) {
+    try {
+      await write(`/deals/${id}`, { stage }, "PATCH");
+      onChange();
+      notify("Phase aktualisiert.");
+    } catch (e) {
+      notify((e as Error).message);
+    }
+  }
+  async function inspectDeal(id: string) {
+    try {
+      setDetail(await request(`${base}/deals/${id}/context`));
+    } catch (e) {
+      notify((e as Error).message);
+    }
+  }
   const [open, setOpen] = useState(false);
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -2052,9 +2053,9 @@ function Pipeline({
   return (
     <>
       <Heading
-        eyebrow="VON VERBINDUNG ZU WACHSTUM"
-        title="Jede Chance im Blick."
-        description="Halte Gespräche in Bewegung – mit einer Pipeline, die deinen Fortschritt zeigt."
+        eyebrow="CRM / PIPELINE"
+        title="Verkaufschancen"
+        description="Phasen, Werte und nächste Schritte. Verschiebe Karten per Drag-and-drop oder nutze die tastaturbedienbare Phasenauswahl."
       >
         <button className="button primary" onClick={() => setOpen(true)}>
           <Plus size={17} /> Verkaufschance
@@ -2063,13 +2064,7 @@ function Pipeline({
       <div className="pipeline-summary">
         <div>
           <span>Offener Pipeline-Wert</span>
-          <strong>
-            {money(
-              data?.items
-                .filter((d) => !["won", "lost"].includes(d.stage))
-                .reduce((sum, d) => sum + d.amount, 0) || 0,
-            )}
-          </strong>
+          <strong>{money(data?.open_value || 0)}</strong>
         </div>
         <div>
           <span>Verkaufschancen</span>
@@ -2077,13 +2072,7 @@ function Pipeline({
         </div>
         <div>
           <span>Gewonnen</span>
-          <strong>
-            {money(
-              data?.items
-                .filter((d) => d.stage === "won")
-                .reduce((sum, d) => sum + d.amount, 0) || 0,
-            )}
-          </strong>
+          <strong>{money(data?.won_value || 0)}</strong>
         </div>
         <label className="pipeline-filter">
           Ansicht
@@ -2100,17 +2089,109 @@ function Pipeline({
           </select>
         </label>
       </div>
+      <div className="pipeline-toolbar">
+        <label>
+          Verkaufschancen suchen
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            maxLength={200}
+          />
+        </label>
+        <label>
+          Sortierung
+          <select value={sort} onChange={(e) => setSort(e.target.value)}>
+            <option value="created">Zuletzt angelegt</option>
+            <option value="amount">Höchster Wert</option>
+            <option value="title">Titel A–Z</option>
+          </select>
+        </label>
+        <div className="calendar-views">
+          <button
+            className={view === "board" ? "active" : ""}
+            onClick={() => setView("board")}
+          >
+            Kanban
+          </button>
+          <button
+            className={view === "list" ? "active" : ""}
+            onClick={() => setView("list")}
+          >
+            Listenansicht
+          </button>
+        </div>
+      </div>
       <ErrorNote message={error} />
       {loading ? (
         <div className="loading-block">
           <Spinner />
         </div>
+      ) : view === "list" ? (
+        <section className="panel">
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Verkaufschance</th>
+                  <th>Wert</th>
+                  <th>Phase</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.items
+                  .filter(
+                    (d) => stageFilter === "all" || d.stage === stageFilter,
+                  )
+                  .map((deal) => (
+                    <tr key={deal.id}>
+                      <td>
+                        <button
+                          className="journey-link"
+                          onClick={() => inspectDeal(deal.id)}
+                        >
+                          {deal.title}
+                        </button>
+                      </td>
+                      <td>{money(deal.amount)}</td>
+                      <td>
+                        <select
+                          aria-label={`Phase ändern ${deal.title}`}
+                          value={deal.stage}
+                          onChange={(e) => moveDeal(deal.id, e.target.value)}
+                        >
+                          {Object.entries(stageLabels).map(([key, value]) => (
+                            <option key={key} value={key}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       ) : (
         <div className="kanban">
           {(stageFilter === "all" ? stages : [stageFilter]).map((stage, i) => {
             const items = data?.items.filter((d) => d.stage === stage) || [];
             return (
-              <section className="kanban-column" key={stage}>
+              <section
+                className="kanban-column"
+                key={stage}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const id = e.dataTransfer.getData(
+                    "application/prospectos-deal",
+                  );
+                  if (id) void moveDeal(id, stage);
+                }}
+              >
                 <div className="kanban-head">
                   <span className={`stage-dot stage-${i % 4}`} />
                   <h2>{stageLabels[stage]}</h2>
@@ -2120,11 +2201,29 @@ function Pipeline({
                   {money(items.reduce((sum, d) => sum + d.amount, 0))}
                 </div>
                 {items.map((deal) => (
-                  <article className="deal-card" key={deal.id}>
+                  <article
+                    className="deal-card"
+                    key={deal.id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(
+                        "application/prospectos-deal",
+                        deal.id,
+                      );
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                  >
                     <span className="deal-icon">
                       <Building2 size={15} />
                     </span>
-                    <h3>{deal.title}</h3>
+                    <h3>
+                      <button
+                        className="journey-link"
+                        onClick={() => inspectDeal(deal.id)}
+                      >
+                        {deal.title}
+                      </button>
+                    </h3>
                     <strong>{money(deal.amount)}</strong>
                     <label>
                       Phase ändern
@@ -2164,6 +2263,92 @@ function Pipeline({
             );
           })}
         </div>
+      )}
+      {data && data.total > 100 && (
+        <div className="pagination">
+          <span>
+            Seite {page} · {data.total} Verkaufschancen. Summen über alle
+            Suchtreffer.
+          </span>
+          <div>
+            <button
+              className="button secondary small"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              Zurück
+            </button>
+            <button
+              className="button secondary small"
+              disabled={page * 100 >= data.total}
+              onClick={() => setPage(page + 1)}
+            >
+              Weiter
+            </button>
+          </div>
+        </div>
+      )}
+      {detail && (
+        <Modal title={detail.title} onClose={() => setDetail(null)} wide>
+          <div className="modal-body">
+            <div className="section-title">
+              <strong>{money(detail.amount)}</strong>
+              <Badge>{stageLabels[detail.stage]}</Badge>
+            </div>
+            <div className="journey-company-actions">
+              {detail.contact && (
+                <a
+                  className="button secondary"
+                  href={`/contacts?contact=${encodeURIComponent(detail.contact.id)}`}
+                >
+                  {detail.contact.name} · Kontakt öffnen
+                </a>
+              )}
+              {detail.company && (
+                <a
+                  className="button secondary"
+                  href={`/companies/${encodeURIComponent(detail.company.id)}`}
+                >
+                  {detail.company.name} · Unternehmen öffnen
+                </a>
+              )}
+            </div>
+            <div className="journey-profile-grid">
+              <section>
+                <h3>Nächste Aufgaben</h3>
+                {detail.tasks.length ? (
+                  detail.tasks.map((task) => (
+                    <div className="journey-task" key={task.id}>
+                      <span>
+                        <strong>{task.title}</strong>
+                        <small>
+                          {task.state} ·{" "}
+                          {task.due_at ? dateTime(task.due_at) : "Ohne Termin"}
+                        </small>
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="muted small">Keine verknüpften Aufgaben.</p>
+                )}
+              </section>
+              <section>
+                <h3>Kontaktnotizen</h3>
+                {detail.notes.length ? (
+                  detail.notes.map((note) => (
+                    <div className="journey-evidence" key={note.id}>
+                      {note.body}
+                      <small>{dateTime(note.created_at)}</small>
+                    </div>
+                  ))
+                ) : (
+                  <p className="muted small">Keine verknüpften Notizen.</p>
+                )}
+              </section>
+            </div>
+            <p className="small muted">{detail.notice}</p>
+          </div>
+        </Modal>
       )}
       {open && (
         <Modal title="Neue Verkaufschance" onClose={close}>
@@ -2219,12 +2404,18 @@ function Pipeline({
     </>
   );
 }
-function Integrations({ base,write }: { base: string; write:Write }) {
-  const [localError,setLocalError]=useState("");
-  const [revision,setRevision]=useState(0);
+function Integrations({ base, write }: { base: string; write: Write }) {
+  const [localError, setLocalError] = useState("");
+  const [revision, setRevision] = useState(0);
   const { data, error, loading } = useData<{
-    items: { name: string; status: string; reason: string; connect_available?:boolean; scopes?:string[] }[];
-  }>(`${base}/integrations`,revision);
+    items: {
+      name: string;
+      status: string;
+      reason: string;
+      connect_available?: boolean;
+      scopes?: string[];
+    }[];
+  }>(`${base}/integrations`, revision);
   return (
     <>
       <Heading
@@ -2241,7 +2432,7 @@ function Integrations({ base,write }: { base: string; write:Write }) {
           Backend gemeldet.
         </p>
       </div>
-      <ErrorNote message={localError||error} />
+      <ErrorNote message={localError || error} />
       {loading ? (
         <Spinner />
       ) : (
@@ -2277,7 +2468,47 @@ function Integrations({ base,write }: { base: string; write:Write }) {
                 </Badge>
               </div>
               <p>{integration.reason}</p>
-              {integration.name==="LinkedIn"&&<div className="form-actions">{integration.status==="connected"?<button className="button secondary" onClick={async()=>{try{await write("/integrations/linkedin/disconnect");setRevision(v=>v+1);}catch(e){setLocalError((e as Error).message)}}}>Verbindung entfernen</button>:<button className="button secondary" disabled={!integration.connect_available} title={integration.connect_available?"Offiziellen OAuth-Dialog öffnen":"Operator muss OAuth-Zugang und Token-Verschlüsselung konfigurieren."} onClick={async()=>{try{const result=await write<{authorization_url:string}>("/integrations/linkedin/start");window.location.assign(result.authorization_url);}catch(e){setLocalError((e as Error).message)}}}>Offiziell mit LinkedIn verbinden</button>}</div>}
+              {integration.name === "LinkedIn" && (
+                <div className="form-actions">
+                  {integration.status === "connected" ? (
+                    <button
+                      className="button secondary"
+                      onClick={async () => {
+                        try {
+                          await write("/integrations/linkedin/disconnect");
+                          setRevision((v) => v + 1);
+                        } catch (e) {
+                          setLocalError((e as Error).message);
+                        }
+                      }}
+                    >
+                      Verbindung entfernen
+                    </button>
+                  ) : (
+                    <button
+                      className="button secondary"
+                      disabled={!integration.connect_available}
+                      title={
+                        integration.connect_available
+                          ? "Offiziellen OAuth-Dialog öffnen"
+                          : "Operator muss OAuth-Zugang und Token-Verschlüsselung konfigurieren."
+                      }
+                      onClick={async () => {
+                        try {
+                          const result = await write<{
+                            authorization_url: string;
+                          }>("/integrations/linkedin/start");
+                          window.location.assign(result.authorization_url);
+                        } catch (e) {
+                          setLocalError((e as Error).message);
+                        }
+                      }}
+                    >
+                      Offiziell mit LinkedIn verbinden
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div className="provider-footer">
                 <ShieldCheck size={14} /> Berechtigungen und Anbieterstatus
@@ -2287,6 +2518,7 @@ function Integrations({ base,write }: { base: string; write:Write }) {
           ))}
         </div>
       )}
+      <ProviderChecks write={write} />
       <section className="panel integration-doc">
         <h2>Bereit für den nächsten Schritt?</h2>
         <p>

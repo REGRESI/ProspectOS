@@ -4,8 +4,6 @@ import Image from "next/image";
 import {
   CalendarDays,
   Check,
-  ChevronLeft,
-  ChevronRight,
   CircleHelp,
   FileText,
   MoreHorizontal,
@@ -16,6 +14,12 @@ import { dateTime, postLabels } from "@/lib/api";
 import type { Page, Post } from "@/lib/api";
 import type { Asset, Brand, Write } from "./growth-modules";
 import { Badge, Empty, ErrorNote, Heading, Modal, Spinner } from "./ui";
+import {
+  ContentCalendar,
+  GenerationTools,
+  PostInspector,
+  PublishingRules,
+} from "./social-tools";
 export function Social({
   base,
   write,
@@ -43,7 +47,12 @@ export function Social({
   const assets = useData<Page<Asset>>(`${base}/assets?limit=100`, revision);
   const brands = useData<Page<Brand>>(`${base}/brands?limit=100`, revision);
   const integration = useData<{
-    items: { name: string; status: string; reason: string; publish_available?:boolean }[];
+    items: {
+      name: string;
+      status: string;
+      reason: string;
+      publish_available?: boolean;
+    }[];
   }>(`${base}/integrations`);
   const linkedin = integration.data?.items.find(
     (i) => i.name.toLowerCase() === "linkedin",
@@ -53,14 +62,35 @@ export function Social({
   );
 
   const [variants, setVariants] = useState<string[]>([]);
+  const [variantNotes, setVariantNotes] = useState<
+    {
+      hook?: string;
+      cta?: string;
+      citations?: string[];
+      unverified_claims?: string[];
+    }[]
+  >([]);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState("");
   const [editing, setEditing] = useState<Post | null>(null);
-  const [publish,setPublish]=useState<Post|null>(null);
-  const [publishTime,setPublishTime]=useState("");
+  const [publish, setPublish] = useState<Post | null>(null);
+  const [publishTime, setPublishTime] = useState("");
+  const [automationAuthorized, setAutomationAuthorized] = useState(false);
+  const publishPolicy = useData<{ mode: string }>(
+    `${base}/social/policy`,
+    revision,
+  );
   const [schedule, setSchedule] = useState<Post | null>(null);
   const [time, setTime] = useState("");
-  const [monthOffset, setMonthOffset] = useState(0);
+  const [inspected, setInspected] = useState<Post | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">(
+    "desktop",
+  );
+  const [variantOrigin, setVariantOrigin] = useState<"offline" | "provider">(
+    "offline",
+  );
+  const [savedAt, setSavedAt] = useState<string | null>(null);
   const close = useCallback(() => setSchedule(null), []);
   async function generate() {
     setBusy(true);
@@ -71,6 +101,8 @@ export function Social({
         { topic },
       );
       setVariants(result.variants);
+      setVariantOrigin("offline");
+      setVariantNotes([]);
       setCaption(result.variants[0] || "");
       notify(
         result.notice ||
@@ -103,6 +135,7 @@ export function Social({
       setBrandId("");
       setEditing(null);
       onChange();
+      setSavedAt(new Date().toISOString());
       notify("Beitrag gespeichert.");
     } catch (e) {
       setLocalError((e as Error).message);
@@ -126,29 +159,13 @@ export function Social({
     }
   }
   const posts = data?.items || [];
-  const berlinToday = new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Europe/Berlin",
-  }).format(new Date());
-  const [berlinYear, berlinMonth] = berlinToday.split("-").map(Number);
-  const month = new Date(berlinYear, berlinMonth - 1, 1);
-  month.setMonth(month.getMonth() + monthOffset);
-  const first = (month.getDay() + 6) % 7;
-  const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const monthName = new Intl.DateTimeFormat("de-DE", {
-    month: "long",
-    year: "numeric",
-  }).format(month);
   return (
     <>
       <Heading
         eyebrow={
           calendar ? "DEIN REDAKTIONELLER RHYTHMUS" : "IDEEN, DIE VERBINDEN"
         }
-        title={
-          calendar
-            ? "Guter Content braucht einen Plan."
-            : "Deine Perspektive. Deine Stimme."
-        }
+        title={calendar ? "Content-Kalender" : "Beiträge erstellen"}
         description={
           calendar
             ? "Redaktionelle und ausdrücklich autorisierte Termine in Europe/Berlin."
@@ -170,86 +187,16 @@ export function Social({
             {linkedin?.reason || "Entwürfe und interne Planung sind verfügbar."}
           </span>
         </div>
-        <Badge tone="neutral">{linkedin?.publish_available?"Freigabe erforderlich":"Kein Versand"}</Badge>
+        <Badge tone="neutral">
+          {linkedin?.publish_available
+            ? "Freigabe erforderlich"
+            : "Kein Versand"}
+        </Badge>
       </div>
       <ErrorNote message={error || localError} />
+      <PublishingRules base={base} write={write} />
       {calendar ? (
-        <section className="panel">
-          <div className="panel-head calendar-toolbar">
-            <div>
-              <h2>{monthName}</h2>
-              <p>Zeitzone: Europe/Berlin</p>
-            </div>
-            <div>
-              <button
-                className="icon-button"
-                aria-label="Vorheriger Monat"
-                onClick={() => setMonthOffset((v) => v - 1)}
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <button
-                className="button secondary"
-                onClick={() => setMonthOffset(0)}
-              >
-                Heute
-              </button>
-              <button
-                className="icon-button"
-                aria-label="Nächster Monat"
-                onClick={() => setMonthOffset((v) => v + 1)}
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-          </div>
-          <div className="calendar-grid">
-            {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((day) => (
-              <div className="calendar-weekday" key={day}>
-                {day}
-              </div>
-            ))}
-            {Array.from({ length: first }, (_, i) => (
-              <div className="calendar-day outside" key={`empty-${i}`} />
-            ))}
-            {Array.from({ length: days }, (_, i) => {
-              const date = new Date(
-                month.getFullYear(),
-                month.getMonth(),
-                i + 1,
-              );
-              const today =
-                berlinToday ===
-                `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`;
-              const scheduled = posts.filter(
-                (p) =>
-                  p.scheduled_at &&
-                  new Intl.DateTimeFormat("sv-SE", {
-                    timeZone: "Europe/Berlin",
-                  }).format(new Date(p.scheduled_at)) ===
-                    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`,
-              );
-              return (
-                <div className={`calendar-day ${today ? "today" : ""}`} key={i}>
-                  <span>{i + 1}</span>
-                  {scheduled.map((p) => (
-                    <div className="calendar-post" key={p.id}>
-                      <span>
-                        {new Intl.DateTimeFormat("de-DE", {
-                          timeZone: "Europe/Berlin",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }).format(new Date(p.scheduled_at!))}
-                      </span>
-                      <strong>{p.caption.slice(0, 55)}</strong>
-                      <small>{p.state==="scheduled"&&p.publish_enabled?"Veröffentlichung autorisiert":postLabels[p.state]||p.state}</small>
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        </section>
+        <ContentCalendar posts={posts} onOpen={setInspected} />
       ) : (
         <div className="studio-layout">
           <section className="panel studio-editor">
@@ -261,6 +208,25 @@ export function Social({
               <Badge tone="purple">LinkedIn</Badge>
             </div>
             <div className="studio-body">
+              <div className="section-title">
+                <div>
+                  <strong>Inhalt & Marke</strong>
+                  <p className="small muted">
+                    {caption.trim()
+                      ? "Ungespeicherter Entwurf"
+                      : savedAt
+                        ? `Zuletzt gespeichert: ${dateTime(savedAt)}`
+                        : "Noch kein Entwurf gespeichert"}
+                  </p>
+                </div>
+                <button
+                  className="button secondary small"
+                  onClick={() => setAiOpen(!aiOpen)}
+                  aria-expanded={aiOpen}
+                >
+                  {aiOpen ? "KI-Werkzeuge schließen" : "KI-Assistent öffnen"}
+                </button>
+              </div>
               <div className="form-grid">
                 <label>
                   Markenprofil
@@ -297,6 +263,32 @@ export function Social({
                   </select>
                 </label>
               </div>
+              {aiOpen && (
+                <GenerationTools
+                  base={base}
+                  write={write}
+                  brands={brands.data?.items || []}
+                  brandId={brandId}
+                  topic={topic}
+                  onChange={onChange}
+                  onVariants={(items) => {
+                    const texts = items
+                      .map((item) => item.text)
+                      .filter(Boolean);
+                    setVariants(texts);
+                    setVariantNotes(items);
+                    setVariantOrigin("provider");
+                    notify(
+                      "Echte Modellvarianten geladen. Variante auswählen und Aussagen prüfen.",
+                    );
+                  }}
+                  onAsset={(asset) => {
+                    setAssetId(asset.id);
+                    setAltText(asset.alt_text);
+                    notify("Geprüftes Anbieterbild ausgewählt.");
+                  }}
+                />
+              )}
               <ErrorNote message={assets.error || brands.error} />
               {selectedAsset && (
                 <div className="composer-asset">
@@ -308,6 +300,46 @@ export function Social({
                     alt={altText || selectedAsset.alt_text}
                   />
                   <Badge tone="green">Privates Bild ausgewählt</Badge>
+                  <div className="form-actions">
+                    <span className="small muted">
+                      Mittiger Zuschnitt als neue private Datei:
+                    </span>
+                    {(["square", "portrait", "original"] as const).map(
+                      (crop) => (
+                        <button
+                          key={crop}
+                          className="button secondary small"
+                          disabled={busy}
+                          onClick={async () => {
+                            setBusy(true);
+                            setLocalError("");
+                            try {
+                              const asset = await write<Asset>(
+                                `/assets/${selectedAsset.id}/crop`,
+                                { crop },
+                              );
+                              onChange();
+                              setAssetId(asset.id);
+                              setAltText(asset.alt_text);
+                              notify(
+                                "Neue private Bildfassung gespeichert. Bestehende Beiträge bleiben unverändert.",
+                              );
+                            } catch (e) {
+                              setLocalError((e as Error).message);
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        >
+                          {crop === "square"
+                            ? "Quadrat 1:1"
+                            : crop === "portrait"
+                              ? "Hochformat 4:5"
+                              : "Originalformat"}
+                        </button>
+                      ),
+                    )}
+                  </div>
                 </div>
               )}
               <label>
@@ -331,8 +363,15 @@ export function Social({
               </label>
               <p className="offline-label">
                 <CircleHelp size={12} /> Deterministische Offline-Vorschläge ·
-                kein KI-Anbieter verbunden
+                keine echte KI-Generierung
               </p>
+              {variants.length > 0 && (
+                <p className="small muted">
+                  {variantOrigin === "provider"
+                    ? "Echte Modellvorschläge · nicht automatisch verifizierte Aussagen"
+                    : "Offline-Vorlagen · deterministisch, keine KI-Ausgabe"}
+                </p>
+              )}
               {variants.length > 0 && (
                 <div className="variant-tabs">
                   {variants.map((variant, i) => (
@@ -346,6 +385,37 @@ export function Social({
                   ))}
                 </div>
               )}
+              {variantOrigin === "provider" &&
+                variantNotes[variants.indexOf(caption)] && (
+                  <div className="variant-evidence">
+                    <strong>Modellvorschlag · Prüfung erforderlich</strong>
+                    {variantNotes[variants.indexOf(caption)].hook && (
+                      <p>
+                        Einstieg: {variantNotes[variants.indexOf(caption)].hook}
+                      </p>
+                    )}
+                    {variantNotes[variants.indexOf(caption)].cta && (
+                      <p>
+                        Handlungsimpuls:{" "}
+                        {variantNotes[variants.indexOf(caption)].cta}
+                      </p>
+                    )}
+                    {variantNotes[
+                      variants.indexOf(caption)
+                    ].unverified_claims?.map((claim, i) => (
+                      <p className="small muted" key={i}>
+                        Unbestätigt: {claim}
+                      </p>
+                    ))}
+                    <small>
+                      Quellen-IDs:{" "}
+                      {variantNotes[variants.indexOf(caption)].citations?.join(
+                        ", ",
+                      ) || "keine"}
+                      . Kein automatischer Faktennachweis.
+                    </small>
+                  </div>
+                )}
               <label>
                 Dein Beitrag
                 <textarea
@@ -399,12 +469,41 @@ export function Social({
           </section>
           <aside className="social-preview">
             <p className="eyebrow">VORSCHAU · NICHT VERÖFFENTLICHT</p>
-            <div className="linkedin-preview">
+            <div
+              className="preview-device"
+              role="group"
+              aria-label="Vorschaugerät"
+            >
+              <button
+                className={`button small ${previewDevice === "desktop" ? "primary" : "secondary"}`}
+                onClick={() => setPreviewDevice("desktop")}
+              >
+                Desktop-Vorschau
+              </button>
+              <button
+                className={`button small ${previewDevice === "mobile" ? "primary" : "secondary"}`}
+                onClick={() => setPreviewDevice("mobile")}
+              >
+                Mobile Vorschau
+              </button>
+            </div>
+            <div
+              className="linkedin-preview"
+              style={
+                previewDevice === "mobile"
+                  ? { maxWidth: 340, marginInline: "auto" }
+                  : undefined
+              }
+            >
               <div className="preview-author">
                 <span className="workspace-avatar">P</span>
                 <div>
                   <strong>Dein LinkedIn-Profil</strong>
-                  <small>Vorschau · Konto nicht verbunden</small>
+                  <small>
+                    {linkedin?.status === "connected"
+                      ? "Vorschau · verbundenes Konto"
+                      : "Vorschau · Konto nicht verbunden"}
+                  </small>
                 </div>
                 <MoreHorizontal size={20} />
               </div>
@@ -487,6 +586,12 @@ export function Social({
                   <p>{post.caption}</p>
                 </div>
                 <div className="post-actions">
+                  <button
+                    className="button secondary small"
+                    onClick={() => setInspected(post)}
+                  >
+                    Details & Revisionen
+                  </button>
                   {!calendar && (
                     <button
                       className="button secondary small"
@@ -518,7 +623,18 @@ export function Social({
                       Freigeben
                     </button>
                   )}
-                  {post.state === "approved" && linkedin?.publish_available && <button className="button primary small" onClick={()=>{setPublish(post);setPublishTime("");}}>Auf LinkedIn veröffentlichen</button>}
+                  {post.state === "approved" && linkedin?.publish_available && (
+                    <button
+                      className="button primary small"
+                      onClick={() => {
+                        setPublish(post);
+                        setPublishTime("");
+                        setAutomationAuthorized(false);
+                      }}
+                    >
+                      Auf LinkedIn veröffentlichen
+                    </button>
+                  )}
                   {post.state === "approved" && (
                     <button
                       className="button primary small"
@@ -550,6 +666,16 @@ export function Social({
           />
         )}
       </section>
+      {inspected && (
+        <PostInspector
+          key={inspected.id}
+          base={base}
+          post={inspected}
+          write={write}
+          onChange={onChange}
+          onClose={() => setInspected(null)}
+        />
+      )}
       {schedule && (
         <Modal title="Redaktionellen Termin planen" onClose={close}>
           <div className="modal-body">
@@ -592,7 +718,67 @@ export function Social({
           </div>
         </Modal>
       )}
-      {publish&&<Modal title="Offizielle Veröffentlichung bestätigen" onClose={()=>setPublish(null)}><div className="modal-body"><p>Du autorisierst die Veröffentlichung dieser freigegebenen Revision über das verbundene LinkedIn-Konto. Ein Worker prüft Rechte, Revision, Medien und Tageslimit erneut.</p><p style={{whiteSpace:"pre-wrap"}}>{publish.caption}</p><label>Optionaler Zeitpunkt (deine lokale Zeitzone)<input type="datetime-local" value={publishTime} onChange={e=>setPublishTime(e.target.value)}/></label><p className="small muted">Ohne Zeitpunkt wird die Veröffentlichung jetzt in die Queue gestellt. Ein Auftrag ist noch keine veröffentlichte Nachricht; der bestätigte Anbieterbeleg entscheidet.</p><div className="form-actions"><button className="button secondary" onClick={()=>setPublish(null)}>Abbrechen</button><button className="button primary" onClick={async()=>{const ok=await action(publish,"publish",{scheduled_at:publishTime?new Date(publishTime).toISOString():null,automation_authorized:false});if(ok)setPublish(null);}}>Veröffentlichung autorisieren</button></div></div></Modal>}
+      {publish && (
+        <Modal
+          title="Offizielle Veröffentlichung bestätigen"
+          onClose={() => setPublish(null)}
+        >
+          <div className="modal-body">
+            <p>
+              Du autorisierst die Veröffentlichung dieser freigegebenen Revision
+              über das verbundene LinkedIn-Konto. Ein Worker prüft Rechte,
+              Revision, Medien und Tageslimit erneut.
+            </p>
+            <p style={{ whiteSpace: "pre-wrap" }}>{publish.caption}</p>
+            <label>
+              Optionaler Zeitpunkt (deine lokale Zeitzone)
+              <input
+                type="datetime-local"
+                value={publishTime}
+                onChange={(e) => setPublishTime(e.target.value)}
+              />
+            </label>
+            {publishPolicy.data?.mode === "authorized_auto" && (
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={automationAuthorized}
+                  onChange={(e) => setAutomationAuthorized(e.target.checked)}
+                />{" "}
+                Diese freigegebene Revision innerhalb der Workspace-Regeln
+                automatisch veröffentlichen.
+              </label>
+            )}
+            <p className="small muted">
+              Ohne Zeitpunkt wird die Veröffentlichung jetzt in die Queue
+              gestellt. Ein Auftrag ist noch keine veröffentlichte Nachricht;
+              der bestätigte Anbieterbeleg entscheidet.
+            </p>
+            <div className="form-actions">
+              <button
+                className="button secondary"
+                onClick={() => setPublish(null)}
+              >
+                Abbrechen
+              </button>
+              <button
+                className="button primary"
+                onClick={async () => {
+                  const ok = await action(publish, "publish", {
+                    scheduled_at: publishTime
+                      ? new Date(publishTime).toISOString()
+                      : null,
+                    automation_authorized: automationAuthorized,
+                  });
+                  if (ok) setPublish(null);
+                }}
+              >
+                Veröffentlichung autorisieren
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

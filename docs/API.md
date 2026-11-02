@@ -22,3 +22,22 @@ The complete executable contract is FastAPI `/openapi.json` (interactive `/docs`
 | Health | GET `/health/live`, `/health/ready`; API and worker use the same startup role/config checks |
 
 Owner/admin permissions gate provider connections, publication, email sending, legal/source reviews, budgets, privacy and billing. Editors cannot self-escalate to approver/admin; approvers can review but not edit leads. No API response implies a missing key, expired token or unavailable provider was bypassed. All unverified provider capabilities and remaining gaps are documented in STATUS.md.
+
+## Product journey endpoints (additive)
+
+All paths below are workspace-relative, with the same membership/RLS/CSRF rules. `POST /leads/query` and `/discovery/interpret` are explicitly read-only; analyst/approver roles may use them with CSRF.
+
+| Domain | Additions |
+| --- | --- |
+| Home/setup | GET `/home`; GET/PUT `/onboarding` (owner/admin writes) |
+| Leads | POST `/leads/query` validated multi-filter/sort/pagination; POST `/leads/bulk`; GET/POST `/segments`; GET `/contacts/{id}/context` |
+| Companies/imports | GET `/companies/summary`, `/companies/{id}`; GET `/imports/history`, `/imports/{id}/report` |
+| ICP | GET/POST `/icp-profiles`; GET/PUT `/icp-profiles/{id}` with structured criteria and version |
+| Discovery | POST `/discovery/interpret` returns unconfirmed suggestions; GET/POST `/discovery/searches`; POST `/discovery/searches/{id}/run` requires `confirmed` and licensed rights where relevant; GET `/discovery/runs/{id}/results`; POST `/discovery/runs/{id}/import-selected` with exact result keys |
+| Campaigns | GET `/campaigns/{id}/workspace`; PUT `/campaigns/{id}/sequence`; POST `/campaigns/{id}/generate-drafts` creates labelled template drafts, no AI/send side effect; GET `/outreach/inbox`; POST `/outreach/handoffs` stores manual self-reported events |
+| AI/media | POST `/social/generate` queues three variants; GET `/social/images/requirements`; POST `/social/images/generate`; POST `/social/images/{job_id}/save` reviews actual persisted output; POST `/assets/{id}/crop` creates a private derivative |
+| Social | GET `/social/posts/{id}/revisions`; GET/POST `/social/interactions`; PATCH `/social/interactions/{id}`; POST `/social/interactions/{id}/suggest` queues an AI suggestion for manual review |
+| CRM | GET `/deals` adds bounded search/stage/sort and full filtered totals; GET `/deals/{id}/context` returns real deal/contact/company plus linked contact notes/tasks |
+| Provider checks | POST `/providers/{provider}/test` owner/admin; read-only token/model/test-mode checks only; licensed search/email return requirements without hidden paid calls |
+
+Template variables accept `{first_name}`, `{last_name}`, `{company}`, `{job_title}` and double-brace equivalents. They are string substitution only. Profile scores distinguish unsupported/missing evidence from matched criteria. All generated claims require review. Paid social jobs reject model/base/pricing changes before dispatch and never blindly retry ambiguous calls. Image review is rechecked when attaching and publishing media.

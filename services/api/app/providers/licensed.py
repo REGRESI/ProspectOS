@@ -38,6 +38,7 @@ class CompanyCandidate(BaseModel):
     location: str
     industry: str = ""
     website: str | None = None
+    employee_count: int | None = Field(default=None, ge=0, le=10_000_000)
     source_url: str = "https://www.peopledatalabs.com/"
     source: str = "people_data_labs"
     license: str
@@ -114,6 +115,10 @@ def search_companies(
                 location=str(location.get("name") or location.get("locality") or "")[:240],
                 industry=str(record.get("industry") or "")[:120],
                 website=website,
+                employee_count=record.get("employee_count")
+                if type(record.get("employee_count")) is int
+                and 0 <= record["employee_count"] <= 10_000_000
+                else None,
                 license=license_reference[:500],
                 observed_at=datetime.now(UTC).isoformat(),
             )

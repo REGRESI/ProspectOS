@@ -20,8 +20,10 @@ from sqlalchemy.orm import Session
 from app.commercial import register_commercial_routes
 from app.db import SessionLocal, now, uid
 from app.entitlements import remaining
+from app.experience import register_experience_routes, register_provider_tests
 from app.identity import auth_settings, register_identity_routes
 from app.imports import parse_csv
+from app.journeys import company_listing, register_journey_routes
 from app.models import (
     ICP,
     Audit,
@@ -177,16 +179,25 @@ def scope(
     member = db.get(Membership, (ws, auth.user_id))
     if member is None:
         raise HTTPException(404, "Workspace nicht gefunden.")
-    if request.method not in ("GET", "HEAD", "OPTIONS") and member.role not in (
-        "owner",
-        "admin",
-        "editor",
-        "approver",
+    read_only_post = request.method == "POST" and request.url.path.endswith(
+        ("/leads/query", "/discovery/interpret")
+    )
+    if (
+        request.method not in ("GET", "HEAD", "OPTIONS")
+        and not read_only_post
+        and member.role
+        not in (
+            "owner",
+            "admin",
+            "editor",
+            "approver",
+        )
     ):
         raise HTTPException(403, "Diese Rolle hat nur Lesezugriff.")
     # Approvers can review, but cannot modify contacts, ICP or authored content.
     if (
         request.method not in ("GET", "HEAD", "OPTIONS")
+        and not read_only_post
         and member.role == "approver"
         and not request.url.path.endswith(("/approve", "/reject"))
     ):
@@ -473,26 +484,7 @@ def companies(
     member=Depends(scope),
     db: Session = Depends(db_session, scope="function"),
 ):
-    items, total = paginate(
-        db, select(Company).where(Company.workspace_id == ws).order_by(Company.name), page, limit
-    )
-    return {
-        "items": [
-            {
-                "id": c.id,
-                "name": c.name,
-                "location": c.location,
-                "industry": c.industry,
-                "website": c.website,
-                "provenance": c.provenance,
-                "source": c.source,
-            }
-            for c in items
-        ],
-        "total": total,
-        "page": page,
-        "limit": limit,
-    }
+    return company_listing(db, ws, page, limit)
 
 
 @app.get("/v1/workspaces/{ws}/icp")
@@ -776,16 +768,50 @@ def deals(
     ws: str,
     page: int = 1,
     limit: int = 100,
+    search: str = "",
+    stage: str = "",
+    sort: str = "created",
     member=Depends(scope),
     db: Session = Depends(db_session, scope="function"),
 ):
-    items, total = paginate(
-        db,
-        select(Deal).where(Deal.workspace_id == ws).order_by(Deal.created_at.desc()),
-        page,
-        limit,
+    if (
+        len(search) > 200
+        or sort not in ("created", "amount", "title")
+        or stage
+        and stage
+        not in ("new", "qualified", "contacted", "conversation", "proposal", "won", "lost")
+    ):
+        raise HTTPException(422, "Invalid pipeline filters.")
+    stmt = select(Deal).where(Deal.workspace_id == ws)
+    if search:
+        stmt = stmt.where(
+            Deal.title.ilike("%" + search.replace("%", "\\%").replace("_", "\\_") + "%")
+        )
+    if stage:
+        stmt = stmt.where(Deal.stage == stage)
+    filtered = stmt.subquery()
+    open_value = db.scalar(
+        select(func.coalesce(func.sum(filtered.c.amount), 0)).where(
+            filtered.c.stage.not_in(["won", "lost"])
+        )
     )
-    return {"items": [deal_output(d) for d in items], "total": total, "page": page, "limit": limit}
+    won_value = db.scalar(
+        select(func.coalesce(func.sum(filtered.c.amount), 0)).where(filtered.c.stage == "won")
+    )
+    order = {
+        "created": Deal.created_at.desc(),
+        "amount": Deal.amount.desc(),
+        "title": Deal.title.asc(),
+    }[sort]
+    items, total = paginate(db, stmt.order_by(order, Deal.id), page, limit)
+    return {
+        "items": [deal_output(d) for d in items],
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "open_value": open_value,
+        "won_value": won_value,
+    }
 
 
 @app.post("/v1/workspaces/{ws}/deals", status_code=201)
@@ -1036,8 +1062,10 @@ def drafts(
 
 @app.get("/v1/workspaces/{ws}/integrations")
 def integrations(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
+    from app.experience import image_requirements
     from app.platform_models import Connection
 
+    images = image_requirements()
     connected = db.scalar(
         select(Connection).where(
             Connection.workspace_id == ws,
@@ -1075,6 +1103,13 @@ def integrations(ws: str, member=Depends(scope), db=Depends(db_session, scope="f
                 "reason": "Konfigurierter Anbieter; asynchrone, quellengebundene Vorschläge mit Budgetprüfung."
                 if os.getenv("LLM_API_KEY")
                 else "Kein KI-Anbieter verbunden. Offline-Vorschläge sind separat gekennzeichnet.",
+            },
+            {
+                "name": "KI-Bilder",
+                "status": "configured" if images["configured"] else "not_configured",
+                "reason": "Anbieter konfiguriert; reale Generierung erfordert Budget und anschließende Bildprüfung."
+                if images["configured"]
+                else "Bildanbieter einrichten: " + ", ".join(images["requirements"]),
             },
             {
                 "name": "Lead Discovery",
@@ -1212,10 +1247,19 @@ def cancel_post(
 
 
 def validate_post_refs(db, ws, body):
+    from app.experience import AssetOrigin
+
     if body.brand_id:
         record(db, Brand, ws, body.brand_id)
     for asset_id in body.asset_ids:
         asset = record(db, Asset, ws, asset_id)
+        origin = db.scalar(
+            select(AssetOrigin).where(
+                AssetOrigin.workspace_id == ws, AssetOrigin.asset_id == asset.id
+            )
+        )
+        if origin and not origin.reviewed:
+            raise HTTPException(409, "Review generated image before using it in a post.")
         if not asset.rights_confirmed or not asset.alt_text:
             raise HTTPException(422, "Asset rights and alt text required.")
 
@@ -1253,3 +1297,10 @@ register_commercial_routes(app, db_session, scope, record, audit)
 @app.exception_handler(ProviderError)
 async def provider_error(request, exc):
     return problem(503, exc.code, "Provider operation unavailable: " + exc.code)
+
+
+register_experience_routes(app, db_session, scope, record, paginate, audit, contact_output, profile)
+
+register_journey_routes(app, db_session, scope, record, paginate, audit, contact_output, profile)
+
+register_provider_tests(app, db_session, scope, audit)

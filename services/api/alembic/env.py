@@ -3,7 +3,11 @@ import os
 from sqlalchemy import create_engine
 
 from alembic import context
-from app import identity  # noqa: F401
+from app import (
+    experience,  # noqa: F401
+    identity,  # noqa: F401
+    journeys,  # noqa: F401
+)
 from app.models import Base
 
 url = os.getenv(

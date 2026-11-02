@@ -53,7 +53,7 @@ def usage_account(db, ws):
     return account
 
 
-def reserve_ai(db, ws, prompt):
+def reserve_ai(db, ws, prompt, multiplier=1):
     # UTF-8 byte count is a conservative token bound; completion tokens are capped by the provider.
     try:
         input_price = float(os.environ["LLM_INPUT_USD_PER_MILLION"])
@@ -66,7 +66,9 @@ def reserve_ai(db, ws, prompt):
         ) from None
     bound = len(prompt.encode()) + 4096
     maximum = int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "1500"))
-    reserved = max(1, math.ceil((bound * input_price + maximum * output_price) / 10000))
+    reserved = (
+        max(1, math.ceil((bound * input_price + maximum * output_price) / 10000)) * multiplier
+    )
     account = usage_account(db, ws)
     if account.ai_spent_minor + account.ai_reserved_minor + reserved > account.ai_budget_minor:
         raise HTTPException(402, "Workspace AI budget exceeded.")
@@ -88,7 +90,7 @@ def settle_ai(db, job, cost=0, usage=None):
         UsageEvent(
             workspace_id=job.workspace_id,
             job_id=job.id,
-            provider="llm",
+            provider="openai_images" if job.kind == "social_image" else "openai_compatible",
             input_tokens=getattr(usage, "input_tokens", 0),
             output_tokens=getattr(usage, "output_tokens", 0),
             cost_minor=cost,
@@ -160,16 +162,28 @@ def dispatch(db, job):
         else:
             candidates = search_companies(
                 CompanySearchFilters(
-                    **{k: v for k, v in job.payload.items() if k in ("city", "country", "industry")}
+                    **{
+                        k: v
+                        for k, v in job.payload.items()
+                        if k in ("city", "country", "industry", "min_employees", "max_employees")
+                    }
                 ),
                 job.payload.get("limit", 10),
             )
             rows = [r.model_dump(mode="json") for r in candidates]
             notice = "Lizenzanbieter: Quellen und Nutzungsrechte vor Übernahme prüfen."
+        if job.payload.get("criteria"):
+            from app.journeys import apply_discovery_criteria
+
+            rows, warnings = apply_discovery_criteria(
+                db, job.workspace_id, rows, job.payload["criteria"]
+            )
+        else:
+            warnings = []
         run = Discovery(workspace_id=job.workspace_id, query=job.payload["query"], results=rows)
         db.add(run)
         db.flush()
-        return {"run_id": run.id, "results": rows, "notice": notice}
+        return {"run_id": run.id, "results": rows, "notice": notice, "warnings": warnings}
     if job.kind == "ai":
         from app.providers.ai import generate_text
 
@@ -214,6 +228,17 @@ def execute_one(ws):
                 context = prepare_email(db, job)
                 job.side_effect_started = True
                 job.dispatched_at = now()
+            elif job.kind in ("social_text", "social_image", "social_reply"):
+                from app.experience import validate_generation_config
+
+                validate_generation_config(job)
+                job.side_effect_started = True
+                job.dispatched_at = now()
+                context = None
+            elif job.kind == "discovery" and job.payload.get("provider") == "pdl":
+                job.side_effect_started = True
+                job.dispatched_at = now()
+                context = None
             elif job.kind == "ai":
                 # A timed-out paid request may have incurred cost. Never blindly retry it.
                 job.side_effect_started = True
@@ -243,6 +268,15 @@ def execute_one(ws):
 
             result = send_authorized_email(context, job_id)
             usage = None
+        elif job.kind == "discovery":
+            with SessionLocal() as db, db.begin():
+                tenant(db, ws)
+                result = dispatch(db, db.get(Job, job_id))
+            usage = None
+        elif job.kind in ("social_text", "social_image", "social_reply"):
+            from app.experience import external_generation
+
+            result, usage = external_generation(job)
         else:
             from app.providers.ai import generate_text
 
@@ -256,6 +290,10 @@ def execute_one(ws):
             current = db.scalar(select(Job).where(Job.id == job_id).with_for_update())
             if current.attempts != attempt:
                 return True
+            if current.kind in ("social_text", "social_image", "social_reply"):
+                from app.experience import finalize_generation
+
+                result = finalize_generation(db, current, result)
             current.status = "succeeded"
             current.result = result
             current.last_error = None

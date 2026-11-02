@@ -28,7 +28,15 @@ def configured(name: str) -> str:
     return value
 
 
-def request_json(method: str, url: str, *, client=None, side_effect=False, **kwargs):
+def request_json(
+    method: str,
+    url: str,
+    *,
+    client=None,
+    side_effect=False,
+    max_response_bytes=2 * 1024 * 1024,
+    **kwargs,
+):
     """Never log credentials, request bodies or remote errors. Never blindly retry writes."""
     own_client = client is None
     client = client or httpx.Client(timeout=httpx.Timeout(30, connect=10), follow_redirects=False)
@@ -53,7 +61,7 @@ def request_json(method: str, url: str, *, client=None, side_effect=False, **kwa
                 retryable=response.status_code >= 500 and not side_effect,
                 ambiguous=side_effect and response.status_code >= 500,
             )
-        if len(response.content) > 2 * 1024 * 1024:
+        if len(response.content) > max_response_bytes:
             raise ProviderError("invalid_provider_response", ambiguous=side_effect)
         try:
             data = response.json() if response.content else {}

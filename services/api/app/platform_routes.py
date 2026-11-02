@@ -133,7 +133,29 @@ def register_platform_routes(app, db_session, scope, record, paginate, audit):
         member=Depends(scope),
         db=Depends(db_session, scope="function"),
     ):
-        return listing(db, Asset, ws, page, limit, asset_output)
+        from sqlalchemy import exists
+
+        from app.experience import AssetOrigin
+
+        statement = (
+            select(Asset)
+            .where(
+                Asset.workspace_id == ws,
+                ~exists().where(
+                    AssetOrigin.workspace_id == ws,
+                    AssetOrigin.asset_id == Asset.id,
+                    AssetOrigin.reviewed.is_(False),
+                ),
+            )
+            .order_by(Asset.created_at.desc())
+        )
+        rows, total = paginate(db, statement, page, limit)
+        return {
+            "items": [asset_output(a) for a in rows],
+            "total": total,
+            "page": page,
+            "limit": limit,
+        }
 
     @app.post("/v1/workspaces/{ws}/assets/upload", status_code=201)
     def upload(
@@ -384,7 +406,7 @@ def register_platform_routes(app, db_session, scope, record, paginate, audit):
     ):
         item = record(db, Job, ws, entity_id, True)
         if (
-            item.kind == "ai"
+            item.kind in ("ai", "social_text", "social_image", "social_reply")
             or item.status != "failed"
             or item.side_effect_started
             or item.attempts >= item.max_attempts
@@ -574,7 +596,46 @@ def register_platform_routes(app, db_session, scope, record, paginate, audit):
     @app.post("/v1/workspaces/{ws}/privacy/export")
     def export(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
         admin(member)
-        tables = [Contact, Brand, Asset, Campaign, Task, Note, Draft, Consent, Suppression]
+        from app.experience import Interaction, WorkspaceSetup
+        from app.journeys import (
+            CampaignConfig,
+            CampaignDraft,
+            CampaignStep,
+            CompanyFact,
+            CompanyProfile,
+            ICPProfile,
+            LeadProfile,
+            ManualActivity,
+            SavedSearch,
+            Segment,
+        )
+        from app.models import Company, Deal
+
+        tables = [
+            Contact,
+            Company,
+            Deal,
+            Brand,
+            Asset,
+            Campaign,
+            Task,
+            Note,
+            Draft,
+            Consent,
+            Suppression,
+            LeadProfile,
+            Segment,
+            SavedSearch,
+            ICPProfile,
+            CompanyProfile,
+            CompanyFact,
+            CampaignConfig,
+            CampaignStep,
+            CampaignDraft,
+            ManualActivity,
+            Interaction,
+            WorkspaceSetup,
+        ]
         result = {
             model.__tablename__: [
                 {

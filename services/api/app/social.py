@@ -48,6 +48,16 @@ def publication_context(db, ws, post, member):
         .join(PostMedia, Asset.id == PostMedia.asset_id)
         .where(PostMedia.post_id == post.id)
     ).all()
+    from app.experience import AssetOrigin
+
+    if db.scalar(
+        select(AssetOrigin.id).where(
+            AssetOrigin.workspace_id == ws,
+            AssetOrigin.asset_id.in_([a.id for a in media]),
+            AssetOrigin.reviewed.is_(False),
+        )
+    ):
+        raise HTTPException(409, "Generated media review is required.")
     if any(not asset.rights_confirmed or not asset.alt_text for asset in media):
         raise HTTPException(409, "Media rights/alt text missing.")
     try:
