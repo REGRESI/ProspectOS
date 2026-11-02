@@ -1,6 +1,6 @@
 # ProspectOS
 
-Ein deutschsprachiger, LinkedIn-orientierter B2B-Arbeitsplatz für Kontakte, nachvollziehbares Scoring und vertriebsnahe Workflows. Dieser erste Aufbau ist eine lokale Entwicklungsanwendung; der Funktionsstand steht in [docs/STATUS.md](docs/STATUS.md).
+Ein deutschsprachiger, LinkedIn-orientierter B2B-Arbeitsplatz für Kontakte, nachvollziehbares Scoring und vertriebsnahe Workflows. Die bestehende Anwendung wurde um produktionsorientierte MVP-Workflows erweitert; der Funktionsstand steht in [docs/STATUS.md](docs/STATUS.md).
 
 ## Lokal entwickeln
 
@@ -27,7 +27,7 @@ pnpm dev
 
 Frontend: `http://localhost:3000`. API-Dokumentation: `http://localhost:8000/docs`. Die Oberfläche leitet API-Aufrufe über denselben Ursprung an FastAPI weiter. `.env.example` enthält ausschließlich lokale Entwicklungseinstellungen. Bereits vorhandene `.env`-Dateien nicht überschreiben.
 
-Lokales Demo-Konto nach dem Seed: `demo@prospectos.local`, Passwort `ProspectDemo!2026`. Es enthält nur synthetische Daten. `DEMO_PASSWORD` kann vor dem ersten Seed einen eigenen lokalen Wert setzen; bestehende Konten werden nicht still überschrieben. Die API verweigert den Produktionsmodus ausdrücklich.
+Lokales Demo-Konto nach dem Seed: `demo@prospectos.local`, Passwort `ProspectDemo!2026`. Es enthält nur synthetische Daten. `DEMO_PASSWORD` kann vor dem ersten Seed einen eigenen lokalen Wert setzen; bestehende Konten werden nicht still überschrieben. Produktionsmodus erfordert verifizierte Supabase-Konfiguration und HTTPS; Demo-Anmeldung ist dort gesperrt.
 
 ## Container
 
@@ -68,10 +68,16 @@ pnpm test
 pnpm build
 cd services/api
 uv run ruff check .
-uv run pytest
+uv run python ../../infra/scripts/validate_database.py
 ```
 
 Migration und Backendtests benötigen PostgreSQL. Tests nur gegen eine isolierte Entwicklungsdatenbank ausführen. Details und ausgeführte Ergebnisse: [docs/TESTING.md](docs/TESTING.md).
+
+## Neue Workflows
+
+Private Bildbibliothek mit Rechtebestätigung/Alt-Text, Markenprofile, Aufgaben/Notizen, Kampagnen und gespeicherte Outreach-Entwürfe ergänzen die bisherigen Kontakte, ICP, Pipeline und den visuellen Kalender. „Recherche & KI“ erstellt dauerhafte Such-/Textaufträge; „Aufträge & Budget“ zeigt Status, Fehler und den USD-Kostenrahmen.
+
+Supabase, lizenzierte PDL-Suche, LLM, LinkedIn OAuth/Publishing, Resend und Stripe-Testmodus sind als echte, konfigurationsgebundene Adapter implementiert. Ohne Zugangsdaten erscheint keine simulierte Verbindung oder Veröffentlichung. Details: `.env.example`, [API](docs/API.md) und [aktueller Status](docs/STATUS.md). Realtests dieser Anbieter bleiben extern blockiert. Eine interne Kalenderplanung ist weiterhin keine Publishing-Freigabe.
 
 ## Grenzen
 
@@ -79,7 +85,7 @@ Migration und Backendtests benötigen PostgreSQL. Tests nur gegen eine isolierte
 - Kein tatsächlicher Versand oder externes Publishing ohne vollständig implementierte, autorisierte Anbieteranbindung.
 - Synthetische Beispieldaten sind ausdrücklich Demo-Daten. Eine öffentliche Profiladresse ist kein Werbeeinverständnis.
 - Echte Kontaktdateien gehören nicht in Git. Lokale Dateien unter `data/private/` sind ignoriert.
-- Produktionsbetrieb, externe Authentifizierung, Zahlungsverkehr und rechtliche Freigabe sind eigene Folgeschritte.
+- Live-Anbieterprüfung, Produktionsfreigabe, komplette Retention/Backups, Account-Recovery/MFA und rechtliche Freigabe bleiben gesonderte Release-Gates.
 
 ## Struktur
 

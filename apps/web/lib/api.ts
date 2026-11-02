@@ -57,6 +57,8 @@ export type Deal = {
   stage: string;
 };
 export type Post = {
+  publish_enabled?:boolean;
+  provider_post_id?:string|null;
   brand_id?: string | null;
   asset_ids?: string[];
   id: string;

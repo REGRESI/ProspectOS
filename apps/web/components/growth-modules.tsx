@@ -18,7 +18,7 @@ import {
   RefreshCw,
   ArrowRight,
 } from "lucide-react";
-import { request, dateTime, money } from "@/lib/api";
+import { request, dateTime } from "@/lib/api";
 import type { Page, Contact } from "@/lib/api";
 import { useData } from "@/lib/use-data";
 import { Badge, Empty, ErrorNote, Heading, Modal, Spinner } from "./ui";
@@ -994,20 +994,20 @@ export function Operations({
       <div className="usage-grid">
         <section className="panel usage-card">
           <span>Verbrauchtes KI-Budget</span>
-          <strong>{usage.data ? money(usage.data.ai_spent_minor) : "—"}</strong>
+          <strong>{usage.data ? new Intl.NumberFormat("de-DE",{style:"currency",currency:"USD"}).format(usage.data.ai_spent_minor / 100) : "—"}</strong>
           <small>Vom Backend erfasste Kosten</small>
         </section>
         <section className="panel usage-card">
           <span>Für Aufträge reserviert</span>
           <strong>
-            {usage.data ? money(usage.data.ai_reserved_minor) : "—"}
+            {usage.data ? new Intl.NumberFormat("de-DE",{style:"currency",currency:"USD"}).format(usage.data.ai_reserved_minor / 100) : "—"}
           </strong>
           <small>Noch nicht abgeschlossene Aufträge</small>
         </section>
         <section className="panel usage-card">
           <span>Workspace-Budget</span>
           <strong>
-            {usage.data ? money(usage.data.ai_budget_minor) : "—"}
+            {usage.data ? new Intl.NumberFormat("de-DE",{style:"currency",currency:"USD"}).format(usage.data.ai_budget_minor / 100) : "—"}
           </strong>
           <small>Konfigurierter Kostenrahmen</small>
         </section>
@@ -1022,7 +1022,7 @@ export function Operations({
             </p>
           </div>
           <label>
-            Budget in Euro
+            Budget in US-Dollar
             <input
               name="budget"
               type="number"
@@ -1057,7 +1057,7 @@ export function Operations({
                   <h3>{job.kind}</h3>
                   <Badge
                     tone={
-                      job.status === "completed"
+                      job.status === "succeeded"
                         ? "green"
                         : job.status === "failed"
                           ? "red"

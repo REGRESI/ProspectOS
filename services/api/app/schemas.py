@@ -85,6 +85,8 @@ class DealPatch(Strict):
 
 
 class PostInput(Strict):
+    brand_id: str | None = None
+    asset_ids: list[str] = Field(default_factory=list, max_length=1)
     caption: str = Field(min_length=1, max_length=3000)
     alt_text: str = Field(default="", max_length=1000)
 

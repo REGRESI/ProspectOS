@@ -40,6 +40,11 @@ jobs:
       - run: pnpm audit --audit-level=high
       - run: uv sync --frozen
         working-directory: services/api
+      - name: Audit Python runtime dependencies
+        working-directory: services/api
+        run: |
+          uv export --frozen --no-dev --format requirements-txt --quiet --output-file /tmp/prospectos-runtime-audit.txt
+          uvx pip-audit --no-deps --disable-pip -r /tmp/prospectos-runtime-audit.txt
       - run: uv run python -m app.migrate
         working-directory: services/api
       - run: uv run ruff check . && uv run ruff format --check . && uv run pytest
@@ -51,6 +56,7 @@ jobs:
       - name: Start local app
         run: |
           (cd services/api && uv run env -u DATABASE_ADMIN_URL -u DB_APP_PASSWORD -u POSTGRES_PASSWORD -u DEMO_PASSWORD uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log) > /tmp/prospectos-api.log 2>&1 &
+          (cd services/api && uv run env -u DATABASE_ADMIN_URL -u DB_APP_PASSWORD -u POSTGRES_PASSWORD -u DEMO_PASSWORD python -m app.worker) > /tmp/prospectos-worker.log 2>&1 &
           (cd services/api && uv run env -u DATABASE_ADMIN_URL -u DB_APP_PASSWORD -u POSTGRES_PASSWORD -u DEMO_PASSWORD python -m app.worker) > /tmp/prospectos-worker.log 2>&1 &
           pnpm --filter @prospectos/web start > /tmp/prospectos-web.log 2>&1 &
           for attempt in $(seq 1 30); do

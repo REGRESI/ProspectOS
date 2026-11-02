@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import os
 import secrets
 import time
@@ -16,7 +17,10 @@ from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.commercial import register_commercial_routes
 from app.db import SessionLocal, now, uid
+from app.entitlements import remaining
+from app.identity import auth_settings, register_identity_routes
 from app.imports import parse_csv
 from app.models import (
     ICP,
@@ -33,6 +37,10 @@ from app.models import (
     User,
     Workspace,
 )
+from app.observability import BodyLimitMiddleware
+from app.platform_models import Asset, Brand, PostMedia, PostRevision
+from app.platform_routes import register_platform_routes
+from app.providers.ai import ProviderError
 from app.schemas import (
     ContactInput,
     DealInput,
@@ -47,29 +55,24 @@ from app.schemas import (
     WorkspaceInput,
 )
 from app.scoring import DEFAULT_ICP, score
+from app.social import register_social_routes
 
 
 @asynccontextmanager
 async def lifespan(app):
-    if os.getenv("APP_ENV", "development") not in ("development", "test"):
-        raise RuntimeError(
-            "Production auth is not implemented. Demo server refuses production startup."
-        )
-    with SessionLocal() as db:
-        role = db.execute(
-            text("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname=current_user")
-        ).one()
-        owns = db.scalar(
-            text(
-                "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename='contacts' AND tableowner=current_user"
-            )
-        )
-        if role.rolsuper or role.rolbypassrls or owns:
-            raise RuntimeError("Runtime DB role must be a non-owner without SUPERUSER/BYPASSRLS")
+    from app.runtime import validate_runtime
+
+    validate_runtime()
     yield
 
 
 app = FastAPI(title="ProspectOS local pilot", version="0.1.0", lifespan=lifespan)
+app.add_middleware(BodyLimitMiddleware)
+request_logger = logging.getLogger("prospectos.requests")
+request_logger.setLevel(logging.INFO)
+if not request_logger.handlers:
+    request_logger.addHandler(logging.StreamHandler())
+request_logger.propagate = False
 password_hasher = PasswordHasher()
 login_attempts = defaultdict(deque)
 DUMMY_HASH = password_hasher.hash(secrets.token_urlsafe(32))
@@ -104,10 +107,30 @@ async def conflict_error(request, exc):
 
 @app.middleware("http")
 async def security_headers(request, call_next):
-    response = await call_next(request)
+    request_id = uid()
+    request.state.request_id = request_id
+    started = time.monotonic()
+    try:
+        response = await call_next(request)
+    except Exception:
+        response = problem(
+            500, "internal_error", "Internal operation failed. Use the request ID for support."
+        )
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Cache-Control"] = "no-store"
-    response.headers["X-Request-Id"] = uid()
+    response.headers["X-Request-Id"] = request_id
+    route = request.scope.get("route")
+    request_logger.info(
+        json.dumps(
+            {
+                "request_id": request_id,
+                "method": request.method,
+                "route": getattr(route, "path", "unmatched"),
+                "status": response.status_code,
+                "duration_ms": round((time.monotonic() - started) * 1000),
+            }
+        )
+    )
     return response
 
 
@@ -121,12 +144,23 @@ def db_session():
             raise
 
 
-def current_auth(request: Request, db: Session = Depends(db_session)):
+def current_auth(request: Request, db: Session = Depends(db_session, scope="function")):
     raw = request.cookies.get("prospectos_session", "")
     token_hash = hashlib.sha256(raw.encode()).hexdigest()
     auth = db.get(AuthSession, token_hash)
     if auth is None or auth.expires_at <= now():
         raise HTTPException(401, "Bitte anmelden.")
+    user = db.get(User, auth.user_id)
+    settings = auth_settings()
+    if not user or (
+        settings.mode == "supabase"
+        and (
+            auth.auth_provider != "supabase"
+            or not user.auth_subject
+            or not user.auth_subject.startswith(settings.issuer + ":")
+        )
+    ):
+        raise HTTPException(401, "Verified external identity required.")
     if request.method not in ("GET", "HEAD", "OPTIONS"):
         csrf = request.headers.get("X-CSRF-Token", "")
         if not csrf or not secrets.compare_digest(csrf, auth.csrf_token):
@@ -134,7 +168,12 @@ def current_auth(request: Request, db: Session = Depends(db_session)):
     return auth
 
 
-def scope(ws: str, request: Request, auth=Depends(current_auth), db: Session = Depends(db_session)):
+def scope(
+    ws: str,
+    request: Request,
+    auth=Depends(current_auth),
+    db: Session = Depends(db_session, scope="function"),
+):
     member = db.get(Membership, (ws, auth.user_id))
     if member is None:
         raise HTTPException(404, "Workspace nicht gefunden.")
@@ -177,7 +216,14 @@ def auth_payload(db, auth):
 
 
 @app.post("/v1/auth/demo")
-def login(body: Login, request: Request, response: Response, db: Session = Depends(db_session)):
+def login(
+    body: Login,
+    request: Request,
+    response: Response,
+    db: Session = Depends(db_session, scope="function"),
+):
+    if auth_settings().mode != "demo":
+        raise HTTPException(403, "Demo authentication is disabled.")
     key = request.client.host if request.client else "local"
     attempts = login_attempts[key]
     while attempts and attempts[0] < time.monotonic() - 60:
@@ -205,7 +251,7 @@ def login(body: Login, request: Request, response: Response, db: Session = Depen
         raw,
         max_age=8 * 3600,
         httponly=True,
-        samesite="strict",
+        samesite="lax",
         secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
         path="/",
     )
@@ -213,25 +259,31 @@ def login(body: Login, request: Request, response: Response, db: Session = Depen
 
 
 @app.get("/v1/me")
-def me(auth=Depends(current_auth), db: Session = Depends(db_session)):
+def me(auth=Depends(current_auth), db: Session = Depends(db_session, scope="function")):
     return auth_payload(db, auth)
 
 
 @app.post("/v1/auth/logout")
-def logout(response: Response, auth=Depends(current_auth), db: Session = Depends(db_session)):
+def logout(
+    response: Response,
+    auth=Depends(current_auth),
+    db: Session = Depends(db_session, scope="function"),
+):
     db.delete(auth)
     response.delete_cookie("prospectos_session", path="/")
     return {"ok": True}
 
 
 @app.get("/v1/workspaces")
-def workspaces(auth=Depends(current_auth), db: Session = Depends(db_session)):
+def workspaces(auth=Depends(current_auth), db: Session = Depends(db_session, scope="function")):
     return {"items": auth_payload(db, auth)["workspaces"]}
 
 
 @app.post("/v1/workspaces", status_code=201)
 def new_workspace(
-    body: WorkspaceInput, auth=Depends(current_auth), db: Session = Depends(db_session)
+    body: WorkspaceInput,
+    auth=Depends(current_auth),
+    db: Session = Depends(db_session, scope="function"),
 ):
     workspace = Workspace(name=body.name, slug="workspace-" + uid()[:8])
     db.add(workspace)
@@ -305,7 +357,7 @@ def contacts(
     limit: int = 25,
     status: str = "",
     member=Depends(scope),
-    db: Session = Depends(db_session),
+    db: Session = Depends(db_session, scope="function"),
 ):
     stmt = select(Contact).where(Contact.workspace_id == ws)
     if search:
@@ -339,7 +391,12 @@ def contacts(
 
 
 @app.get("/v1/workspaces/{ws}/contacts/{entity_id}")
-def get_contact(ws: str, entity_id: str, member=Depends(scope), db: Session = Depends(db_session)):
+def get_contact(
+    ws: str,
+    entity_id: str,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
+):
     c = record(db, Contact, ws, entity_id)
     return contact_output(
         c, db.get(Company, c.company_id) if c.company_id else None, profile(db, ws)
@@ -348,8 +405,12 @@ def get_contact(ws: str, entity_id: str, member=Depends(scope), db: Session = De
 
 @app.post("/v1/workspaces/{ws}/contacts", status_code=201)
 def create_contact(
-    ws: str, body: ContactInput, member=Depends(scope), db: Session = Depends(db_session)
+    ws: str,
+    body: ContactInput,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
 ):
+    remaining(db, ws, "contacts")
     company = make_company(db, ws, body.company, body.location)
     c = Contact(
         workspace_id=ws,
@@ -368,7 +429,7 @@ def update_contact(
     entity_id: str,
     body: ContactInput,
     member=Depends(scope),
-    db: Session = Depends(db_session),
+    db: Session = Depends(db_session, scope="function"),
 ):
     c = record(db, Contact, ws, entity_id, True)
     if c.version != body.version:
@@ -386,7 +447,10 @@ def update_contact(
 
 @app.delete("/v1/workspaces/{ws}/contacts/{entity_id}")
 def delete_contact(
-    ws: str, entity_id: str, member=Depends(scope), db: Session = Depends(db_session)
+    ws: str,
+    entity_id: str,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
 ):
     c = record(db, Contact, ws, entity_id, True)
     if db.scalar(select(Deal.id).where(Deal.contact_id == c.id).limit(1)):
@@ -407,7 +471,7 @@ def companies(
     page: int = 1,
     limit: int = 25,
     member=Depends(scope),
-    db: Session = Depends(db_session),
+    db: Session = Depends(db_session, scope="function"),
 ):
     items, total = paginate(
         db, select(Company).where(Company.workspace_id == ws).order_by(Company.name), page, limit
@@ -419,6 +483,8 @@ def companies(
                 "name": c.name,
                 "location": c.location,
                 "industry": c.industry,
+                "website": c.website,
+                "provenance": c.provenance,
                 "source": c.source,
             }
             for c in items
@@ -430,12 +496,17 @@ def companies(
 
 
 @app.get("/v1/workspaces/{ws}/icp")
-def get_icp(ws: str, member=Depends(scope), db: Session = Depends(db_session)):
+def get_icp(ws: str, member=Depends(scope), db: Session = Depends(db_session, scope="function")):
     return profile(db, ws)
 
 
 @app.put("/v1/workspaces/{ws}/icp")
-def put_icp(ws: str, body: ICPInput, member=Depends(scope), db: Session = Depends(db_session)):
+def put_icp(
+    ws: str,
+    body: ICPInput,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
+):
     item = db.scalar(select(ICP).where(ICP.workspace_id == ws).with_for_update())
     if item:
         item.profile = body.model_dump()
@@ -457,7 +528,7 @@ def preview_import(
     file: UploadFile = File(...),
     mapping: str | None = Form(None),
     member=Depends(scope),
-    db: Session = Depends(db_session),
+    db: Session = Depends(db_session, scope="function"),
 ):
     try:
         mapping_dict = json.loads(mapping) if mapping else None
@@ -526,7 +597,10 @@ def preview_import(
 
 @app.post("/v1/workspaces/{ws}/imports/{entity_id}/commit")
 def commit_import(
-    ws: str, entity_id: str, member=Depends(scope), db: Session = Depends(db_session)
+    ws: str,
+    entity_id: str,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
 ):
     # Serialize import commits per tenant, including duplicate previews from concurrent tabs.
     db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:ws, 0))"), {"ws": ws})
@@ -537,6 +611,7 @@ def commit_import(
         return job.summary
     if job.status != "validated":
         raise HTTPException(409, "Import kann nicht erneut übernommen werden.")
+    capacity = remaining(db, ws, "contacts", require_slot=False)
     created, duplicates, invalid, journal = 0, 0, 0, []
     for row in job.data["rows"]:
         if row["errors"]:
@@ -548,6 +623,8 @@ def commit_import(
         if db.scalar(select(Contact.id).where(Contact.workspace_id == ws, cond)):
             duplicates += 1
             continue
+        if created >= capacity:
+            raise HTTPException(402, "Workspace contact limit exceeded; import rolled back.")
         company = make_company(
             db, ws, row["company"], row["location"], row.get("company_url"), "csv_upload"
         )
@@ -599,7 +676,10 @@ def commit_import(
 
 @app.post("/v1/workspaces/{ws}/imports/{entity_id}/rollback")
 def rollback_import(
-    ws: str, entity_id: str, member=Depends(scope), db: Session = Depends(db_session)
+    ws: str,
+    entity_id: str,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
 ):
     job = record(db, ImportJob, ws, entity_id, True)
     if job.owner_id != member.user_id and member.role not in ("owner", "admin"):
@@ -636,7 +716,7 @@ def rollback_import(
 
 
 @app.get("/v1/workspaces/{ws}/dashboard")
-def dashboard(ws: str, member=Depends(scope), db: Session = Depends(db_session)):
+def dashboard(ws: str, member=Depends(scope), db: Session = Depends(db_session, scope="function")):
     def count(model, *conditions):
         return db.scalar(
             select(func.count()).select_from(model).where(model.workspace_id == ws, *conditions)
@@ -670,7 +750,7 @@ def events(
     page: int = 1,
     limit: int = 25,
     member=Depends(scope),
-    db: Session = Depends(db_session),
+    db: Session = Depends(db_session, scope="function"),
 ):
     items, total = paginate(
         db,
@@ -697,7 +777,7 @@ def deals(
     page: int = 1,
     limit: int = 100,
     member=Depends(scope),
-    db: Session = Depends(db_session),
+    db: Session = Depends(db_session, scope="function"),
 ):
     items, total = paginate(
         db,
@@ -709,7 +789,12 @@ def deals(
 
 
 @app.post("/v1/workspaces/{ws}/deals", status_code=201)
-def create_deal(ws: str, body: DealInput, member=Depends(scope), db: Session = Depends(db_session)):
+def create_deal(
+    ws: str,
+    body: DealInput,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
+):
     if body.contact_id:
         record(db, Contact, ws, body.contact_id)
     deal = Deal(workspace_id=ws, **body.model_dump())
@@ -725,7 +810,7 @@ def change_deal(
     entity_id: str,
     body: DealPatch,
     member=Depends(scope),
-    db: Session = Depends(db_session),
+    db: Session = Depends(db_session, scope="function"),
 ):
     deal = record(db, Deal, ws, entity_id, True)
     deal.stage = body.stage
@@ -734,10 +819,19 @@ def change_deal(
 
 
 def post_output(p):
+    from sqlalchemy.orm import object_session
+
+    db = object_session(p)
+    assets = (
+        list(db.scalars(select(PostMedia.asset_id).where(PostMedia.post_id == p.id))) if db else []
+    )
     return {
         key: getattr(p, key)
         for key in (
             "id",
+            "brand_id",
+            "provider_post_id",
+            "publish_enabled",
             "caption",
             "alt_text",
             "state",
@@ -746,7 +840,7 @@ def post_output(p):
             "scheduled_at",
             "created_at",
         )
-    }
+    } | {"asset_ids": assets}
 
 
 @app.get("/v1/workspaces/{ws}/social/posts")
@@ -755,7 +849,7 @@ def posts(
     page: int = 1,
     limit: int = 100,
     member=Depends(scope),
-    db: Session = Depends(db_session),
+    db: Session = Depends(db_session, scope="function"),
 ):
     items, total = paginate(
         db,
@@ -767,10 +861,17 @@ def posts(
 
 
 @app.post("/v1/workspaces/{ws}/social/posts", status_code=201)
-def create_post(ws: str, body: PostInput, member=Depends(scope), db: Session = Depends(db_session)):
-    p = Post(workspace_id=ws, author_id=member.user_id, **body.model_dump())
+def create_post(
+    ws: str,
+    body: PostInput,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
+):
+    validate_post_refs(db, ws, body)
+    p = Post(workspace_id=ws, author_id=member.user_id, **body.model_dump(exclude={"asset_ids"}))
     db.add(p)
     db.flush()
+    replace_post_media(db, ws, p, body.asset_ids)
     audit(db, ws, member.user_id, "post_created", "Beitragsentwurf angelegt")
     return post_output(p)
 
@@ -781,16 +882,21 @@ def edit_post(
     entity_id: str,
     body: PostPatch,
     member=Depends(scope),
-    db: Session = Depends(db_session),
+    db: Session = Depends(db_session, scope="function"),
 ):
     p = record(db, Post, ws, entity_id, True)
     if p.version != body.version:
         raise HTTPException(409, "Beitrag wurde zwischenzeitlich geändert.")
-    p.caption, p.alt_text = body.caption, body.alt_text
+    if p.state == "publishing":
+        raise HTTPException(409, "Publication in progress; wait for provider reconciliation.")
+    validate_post_refs(db, ws, body)
+    p.caption, p.alt_text, p.brand_id = body.caption, body.alt_text, body.brand_id
     p.version += 1
     if p.state != "draft":
         p.state = "needs_review"
     p.approved_revision, p.scheduled_at = None, None
+    p.publish_enabled = False
+    replace_post_media(db, ws, p, body.asset_ids)
     audit(
         db,
         ws,
@@ -802,7 +908,12 @@ def edit_post(
 
 
 @app.post("/v1/workspaces/{ws}/social/posts/{entity_id}/submit-review")
-def review_post(ws: str, entity_id: str, member=Depends(scope), db: Session = Depends(db_session)):
+def review_post(
+    ws: str,
+    entity_id: str,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
+):
     p = record(db, Post, ws, entity_id, True)
     if p.state not in ("draft", "needs_review"):
         raise HTTPException(409, "Beitrag ist bereits freigegeben oder geplant.")
@@ -812,7 +923,12 @@ def review_post(ws: str, entity_id: str, member=Depends(scope), db: Session = De
 
 
 @app.post("/v1/workspaces/{ws}/social/posts/{entity_id}/approve")
-def approve_post(ws: str, entity_id: str, member=Depends(scope), db: Session = Depends(db_session)):
+def approve_post(
+    ws: str,
+    entity_id: str,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
+):
     if member.role not in ("owner", "admin", "approver"):
         raise HTTPException(403, "Freigabe erfordert Owner-, Admin- oder Approver-Rolle.")
     p = record(db, Post, ws, entity_id, True)
@@ -836,7 +952,7 @@ def schedule_post(
     entity_id: str,
     body: Schedule,
     member=Depends(scope),
-    db: Session = Depends(db_session),
+    db: Session = Depends(db_session, scope="function"),
 ):
     p = record(db, Post, ws, entity_id, True)
     if p.state not in ("approved", "scheduled") or p.approved_revision != p.version:
@@ -874,14 +990,20 @@ def draft_output(d):
         "contact_id": d.contact_id,
         "content": d.content,
         "source": d.source,
+        "revision": d.revision,
+        "subject": d.subject,
+        "state": d.state,
         "send_allowed": False,
-        "reason": "Kein Versand implementiert. Öffentliche Profildaten sind kein Werbekontakt-Nachweis.",
+        "reason": "Kein automatischer LinkedIn-Versand. E-Mail erfordert getrennte Freigabe, geprüfte Quelle, gültigen Nachweis und ungesperrten Empfänger.",
     }
 
 
 @app.post("/v1/workspaces/{ws}/outreach/drafts")
 def create_draft(
-    ws: str, body: DraftInput, member=Depends(scope), db: Session = Depends(db_session)
+    ws: str,
+    body: DraftInput,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
 ):
     c = record(db, Contact, ws, body.contact_id)
     d = Draft(
@@ -901,7 +1023,7 @@ def drafts(
     page: int = 1,
     limit: int = 25,
     member=Depends(scope),
-    db: Session = Depends(db_session),
+    db: Session = Depends(db_session, scope="function"),
 ):
     items, total = paginate(
         db,
@@ -913,26 +1035,71 @@ def drafts(
 
 
 @app.get("/v1/workspaces/{ws}/integrations")
-def integrations(ws: str, member=Depends(scope)):
+def integrations(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
+    from app.platform_models import Connection
+
+    connected = db.scalar(
+        select(Connection).where(
+            Connection.workspace_id == ws,
+            Connection.provider == "linkedin",
+            Connection.expires_at > now(),
+        )
+    )
     return {
         "items": [
-            {"name": name, "status": "not_configured", "reason": reason}
-            for name, reason in [
-                ("LinkedIn", "OAuth und Freigaben fehlen. Veröffentlichung nicht implementiert."),
-                ("KI-Text", "Nur deterministische Offline-Vorschläge; kein KI-Anbieter verbunden."),
-                (
-                    "Lead Discovery",
-                    "Nur synthetischer Demo-Anbieter; keine Recherche echter Unternehmen.",
+            {
+                "name": "LinkedIn",
+                "connect_available": bool(
+                    os.getenv("LINKEDIN_CLIENT_ID")
+                    and os.getenv("LINKEDIN_CLIENT_SECRET")
+                    and os.getenv("LINKEDIN_REDIRECT_URI")
+                    and os.getenv("TOKEN_ENCRYPTION_KEY")
                 ),
-                ("Stripe", "Abrechnung nicht implementiert; keine Zahlungen möglich."),
-            ]
+                "publish_available": bool(
+                    connected
+                    and "w_member_social" in connected.scopes
+                    and os.getenv("LINKEDIN_PUBLISHING_APPROVED") == "true"
+                    and os.getenv("LINKEDIN_API_VERSION")
+                ),
+                "scopes": connected.scopes if connected else [],
+                "status": "connected" if connected else "not_configured",
+                "reason": "Offizielle Verbindung; Publishing benötigt tatsächlich gewährte Scopes und Produktfreigabe."
+                if connected
+                else "OAuth und Freigaben fehlen. Veröffentlichung nicht verfügbar.",
+            },
+            {
+                "name": "KI-Text",
+                "status": "configured"
+                if os.getenv("LLM_API_KEY") and os.getenv("LLM_MODEL")
+                else "not_configured",
+                "reason": "Konfigurierter Anbieter; asynchrone, quellengebundene Vorschläge mit Budgetprüfung."
+                if os.getenv("LLM_API_KEY")
+                else "Kein KI-Anbieter verbunden. Offline-Vorschläge sind separat gekennzeichnet.",
+            },
+            {
+                "name": "Lead Discovery",
+                "status": "configured"
+                if os.getenv("PDL_API_KEY") and os.getenv("PDL_LICENSE_APPROVED") == "true"
+                else "not_configured",
+                "reason": "Lizenzanbieter erfordert geprüften Vertrag; synthetische Beispiele nur in Entwicklung.",
+            },
+            {
+                "name": "Stripe",
+                "status": "configured" if os.getenv("STRIPE_SECRET_KEY") else "not_configured",
+                "reason": "Nur Testmodus; Checkout und signierte Webhooks benötigen Testzugangsdaten.",
+            },
         ]
     }
 
 
 @app.post("/v1/workspaces/{ws}/discovery/runs")
-def discovery(ws: str, body: Topic, member=Depends(scope), db: Session = Depends(db_session)):
+def discovery(
+    ws: str, body: Topic, member=Depends(scope), db: Session = Depends(db_session, scope="function")
+):
     from app.providers.discovery import SyntheticDemoProvider
+
+    if os.getenv("APP_ENV", "development") not in ("development", "test"):
+        raise HTTPException(403, "Synthetic discovery is development-only.")
 
     rows = [candidate.model_dump() for candidate in SyntheticDemoProvider().search(body.topic)]
     run = Discovery(workspace_id=ws, query=body.topic, results=rows)
@@ -948,18 +1115,50 @@ def discovery(ws: str, body: Topic, member=Depends(scope), db: Session = Depends
 
 @app.post("/v1/workspaces/{ws}/discovery/runs/{entity_id}/import")
 def import_discovery(
-    ws: str, entity_id: str, member=Depends(scope), db: Session = Depends(db_session)
+    ws: str,
+    entity_id: str,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
 ):
     run = record(db, Discovery, ws, entity_id, True)
     if run.status == "imported":
         return {"created": 0, "status": "imported"}
+    capacity = (
+        remaining(db, ws, "contacts", require_slot=False)
+        if any(r.get("source") == "synthetic_demo" for r in run.results)
+        else 0
+    )
     created = 0
     for row in run.results:
+        if row.get("source") != "synthetic_demo":
+            identity = row.get("source", "licensed") + ":" + row["external_key"]
+            existing = db.scalar(
+                select(Company.id).where(Company.workspace_id == ws, Company.identity == identity)
+            )
+            if not existing:
+                company = make_company(
+                    db,
+                    ws,
+                    row["company"],
+                    row.get("location", ""),
+                    identity,
+                    row.get("source", "licensed"),
+                )
+                company.industry = row.get("industry", "")
+                company.website = row.get("website")
+                company.provenance = {
+                    k: row.get(k)
+                    for k in ("source_url", "license", "observed_at", "confidence", "allowed_uses")
+                }
+                created += 1
+            continue
         key = hashlib.sha256(("synthetic_demo:" + row["external_key"]).encode()).hexdigest()
         if db.scalar(
             select(Contact.id).where(Contact.workspace_id == ws, Contact.import_key == key)
         ):
             continue
+        if created >= capacity:
+            raise HTTPException(402, "Workspace contact limit exceeded.")
         company = make_company(
             db, ws, row["company"], row["location"], row["external_key"], "synthetic_demo"
         )
@@ -979,28 +1178,78 @@ def import_discovery(
         ws,
         member.user_id,
         "lead_discovered",
-        f"{created} synthetische Demo-Kontakte importiert; keine echte Recherche",
+        f"{created} Discovery-Datensätze mit Herkunft übernommen; keine Marketingfreigabe",
     )
     return {"created": created, "status": run.status}
 
 
 @app.get("/health/live")
 def live():
-    return {"status": "ok", "mode": "development"}
+    return {"status": "ok", "mode": os.getenv("APP_ENV", "development")}
 
 
 @app.get("/health/ready")
-def ready(db: Session = Depends(db_session)):
+def ready(db: Session = Depends(db_session, scope="function")):
     db.execute(text("SELECT 1 FROM contacts LIMIT 0"))
     version = db.scalar(text("SELECT current_user"))
     return {"status": "ready", "database": "connected", "role": version}
 
 
 @app.post("/v1/workspaces/{ws}/social/posts/{entity_id}/cancel")
-def cancel_post(ws: str, entity_id: str, member=Depends(scope), db: Session = Depends(db_session)):
+def cancel_post(
+    ws: str,
+    entity_id: str,
+    member=Depends(scope),
+    db: Session = Depends(db_session, scope="function"),
+):
     p = record(db, Post, ws, entity_id, True)
     if p.state != "scheduled":
         raise HTTPException(409, "Nur geplante Termine können aufgehoben werden.")
     p.state, p.scheduled_at = "approved", None
+    p.publish_enabled = False
     audit(db, ws, member.user_id, "post_unscheduled", "Redaktionellen Termin aufgehoben")
     return post_output(p)
+
+
+def validate_post_refs(db, ws, body):
+    if body.brand_id:
+        record(db, Brand, ws, body.brand_id)
+    for asset_id in body.asset_ids:
+        asset = record(db, Asset, ws, asset_id)
+        if not asset.rights_confirmed or not asset.alt_text:
+            raise HTTPException(422, "Asset rights and alt text required.")
+
+
+def replace_post_media(db, ws, post, asset_ids):
+    for media in db.scalars(select(PostMedia).where(PostMedia.post_id == post.id)):
+        db.delete(media)
+    db.flush()
+    for asset_id in asset_ids:
+        db.add(PostMedia(workspace_id=ws, post_id=post.id, asset_id=asset_id))
+    db.add(
+        PostRevision(
+            workspace_id=ws,
+            post_id=post.id,
+            revision=post.version,
+            snapshot={
+                "caption": post.caption,
+                "alt_text": post.alt_text,
+                "brand_id": post.brand_id,
+                "asset_ids": asset_ids,
+            },
+        )
+    )
+    db.flush()
+
+
+register_identity_routes(app, db_session, current_auth, scope, auth_payload, audit)
+
+register_platform_routes(app, db_session, scope, record, paginate, audit)
+register_social_routes(app, db_session, current_auth, scope, record, audit)
+
+register_commercial_routes(app, db_session, scope, record, audit)
+
+
+@app.exception_handler(ProviderError)
+async def provider_error(request, exc):
+    return problem(503, exc.code, "Provider operation unavailable: " + exc.code)
