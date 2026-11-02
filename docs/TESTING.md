@@ -14,7 +14,7 @@ These are observed results in the current restored environment, not inferred pub
 | Browser E2E | **11 passed**, final run43.5s against the running container stack, including an actual durable worker job |
 | Python runtime vulnerability audit | No known vulnerabilities after upgrading cryptography50.0.2 and Pillow13.0.0; tested pinned runtime requirement set via pip-audit |
 | JavaScript audit | `pnpm audit --audit-level=high` passes with one **moderate development-tooling** minimatch advisory (GHSA-g3hv-75wg-m249), no high/critical findings. Standalone runtime excludes ESLint tooling |
-| GitHub | Existing branch pushed normally. API request to api.github.com/graphql returns Forbidden; final review branch has the preserved pilot as its base. No PR or force-push |
+| GitHub | `feat/prospectos-experience-workflows` pushed normally (implementation commit `0d4fe20`), intended PR base `feat/prospectos-production-mvp`. Draft-PR creation returned `Post https://api.github.com/graphql: Forbidden`. No PR, force-push or deployment |
 | Remote CI/deployment/publication | CI configured, not remotely observed passing. No production deployment or Cloud Environment publication performed |
 
 ## Browser flows actually executed
