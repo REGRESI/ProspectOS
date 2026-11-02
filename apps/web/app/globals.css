@@ -4561,3 +4561,126 @@ tbody tr:last-child td {
     flex-direction: column;
   }
 }
+
+/* Social Studio V2: keep voice, images and revision context together. */
+.voice-workspace,
+.studio-media,
+.studio-refinements {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--surface-alt);
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.voice-example {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  background: var(--surface);
+}
+.studio-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.studio-gallery article {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.gallery-choice {
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  padding: 0 0 8px;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.gallery-choice.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.gallery-choice img {
+  width: 100%;
+  height: 105px;
+  object-fit: cover;
+}
+.gallery-choice span,
+.gallery-choice small {
+  padding: 0 8px;
+  overflow-wrap: anywhere;
+}
+.generation-history details {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+.generation-history summary,
+.studio-media summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 5px 0;
+}
+.preserve-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.studio-refinements h3 {
+  margin: 0;
+}
+.studio-body > .voice-workspace,
+.studio-body > .studio-refinements {
+  margin: 16px 0;
+}
+.social-preview > .studio-media {
+  margin: 20px 0;
+}
+.linkedin-preview > .preview-mode-hint {
+  min-height: 0;
+  margin: 12px 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.studio-media .checkbox-line,
+.linkedin-preview .checkbox-line {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+/* Media controls and image preview stay available when the columns stack. */
+.social-preview {
+  display: block;
+  min-width: 0;
+}
+
+.composer-asset {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+.composer-asset > .badge {
+  position: static;
+  justify-self: start;
+  margin-inline: 12px;
+}
+.composer-asset > .button,
+.composer-asset > .form-actions {
+  margin-inline: 12px;
+  justify-self: start;
+}
+.social-generation .checkbox-line,
+.voice-workspace .checkbox-line {
+  flex-direction: row;
+}

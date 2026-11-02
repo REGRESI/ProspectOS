@@ -58,6 +58,7 @@ from app.schemas import (
 )
 from app.scoring import DEFAULT_ICP, score
 from app.social import register_social_routes
+from app.studio import register_studio_routes
 
 
 @asynccontextmanager
@@ -866,7 +867,7 @@ def post_output(p):
             "scheduled_at",
             "created_at",
         )
-    } | {"asset_ids": assets}
+    } | {"asset_ids": assets, "studio_context": p.studio_context}
 
 
 @app.get("/v1/workspaces/{ws}/social/posts")
@@ -894,6 +895,8 @@ def create_post(
     db: Session = Depends(db_session, scope="function"),
 ):
     validate_post_refs(db, ws, body)
+    if "studio_context" not in body.model_fields_set:
+        body.studio_context.image_mode = "manual" if body.asset_ids else "none"
     p = Post(workspace_id=ws, author_id=member.user_id, **body.model_dump(exclude={"asset_ids"}))
     db.add(p)
     db.flush()
@@ -915,8 +918,10 @@ def edit_post(
         raise HTTPException(409, "Beitrag wurde zwischenzeitlich geändert.")
     if p.state == "publishing":
         raise HTTPException(409, "Publication in progress; wait for provider reconciliation.")
-    validate_post_refs(db, ws, body)
+    validate_post_refs(db, ws, body, previous=p)
     p.caption, p.alt_text, p.brand_id = body.caption, body.alt_text, body.brand_id
+    if "studio_context" in body.model_fields_set:
+        p.studio_context = body.studio_context.model_dump()
     p.version += 1
     if p.state != "draft":
         p.state = "needs_review"
@@ -1246,9 +1251,20 @@ def cancel_post(
     return post_output(p)
 
 
-def validate_post_refs(db, ws, body):
+def validate_post_refs(db, ws, body, previous=None):
     from app.experience import AssetOrigin
+    from app.studio import VoiceProfile
 
+    # A deleted voice can remain as historical attribution on an existing draft.
+    prior_voice = (previous.studio_context or {}).get("voice_profile_id") if previous else None
+    if body.studio_context.voice_profile_id and body.studio_context.voice_profile_id != prior_voice:
+        record(db, VoiceProfile, ws, body.studio_context.voice_profile_id)
+    if body.studio_context.generation_job_id:
+        from app.platform_models import Job
+
+        job = record(db, Job, ws, body.studio_context.generation_job_id)
+        if job.kind != "social_text" or job.status != "succeeded":
+            raise HTTPException(422, "Erfolgreichen Textauftrag auswählen.")
     if body.brand_id:
         record(db, Brand, ws, body.brand_id)
     for asset_id in body.asset_ids:
@@ -1280,6 +1296,7 @@ def replace_post_media(db, ws, post, asset_ids):
                 "alt_text": post.alt_text,
                 "brand_id": post.brand_id,
                 "asset_ids": asset_ids,
+                "studio_context": post.studio_context,
             },
         )
     )
@@ -1304,3 +1321,6 @@ register_experience_routes(app, db_session, scope, record, paginate, audit, cont
 register_journey_routes(app, db_session, scope, record, paginate, audit, contact_output, profile)
 
 register_provider_tests(app, db_session, scope, audit)
+
+
+register_studio_routes(app, db_session, scope, record, paginate, audit)

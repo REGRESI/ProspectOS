@@ -19,6 +19,11 @@ from app.models import TenantMixin
 
 class Asset(TenantMixin, Base):
     __tablename__ = "assets"
+    title: Mapped[str] = mapped_column(String(200), default="")
+    description: Mapped[str] = mapped_column(String(2000), default="")
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+    rights_note: Mapped[str] = mapped_column(String(1000), default="")
+    uploaded_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     filename: Mapped[str] = mapped_column(String(200))
     storage_key: Mapped[str] = mapped_column(String(80), unique=True)
     content_type: Mapped[str] = mapped_column(String(80))

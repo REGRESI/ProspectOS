@@ -36,6 +36,7 @@ export type ModuleProps = {
   csrf: string;
 };
 export type Asset = {
+  title?: string; description?: string; tags?: string[]; rights_note?: string; uploaded_by?: string | null;
   id: string;
   filename: string;
   content_type: string;

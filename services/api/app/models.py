@@ -143,6 +143,7 @@ class Post(TenantMixin, Base):
     publish_enabled: Mapped[bool] = mapped_column(default=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     provider_post_id: Mapped[str | None] = mapped_column(String(300))
+    studio_context: Mapped[dict] = mapped_column(JSON, default=dict)
     caption: Mapped[str] = mapped_column(String(3000))
     alt_text: Mapped[str] = mapped_column(String(1000), default="")
     state: Mapped[str] = mapped_column(String(30), default="draft")

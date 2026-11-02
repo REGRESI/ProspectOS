@@ -23,7 +23,7 @@ type Variant = {
   citations?: string[];
   unverified_claims?: string[];
 };
-type GenerationJob = {
+export type GenerationJob = {
   id: string;
   status: string;
   last_error?: string | null;
@@ -90,7 +90,15 @@ export function GenerationTools({
   onVariants,
   onAsset,
   onChange,
+  voiceId = "",
+  initialTool = "text",
+  postContext = "",
+  onJob,
 }: {
+  voiceId?: string;
+  initialTool?: "text" | "image";
+  postContext?: string;
+  onJob?: (id: string) => void;
   base: string;
   write: Write;
   brands: Brand[];
@@ -100,7 +108,7 @@ export function GenerationTools({
   onAsset: (asset: Asset) => void;
   onChange: () => void;
 }) {
-  const [tool, setTool] = useState<"text" | "image">("text");
+  const [tool, setTool] = useState<"text" | "image">(initialTool);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [imageResult, setImageResult] = useState<Asset | null>(null);
@@ -113,8 +121,11 @@ export function GenerationTools({
   const { job, setJob, pollError, setPollError } = useGenerationJob(
     base,
     (completed) => {
-      if (completed.result.variants?.length)
+      if (completed.result.variants?.length) {
         onVariants(completed.result.variants);
+        onJob?.(completed.id);
+        onChange();
+      }
       if (completed.result.asset) {
         setImageResult(completed.result.asset);
         setImageReviewed(false);
@@ -144,9 +155,23 @@ export function GenerationTools({
               instructions: form.get("instructions"),
               brand_id: brandId || null,
               variants: 3,
+              voice_profile_id: voiceId || null,
+              business_context: form.get("business_context"),
+              length: form.get("length"),
+              emoji: form.get("emoji"),
+              cta: form.get("cta"),
+              hook: form.get("hook") === "on",
+              end_question: form.get("end_question") === "on",
+              banned_elements: form.get("banned_elements"),
+              factual_notes: form.get("factual_notes"),
             }
           : {
               prompt: form.get("prompt"),
+              style: form.get("style"),
+              mood: form.get("mood"),
+              aspect_ratio: form.get("aspect_ratio"),
+              post_context: form.get("post_context"),
+              allow_text: form.get("allow_text") === "on",
               alt_text: form.get("alt_text"),
               brand_id: brandId || null,
               rights_confirmed: form.get("rights") === "on",
@@ -207,7 +232,7 @@ export function GenerationTools({
                 <input
                   name="audience"
                   defaultValue={selectedBrand?.audience || ""}
-                  maxLength={1000}
+                  maxLength={500}
                 />
               </label>
               <label>
@@ -217,7 +242,7 @@ export function GenerationTools({
                   defaultValue={
                     selectedBrand?.voice || "Sachlich und hilfreich"
                   }
-                  maxLength={300}
+                  maxLength={200}
                 />
               </label>
             </div>
@@ -225,7 +250,15 @@ export function GenerationTools({
               <label>
                 Ziel des Beitrags
                 <select name="objective">
-                  <option value="discussion">Gespräch anstoßen</option>
+                  {[
+                    "Reichweite",
+                    "Vertrauen",
+                    "Kommentar",
+                    "Leads",
+                    "Markenaufbau",
+                  ].map((goal) => (
+                    <option key={goal}>{goal}</option>
+                  ))}
                   <option value="education">Wissen vermitteln</option>
                   <option value="brand_awareness">
                     Positionierung stärken
@@ -235,7 +268,16 @@ export function GenerationTools({
               <label>
                 Beitragsart
                 <select name="post_type">
-                  <option value="insight">Perspektive / Insight</option>
+                  {[
+                    "persönlich",
+                    "fachlich",
+                    "provokant",
+                    "story",
+                    "praxisnah",
+                    "educational",
+                  ].map((style) => (
+                    <option key={style}>{style}</option>
+                  ))}
                   <option value="question">Frage an das Netzwerk</option>
                   <option value="how_to">Praktischer Leitfaden</option>
                   <option value="story">Eigene Erfahrung</option>
@@ -243,11 +285,67 @@ export function GenerationTools({
               </label>
             </div>
             <label>
+              Unternehmens- / Markenkontext
+              <textarea name="business_context" rows={2} maxLength={800} />
+            </label>
+            <div className="form-grid">
+              <label>
+                Gewünschte Länge
+                <select name="length" defaultValue="mittel">
+                  {["kurz", "mittel", "lang"].map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Emoji-Intensität
+                <select name="emoji">
+                  {["Profil", "keine", "wenig", "mittel", "mehr"].map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                CTA-Vorliebe
+                <select name="cta">
+                  {[
+                    "Profil",
+                    "Frage",
+                    "soft CTA",
+                    "direkter CTA",
+                    "kein CTA",
+                  ].map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="checkbox-line">
+              <input name="hook" type="checkbox" defaultChecked /> Starker Hook
+            </label>
+            <label className="checkbox-line">
+              <input name="end_question" type="checkbox" defaultChecked /> Frage
+              am Ende
+            </label>
+            <label>
+              Zu vermeiden
+              <textarea name="banned_elements" maxLength={500} rows={2} />
+            </label>
+            <label>
+              Vom Nutzer bereitgestellte Fakten
+              <textarea
+                name="factual_notes"
+                maxLength={2000}
+                rows={3}
+                placeholder="Nur belegbare Angaben; keine Fakten aus Stilbeispielen übernehmen."
+              />
+            </label>
+            <label>
               Überarbeitungswunsch / belegbarer Kontext
               <textarea
                 name="instructions"
                 rows={3}
-                maxLength={2000}
+                maxLength={1000}
                 placeholder="Zum Beispiel: kürzer, klarerer Einstieg, keine unbelegten Zahlen. Fehlende Fakten ausdrücklich offen lassen."
               />
             </label>
@@ -269,6 +367,45 @@ export function GenerationTools({
                 rows={3}
                 placeholder="Beschreibe ein eigenes Motiv, Stil und Farben. Keine fiktiven Kundenerfolge oder Personen als Tatsachen darstellen."
               />
+            </label>
+            <div className="form-grid">
+              <label>
+                Visueller Stil
+                <input
+                  name="style"
+                  maxLength={200}
+                  placeholder="z. B. Editorial-Illustration"
+                />
+              </label>
+              <label>
+                Stimmung
+                <input
+                  name="mood"
+                  maxLength={200}
+                  placeholder="z. B. ruhig und klar"
+                />
+              </label>
+              <label>
+                Bildformat
+                <select name="aspect_ratio">
+                  <option value="square">Quadrat 1:1</option>
+                  <option value="landscape">Querformat 3:2</option>
+                  <option value="portrait">Hochformat 2:3</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              Bezug zum Beitrag
+              <textarea
+                name="post_context"
+                defaultValue={(postContext || topic).slice(0, 1000)}
+                maxLength={1000}
+                rows={2}
+              />
+            </label>
+            <label className="checkbox-line">
+              <input name="allow_text" type="checkbox" /> Text im Bild
+              ausdrücklich erlauben
             </label>
             <label>
               Alternativtext für das erzeugte Motiv

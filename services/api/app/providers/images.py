@@ -10,11 +10,11 @@ from app.providers.ai import ProviderError, request_json
 
 
 class ImageProvider(Protocol):
-    def generate(self, prompt: str) -> bytes: ...
+    def generate(self, prompt: str, *, aspect_ratio: str = "square") -> bytes: ...
 
 
 class OpenAIImages:
-    def generate(self, prompt: str, *, client=None) -> bytes:
+    def generate(self, prompt: str, *, aspect_ratio="square", client=None) -> bytes:
         key = os.getenv("IMAGE_API_KEY") or os.getenv("LLM_API_KEY")
         model = os.getenv("IMAGE_MODEL")
         base = (
@@ -34,6 +34,9 @@ class OpenAIImages:
             raise ProviderError("invalid_provider_configuration")
         if not 3 <= len(prompt) <= 6000:
             raise ProviderError("input_limit_exceeded")
+        sizes = {"square": "1024x1024", "landscape": "1536x1024", "portrait": "1024x1536"}
+        if aspect_ratio not in sizes:
+            raise ProviderError("invalid_image_format")
         data, _ = request_json(
             "POST",
             base + "/images/generations",
@@ -45,7 +48,7 @@ class OpenAIImages:
                 "model": model,
                 "prompt": prompt,
                 "n": 1,
-                "size": "1024x1024",
+                "size": sizes[aspect_ratio],
                 "output_format": "jpeg",
             },
         )

@@ -64,3 +64,20 @@ python infra/scripts/smoke.py
 On machines without system Chromium, install the Playwright-supported browser first (`pnpm --filter @prospectos/web exec playwright install --with-deps chromium`) and omit the executable override. Browser tests retain isolated synthetic E2E workspaces; backend fixtures and disposable test DBs are removed. Do not enable real paid providers merely to run development browser tests.
 
 Known non-failing warnings: Starlette's future httpx2 migration and terminal color settings. Comprehensive screenreader/contrast/security/load/DR audits and live-provider release gates remain open.
+
+## Social Studio V2 verification — 2026-11-02
+
+Observed for `feat/social-studio-v2`, based on `8b92928`:
+
+- **130 backend tests passed** on PostgreSQL: all 124 previous tests retained plus six workflow tests covering voice CRUD/examples/version conflicts/export/RLS, variant snapshot/grounding/hard style rules, refinement chains/inherited facts/tenant-bound parent jobs, draft revision comparison/duplicate/archive, metadata/manual/auto/random image selection, explicit absent credentials, and mocked landscape image generation/storage/review gating.
+- Migration lifecycle: disposable database upgrade through **0008 → downgrade base → upgrade head**, seed twice, full suite, disposable database removed. The running local dev database was upgraded separately.
+- **19 frontend tests passed**, including all previous 15. Added failure-safe voice/example persistence, tag search/manual override, empty/random gallery failure and refinement context/credential failure coverage.
+- ESLint, strict TypeScript, Ruff checks/format, `git diff --check` and Next production build pass. No new runtime dependencies or lockfile changes.
+- **12 browser E2E tests passed** against local PostgreSQL + source API/worker + the production standalone web build; all 11 prior tests retained. New browser flow creates a voice/example, uses manual/automatic/random/no-image modes, previews a real private fixture image, saves/reloads/edits revisions, duplicates/archives, and checks missing text/image configuration. Narrow-screen overflow and media control availability are checked. Final run details are recorded in the delivery report.
+- Compose security validation and local functional smoke pass (web, restricted PostgreSQL role, real cookie login, consistent contact totals). Docker PostgreSQL was used; the API/web container images were not rebuilt in this task. This does not re-claim the previous branch's full container-image verification.
+
+Screenshots: `apps/web/test-results/studio-v2-{voice,workspace,image-configuration,mobile}.png`, copied to the delivery outputs. Screenshots contain only synthetic E2E workspaces and a clearly labeled locally created fixture. They are not evidence of real provider output. Existing cross-product screenshots were also exercised. Failed early browser runs exposed test selector assumptions and a responsive visibility issue; the product and test fixes are included and no existing tests were deleted or skipped.
+
+Live LLM prose quality, paid image authorization/costs, real LinkedIn publishing and remote CI are **not** verified. No provider keys were supplied, no real paid calls were made, no production/public deployment occurred. One existing Starlette/httpx deprecation warning and terminal color warnings are non-failing.
+
+Repeat the commands in the existing Repeat section above, including the disposable-database script, `pnpm build`, and the running API/worker/web for E2E. Local start commands with migrator credentials removed are in [SOCIAL_STUDIO_V2.md](SOCIAL_STUDIO_V2.md).

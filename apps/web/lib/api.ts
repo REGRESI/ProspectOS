@@ -57,6 +57,7 @@ export type Deal = {
   stage: string;
 };
 export type Post = {
+  studio_context?: { image_mode?: "none" | "manual" | "auto" | "random" | "ai"; voice_profile_id?: string | null; generation_job_id?: string | null };
   publish_enabled?:boolean;
   provider_post_id?:string|null;
   brand_id?: string | null;
@@ -164,6 +165,7 @@ export const stageLabels: Record<string, string> = {
   lost: "Verloren",
 };
 export const postLabels: Record<string, string> = {
+  archived: "Archiviert",
   draft: "Entwurf",
   needs_review: "In Prüfung",
   approved: "Freigegeben",

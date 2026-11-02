@@ -84,7 +84,14 @@ class DealPatch(Strict):
     stage: Stage
 
 
+class StudioContext(Strict):
+    image_mode: Literal["none", "manual", "auto", "random", "ai"] = "none"
+    voice_profile_id: str | None = Field(default=None, max_length=36)
+    generation_job_id: str | None = Field(default=None, max_length=36)
+
+
 class PostInput(Strict):
+    studio_context: StudioContext = Field(default_factory=StudioContext)
     brand_id: str | None = None
     asset_ids: list[str] = Field(default_factory=list, max_length=1)
     caption: str = Field(min_length=1, max_length=3000)

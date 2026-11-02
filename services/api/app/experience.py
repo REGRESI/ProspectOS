@@ -27,6 +27,7 @@ from app.platform_models import (
     Task,
 )
 from app.schemas import Strict
+from app.studio import WritingControls, constraints_for, shape_text, voice_snapshot, writing_prompt
 
 
 class AssetOrigin(TenantMixin, Base):
@@ -63,7 +64,7 @@ class WorkspaceSetup(TenantMixin, Base):
     __table_args__ = (UniqueConstraint("workspace_id"),)
 
 
-class SocialGeneration(Strict):
+class SocialGeneration(WritingControls):
     topic: str = Field(min_length=3, max_length=500)
     audience: str = Field(default="", max_length=500)
     brand_id: str | None = None
@@ -79,6 +80,18 @@ class ImageGeneration(Strict):
     alt_text: str = Field(min_length=3, max_length=1000)
     brand_id: str | None = None
     rights_confirmed: bool = False
+    style: str = Field(default="", max_length=200)
+    mood: str = Field(default="", max_length=200)
+    post_context: str = Field(default="", max_length=1000)
+    aspect_ratio: str = "square"
+    allow_text: bool = False
+
+    @field_validator("aspect_ratio")
+    @classmethod
+    def ratio(cls, value):
+        if value not in ("square", "landscape", "portrait"):
+            raise ValueError("Unsupported image format")
+        return value
 
 
 class ImageReview(Strict):
@@ -220,7 +233,12 @@ def external_generation(job):
     if job.kind == "social_image":
         from app.providers.images import OpenAIImages
 
-        payload = OpenAIImages().generate(job.payload["prompt"])
+        if job.payload.get("aspect_ratio", "square") == "square":
+            payload = OpenAIImages().generate(job.payload["prompt"])
+        else:
+            payload = OpenAIImages().generate(
+                job.payload["prompt"], aspect_ratio=job.payload["aspect_ratio"]
+            )
         return {"image_bytes": payload}, SimpleNamespace(
             input_tokens=0,
             output_tokens=0,
@@ -234,20 +252,30 @@ def external_generation(job):
         }, result
     results = []
     input_tokens = output_tokens = cost = 0
-    angles = [
-        "Konkreter fachlicher Einstieg",
-        "Perspektivwechsel mit offener Frage",
-        "Knapper Praxistipp mit sachlicher Handlungsaufforderung",
-    ]
+    angles = (
+        ["Gezielte Überarbeitung: " + job.payload["action"]]
+        if job.payload.get("purpose") == "social_refinement"
+        else [
+            "Persönlich: eine ehrliche Beobachtung, keine erfundene Geschichte",
+            "Direkt und meinungsstark: klare These und begründeter Standpunkt",
+            "Fachlich und praxisnah: konkrete Schritte, keine erfundenen Zahlen",
+        ]
+    )
     for index, angle in enumerate(angles):
         output = generate_text(
             job.payload["prompt"] + "\nVariante " + str(index + 1) + ": " + angle,
             job.payload.get("sources", []),
         )
-        lines = [line.strip() for line in output.text.splitlines() if line.strip()]
+        text = shape_text(output.text, job.payload.get("constraints", {}))
+        if not text:
+            from app.providers.ai import ProviderError
+
+            raise ProviderError("empty_social_output")
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
         results.append(
             {
-                "text": output.text,
+                "text": text,
+                "angle": angle,
                 "hook": lines[0] if lines else "",
                 "cta": lines[-1] if len(lines) > 1 else "",
                 "citations": output.citations,
@@ -293,6 +321,7 @@ def finalize_generation(db, job, result):
         job.payload["alt_text"],
         "KI-Entwurf-" + job.id[:8] + ".jpg",
     )
+    asset.uploaded_by = job.actor_id
     db.add(
         AssetOrigin(
             workspace_id=job.workspace_id,
@@ -304,6 +333,8 @@ def finalize_generation(db, job, result):
                 "provider": "openai_images",
                 "model": job.payload["model"],
                 "estimated_max_cost_minor": job.payload["reservation_minor"],
+                "aspect_ratio": job.payload.get("aspect_ratio", "square"),
+                "actor_id": job.actor_id,
             },
         )
     )
@@ -314,6 +345,11 @@ def finalize_generation(db, job, result):
         "estimated_max_cost_minor": job.payload["reservation_minor"],
         "notice": "Echte Anbieterausgabe privat gespeichert. Vor Bibliotheksübernahme prüfen; Kosten sind die konfigurierte Obergrenze, keine Anbieterrechnung.",
     }
+
+
+def text_requirements():
+    if not os.getenv("LLM_API_KEY") or not os.getenv("LLM_MODEL"):
+        raise HTTPException(503, "LLM_API_KEY und LLM_MODEL für echte KI-Varianten konfigurieren.")
 
 
 def register_experience_routes(
@@ -545,10 +581,8 @@ def register_experience_routes(
     ):
         from app.platform_routes import job_output
 
-        if not os.getenv("LLM_API_KEY") or not os.getenv("LLM_MODEL"):
-            raise HTTPException(
-                503, "LLM_API_KEY und LLM_MODEL für echte KI-Varianten konfigurieren."
-            )
+        text_requirements()
+        voice = voice_snapshot(db, ws, body.voice_profile_id, record)
         sources = []
         if body.brand_id:
             brand = record(db, Brand, ws, body.brand_id)
@@ -558,7 +592,12 @@ def register_experience_routes(
                     "text": f"Benutzer-Markenprofil, keine Kundenbelege: {brand.name}; Stimme:{brand.voice}; Zielgruppe:{brand.audience}; Säulen:{brand.pillars}",
                 }
             ]
-        prompt = f"Thema: {body.topic}\nZielgruppe: {body.audience}\nTonalität: {body.tone}\nZiel: {body.objective}\nFormat: {body.post_type}\nRevisionswünsche: {body.instructions}\nSchreibe einen LinkedIn-Entwurf mit eigenständigem Hook und CTA. Keine erfundenen Kundenbelege, Statistiken oder Geschäftszahlen. Fehlende Fakten als unbekannt behandeln."
+        prompt = f"Thema: {body.topic}\nZielgruppe: {body.audience}\nTonalität: {body.tone}\nZiel: {body.objective}\nFormat: {body.post_type}\nRevisionswünsche: {body.instructions}\nSchreibe einen LinkedIn-Entwurf unter Beachtung der ausgewählten Hook- und CTA-Regeln. Keine erfundenen Kundenbelege, Statistiken oder Geschäftszahlen. Fehlende Fakten als unbekannt behandeln."
+        prompt = writing_prompt(body, voice) + "\n" + prompt
+        if body.factual_notes:
+            sources.append({"id": "user_facts", "text": body.factual_notes})
+        if len(prompt) > 11500:
+            raise HTTPException(422, "Stilbeispiele oder Kontext für diesen Auftrag kürzen.")
         reservation = reserve_ai(db, ws, prompt + str(sources), multiplier=3)
         job = enqueue(
             db,
@@ -570,6 +609,9 @@ def register_experience_routes(
                 "sources": sources,
                 "reservation_minor": reservation,
                 "purpose": "social_variants",
+                "voice_snapshot": voice,
+                "constraints": constraints_for(body, voice),
+                "parameters": body.model_dump(),
                 "provider_configuration": generation_fingerprint("social_text"),
             },
         )
@@ -614,6 +656,11 @@ def register_experience_routes(
             "Create a professional illustrative business graphic, never a fake customer photo or fabricated testimonial. "
             + body.prompt
         )
+        prompt += (
+            f" Visual style: {body.style}; mood: {body.mood}; post context: {body.post_context}."
+        )
+        if not body.allow_text:
+            prompt += " No typography, captions, text overlays or logos."
         if brand:
             prompt += f" Brand palette: {brand.primary_color}; style: {brand.voice}."
         job = enqueue(
@@ -624,6 +671,7 @@ def register_experience_routes(
             {
                 "prompt": prompt,
                 "alt_text": body.alt_text,
+                "aspect_ratio": body.aspect_ratio,
                 "model": os.environ["IMAGE_MODEL"],
                 "provider_configuration": generation_fingerprint("social_image"),
                 "reservation_minor": cost,

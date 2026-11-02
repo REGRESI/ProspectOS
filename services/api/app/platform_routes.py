@@ -58,7 +58,19 @@ def job_output(job):
 def asset_output(asset):
     return {
         k: getattr(asset, k)
-        for k in ("id", "filename", "content_type", "size", "alt_text", "created_at")
+        for k in (
+            "id",
+            "filename",
+            "content_type",
+            "size",
+            "alt_text",
+            "created_at",
+            "title",
+            "description",
+            "tags",
+            "rights_note",
+            "uploaded_by",
+        )
     } | {"url": f"/v1/workspaces/{asset.workspace_id}/assets/{asset.id}/content"}
 
 
@@ -177,6 +189,7 @@ def register_platform_routes(app, db_session, scope, record, paginate, audit):
         try:
             item = Asset(
                 workspace_id=ws,
+                uploaded_by=member.user_id,
                 filename=Path((file.filename or "image.jpg").replace("\\", "/")).name[:200]
                 or "image.jpg",
                 storage_key=key,
@@ -610,12 +623,14 @@ def register_platform_routes(app, db_session, scope, record, paginate, audit):
             Segment,
         )
         from app.models import Company, Deal
+        from app.studio import VoiceProfile
 
         tables = [
             Contact,
             Company,
             Deal,
             Brand,
+            VoiceProfile,
             Asset,
             Campaign,
             Task,

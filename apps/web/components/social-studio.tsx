@@ -20,6 +20,10 @@ import {
   PostInspector,
   PublishingRules,
 } from "./social-tools";
+import { VoiceProfiles } from "./voice-profiles";
+import { StudioRefinements } from "./studio-refinements";
+import { StudioMedia, imageModeLabels, type ImageMode } from "./studio-media";
+
 export function Social({
   base,
   write,
@@ -44,6 +48,11 @@ export function Social({
   const [altText, setAltText] = useState("");
   const [assetId, setAssetId] = useState("");
   const [brandId, setBrandId] = useState("");
+  const [voiceId, setVoiceId] = useState("");
+  const [generationId, setGenerationId] = useState("");
+  const [imageMode, setImageMode] = useState<ImageMode>("none");
+  const [extraAsset, setExtraAsset] = useState<Asset | null>(null);
+  const [showImage, setShowImage] = useState(true);
   const assets = useData<Page<Asset>>(`${base}/assets?limit=100`, revision);
   const brands = useData<Page<Brand>>(`${base}/brands?limit=100`, revision);
   const integration = useData<{
@@ -57,9 +66,11 @@ export function Social({
   const linkedin = integration.data?.items.find(
     (i) => i.name.toLowerCase() === "linkedin",
   );
-  const selectedAsset = assets.data?.items.find(
-    (asset) => asset.id === assetId,
-  );
+  const selectedAsset = assetId
+    ? extraAsset?.id === assetId
+      ? extraAsset
+      : assets.data?.items.find((asset) => asset.id === assetId)
+    : undefined;
 
   const [variants, setVariants] = useState<string[]>([]);
   const [variantNotes, setVariantNotes] = useState<
@@ -102,6 +113,7 @@ export function Social({
       );
       setVariants(result.variants);
       setVariantOrigin("offline");
+      setGenerationId("");
       setVariantNotes([]);
       setCaption(result.variants[0] || "");
       notify(
@@ -122,6 +134,11 @@ export function Social({
         editing ? `/social/posts/${editing.id}` : "/social/posts",
         {
           caption,
+          studio_context: {
+            image_mode: imageMode,
+            voice_profile_id: voiceId || null,
+            generation_job_id: generationId || null,
+          },
           alt_text: altText,
           brand_id: brandId || null,
           asset_ids: assetId ? [assetId] : [],
@@ -134,6 +151,8 @@ export function Social({
       setAssetId("");
       setBrandId("");
       setEditing(null);
+      setImageMode("none");
+      setGenerationId("");
       onChange();
       setSavedAt(new Date().toISOString());
       notify("Beitrag gespeichert.");
@@ -242,31 +261,24 @@ export function Social({
                     ))}
                   </select>
                 </label>
-                <label>
-                  Bild aus privater Bibliothek
-                  <select
-                    value={assetId}
-                    onChange={(e) => {
-                      setAssetId(e.target.value);
-                      const asset = assets.data?.items.find(
-                        (a) => a.id === e.target.value,
-                      );
-                      if (asset) setAltText(asset.alt_text);
-                    }}
-                  >
-                    <option value="">Textbeitrag ohne Bild</option>
-                    {assets.data?.items.map((asset) => (
-                      <option key={asset.id} value={asset.id}>
-                        {asset.filename}
-                      </option>
-                    ))}
-                  </select>
-                </label>
               </div>
+              <VoiceProfiles
+                base={base}
+                write={write}
+                value={voiceId}
+                onSelect={setVoiceId}
+                revision={revision}
+                onChange={onChange}
+              />
               {aiOpen && (
                 <GenerationTools
                   base={base}
                   write={write}
+                  voiceId={voiceId}
+                  initialTool={imageMode === "ai" ? "image" : "text"}
+                  key={imageMode === "ai" ? "image" : "text"}
+                  postContext={caption}
+                  onJob={setGenerationId}
                   brands={brands.data?.items || []}
                   brandId={brandId}
                   topic={topic}
@@ -283,8 +295,10 @@ export function Social({
                     );
                   }}
                   onAsset={(asset) => {
+                    setExtraAsset(asset);
                     setAssetId(asset.id);
                     setAltText(asset.alt_text);
+                    setImageMode("ai");
                     notify("Geprüftes Anbieterbild ausgewählt.");
                   }}
                 />
@@ -299,7 +313,17 @@ export function Social({
                     src={`/api${selectedAsset.url}`}
                     alt={altText || selectedAsset.alt_text}
                   />
-                  <Badge tone="green">Privates Bild ausgewählt</Badge>
+                  <Badge tone="green">{imageModeLabels[imageMode]}</Badge>
+                  <button
+                    className="button secondary small"
+                    onClick={() => {
+                      setAssetId("");
+                      setAltText("");
+                      setImageMode("none");
+                    }}
+                  >
+                    Bild entfernen
+                  </button>
                   <div className="form-actions">
                     <span className="small muted">
                       Mittiger Zuschnitt als neue private Datei:
@@ -465,6 +489,21 @@ export function Social({
                   {busy ? <Spinner /> : <Check size={16} />} Entwurf speichern
                 </button>
               </div>
+              <StudioRefinements
+                base={base}
+                write={write}
+                caption={caption}
+                parentJobId={generationId}
+                voiceId={voiceId}
+                brandId={brandId}
+                revision={revision}
+                onChange={onChange}
+                onSelect={(text, jobId) => {
+                  setCaption(text);
+                  setGenerationId(jobId);
+                  setVariantOrigin("provider");
+                }}
+              />
             </div>
           </section>
           <aside className="social-preview">
@@ -511,7 +550,21 @@ export function Social({
                 {caption ||
                   "Hier bekommt dein Beitrag ein Gesicht. Schreibe einen eigenen Text oder entwickle zuerst ein paar Ideen."}
               </p>
-              {selectedAsset && (
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={showImage}
+                  onChange={(e) => setShowImage(e.target.checked)}
+                />{" "}
+                Bild in Vorschau anzeigen
+              </label>
+              <p className="small muted preview-mode-hint">
+                {selectedAsset
+                  ? imageModeLabels[imageMode]
+                  : "Textbeitrag ohne Bild"}{" "}
+                · Vorschau, keine Veröffentlichung
+              </p>
+              {showImage && selectedAsset && (
                 <div className="preview-asset">
                   <Image
                     unoptimized
@@ -529,6 +582,29 @@ export function Social({
                 <span>Teilen</span>
               </div>
             </div>
+            <StudioMedia
+              write={write}
+              assets={assets.data?.items || []}
+              loading={assets.loading}
+              mode={imageMode}
+              onMode={(mode) => {
+                setImageMode(mode);
+                setAssetId("");
+                setAltText("");
+                if (mode === "ai") setAiOpen(true);
+              }}
+              onAsset={(asset, mode) => {
+                setExtraAsset(asset);
+                setAssetId(asset.id);
+                setAltText(asset.alt_text);
+                setImageMode(mode);
+              }}
+              onChange={onChange}
+              topic={topic || caption}
+              brandId={brandId}
+              voiceId={voiceId}
+              selectedId={assetId}
+            />
             <div className="preview-tip">
               <span className="step-icon purple">
                 <Sparkles size={18} />
@@ -597,6 +673,14 @@ export function Social({
                       className="button secondary small"
                       onClick={() => {
                         setEditing(post);
+                        setVoiceId(post.studio_context?.voice_profile_id || "");
+                        setGenerationId(
+                          post.studio_context?.generation_job_id || "",
+                        );
+                        setImageMode(
+                          post.studio_context?.image_mode ||
+                            (post.asset_ids?.length ? "manual" : "none"),
+                        );
                         setCaption(post.caption);
                         setAltText(post.alt_text);
                         setAssetId(post.asset_ids?.[0] || "");
@@ -605,6 +689,22 @@ export function Social({
                       }}
                     >
                       Bearbeiten
+                    </button>
+                  )}
+                  <button
+                    className="button secondary small"
+                    onClick={() => action(post, "duplicate")}
+                  >
+                    Duplizieren
+                  </button>
+                  {!["archived", "publishing", "published"].includes(
+                    post.state,
+                  ) && (
+                    <button
+                      className="button secondary small"
+                      onClick={() => action(post, "archive")}
+                    >
+                      Archivieren
                     </button>
                   )}
                   {post.state === "draft" && (
