@@ -7,8 +7,9 @@ from sqlalchemy import create_engine, text
 
 
 def main():
-    if os.getenv("APP_ENV", "development") not in ("development", "test"):
-        raise RuntimeError("Local role provisioning is disabled outside development/test")
+    production = os.getenv("APP_ENV", "development") == "production"
+    if production and not os.getenv("DATABASE_ADMIN_URL"):
+        raise RuntimeError("Production migrations require explicit DATABASE_ADMIN_URL")
     admin = os.getenv(
         "DATABASE_ADMIN_URL",
         "postgresql+psycopg://prospectos:prospectos_dev@127.0.0.1:5432/prospectos",
@@ -18,6 +19,10 @@ def main():
     # Values are bound through PostgreSQL format(), never interpolated into SQL.
     with engine.begin() as db:
         exists = db.scalar(text("SELECT 1 FROM pg_roles WHERE rolname='prospectos_app'"))
+        if not exists and production:
+            raise RuntimeError(
+                "Provision the non-owner prospectos_app role before production migration"
+            )
         if not exists:
             statement = db.scalar(
                 text(
@@ -34,7 +39,9 @@ def main():
                 "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO prospectos_app"
             )
         )
-        db.execute(text("REVOKE UPDATE, DELETE ON audit_events FROM prospectos_app"))
+        db.execute(
+            text("REVOKE UPDATE, DELETE ON audit_events, post_revisions FROM prospectos_app")
+        )
         db.execute(text("REVOKE ALL ON alembic_version FROM prospectos_app"))
     print("Schema upgraded; application role uses RLS and cannot mutate audit history.")
 

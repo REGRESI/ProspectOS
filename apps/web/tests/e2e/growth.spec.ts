@@ -137,10 +137,10 @@ test("workspace onboarding → private media/brand → social attachment → cal
     .toBeTruthy();
   await nav(page, "Social Studio");
   await page
-    .getByLabel("Markenprofil", { exact: true })
+    .getByRole("combobox", { name:"Markenprofil", exact:true })
     .selectOption({ label: "Fiktive Marke E2E" });
   await page
-    .getByLabel("Bild aus privater Bibliothek")
+    .getByRole("combobox", { name:"Bild aus privater Bibliothek", exact:true })
     .selectOption({ label: "synthetische-farbkacheln.png" });
   await page
     .getByRole("textbox", { name: "Beitragstext", exact: true })
@@ -200,7 +200,7 @@ test("CRM task/notes → campaign audience → offline draft without send", asyn
   await page.getByLabel("Vorname", { exact: true }).fill("Synthetisch");
   await page.getByLabel("Nachname", { exact: true }).fill("Beziehung");
   await page
-    .getByLabel("Unternehmen", { exact: true })
+    .getByRole("textbox", { name: "Unternehmen", exact: true })
     .fill("Fiktive Testfirma");
   await page.getByRole("button", { name: "Speichern", exact: true }).click();
   await expect(page.locator("tbody")).toContainText("Synthetisch Beziehung");

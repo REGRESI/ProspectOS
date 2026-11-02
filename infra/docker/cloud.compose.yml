@@ -5,10 +5,18 @@ services:
       secrets:
         - ca_bundle
   api:
+    environment:
+      SSL_CERT_FILE: /run/cloud-ca.pem
+    volumes:
+      - /etc/ssl/certs/ca-certificates.crt:/run/cloud-ca.pem:ro
     build:
       secrets:
         - ca_bundle
   worker:
+    environment:
+      SSL_CERT_FILE: /run/cloud-ca.pem
+    volumes:
+      - /etc/ssl/certs/ca-certificates.crt:/run/cloud-ca.pem:ro
     build:
       secrets:
         - ca_bundle

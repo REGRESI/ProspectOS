@@ -1,15 +1,16 @@
-# Umsetzung
+# Incremental implementation plan
 
-Die Grundlage ist der Master-Prompt v1 vom 01.11.2026. Die Entwicklung erfolgt in zusammenhängenden, prüfbaren Funktionsbereichen. Der gesamte SaaS-Umfang ist kein abgeschlossener Produktionsstand.
+Start: existing d103f23 on feat/prospectos-local-pilot. Preserve working vertical workflows and original tests. Specification retained in CODEX_MASTER_PROMPT.md; detailed remaining gaps in STATUS.md.
 
-| Phase | Ziel | Status |
+| Phase | Delivered in this continuation | Remaining gate |
 | --- | --- | --- |
-| S0 | Next.js, FastAPI, PostgreSQL, lokale Anmeldung, Workspaces, Rollen, RLS | lokaler Kern implementiert; produktive Auth/Teamverwaltung offen |
-| S1 | CSV-Vorschau/Import, Kontakte, Unternehmen, nachvollziehbares ICP-Scoring | implementierter begrenzter CSV-/Kontaktkern; Details STATUS.md |
-| S2 | Social-Entwürfe, Freigaben, interne Planung | teilweise: Entwürfe/Freigaben/interne Planung, ohne Assets/Worker |
-| S3 | Synthetische Discovery, Outreach-Entwürfe, CRM | teilweise: synthetische Discovery, Entwürfe, einfache Deals |
-| S4 | Produktive Identität, lizenzierte Anbieter, echtes OAuth/Publishing, Abrechnung | außerhalb dieses ersten Kerns |
+| Audit | Code/schema/routes/frontend/spec audit; baseline preserved; normal branch push | GitHub API/base branch blocks PR |
+| Core platform | Additive migrations, isolated migrator, verified external identity/session/RBAC, private media, durable queue and safe audit/logs | Real auth setup, recovery/MFA/team UI, DR/security/load review |
+| Discovery/intelligence | Structured query UI, concrete licensed company adapter, provenance/import, restricted research adapter, explainable scores | Credentials/license/egress; richer evidence/enrichment/people APIs |
+| AI | Configurable structured source-grounded gateway, durable jobs, usage and budget reservations | Live model access/quality evaluation; image generation |
+| Social | Brand/media composer, visual calendar, OAuth and official adapters, encrypted tokens, approval/policy/quota-bound publication jobs, connect/publish controls | Live scopes/product approval/API version, image-processing confirmation, reconciliation/refresh and engagement ingestion |
+| Sales/CRM | Campaign audiences/status/drafts, tasks/notes, email transport and consent/source/suppression/approval gates | Rich sequences/reminders/segments, email UI/delivery webhooks |
+| SaaS | Stripe test checkout/portal/signature/idempotency, subscription-derived resource limits, export/deletion primitives | Live test integration, billing UI/event ordering, complete privacy/retention/legal rollout |
+| Verification | 92 PostgreSQL backend tests,8frontend tests,6browser flows, lint/types/build, compose/smoke and security audits | Remote CI and production/live-provider validation are unverified |
 
-Pflichtprüfungen: Migration einer neuen PostgreSQL-Datenbank; API-Tests mit echtem PostgreSQL; Mandantentrennung, Import und Reimport; Frontend-Typprüfung, Lint, Tests, Build; Browser-Durchlauf der Kernfunktionen. Docker-Gesamtstack separat prüfen. Externe API-Operationen sind ohne geprüfte Zugangsdaten nicht Bestandteil der lokalen Demo.
-
-Die beobachteten Ergebnisse und die tatsächlich erreichten Abnahmebedingungen stehen am Ende in [STATUS.md](STATUS.md) und [TESTING.md](TESTING.md).
+No production or Cloud Environment publication is part of this task. See README for exact preview commands and TESTING for observed outcomes.

@@ -1,16 +1,11 @@
-# LinkedIn: aktueller Status und Voraussetzungen
+# Official LinkedIn integration
 
-**Nicht verbunden, nicht implementiert.** Die erste Version kann Entwürfe speichern und manuelle Arbeit vorbereiten; sie authentifiziert kein LinkedIn-Profil und sendet keine Kontaktanfragen, DMs oder Beiträge. Kein Cookie-Import, Scraping oder Browser-Bot.
+Implemented adapters: OAuth authorization/token exchange with authenticated userinfo; user/session-bound, hashed, expiring state; encrypted server-side token persistence; actual token-response scopes; official Posts API text/image request construction; image initialization/upload; disconnect; durable approval-bound dispatch and stored provider receipts. The UI exposes OAuth connection only when operator configuration exists and publication only when the backend reports actual capability. No scopes or successful receipts are fabricated.
 
-Für produktives Publishing sind eine echte LinkedIn-Developer-App, freigegebene Produkte und tatsächlich gewährte Scopes erforderlich. `w_member_social` allein ersetzt weder eine Produktfreigabe noch zusätzliche Rechte für Organisationsseiten. Profil-API-Daten dürfen nicht ohne entsprechende vertragliche Erlaubnis zu einer Lead-Datenbank werden.
+Required operator configuration: LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, exact registered LINKEDIN_REDIRECT_URI, TOKEN_ENCRYPTION_KEY (Fernet), explicitly verified currently supported LINKEDIN_API_VERSION and LINKEDIN_PUBLISHING_APPROVED=true only after product approval. A real granted w_member_social scope is required for personal publishing; additional page/community/feed permissions are not assumed. No LinkedIn API data is added to the lead database.
 
-Noch umzusetzen: geprüfte aktuelle OAuth-/API-Dokumentation, Callback-Allowlist, state/nonce mit Ablauf, gegebenenfalls unterstütztes PKCE, verschlüsselte Tokens, Revoke/Refresh, Capability-Prüfung, unveränderliche Freigaberevision, durable Queue/Outbox, idempotente Versuche und Behandlung unklarer Providerantworten. Keine automatische Wiederholung eines möglicherweise erfolgreichen Posts.
+Flow: `POST …/integrations/linkedin/start` → official consent → `GET /v1/integrations/linkedin/callback` → encrypted connection. The callback requires the initiating authenticated user and current owner/admin membership. The session cookie uses SameSite=Lax to permit the top-level callback; write CSRF protection remains mandatory. Tokens are never returned by the callback. Disconnect removes local credentials; the user may also revoke the app in LinkedIn settings.
 
-Offizielle Ausgangspunkte aus dem Brief; in dieser Implementierung wurden daraus keine funktionierenden API-Verträge behauptet:
+`POST …/social/posts/{id}/publish` separately authorizes an approved revision and creates a durable job. Optional offset-aware scheduled_at controls dispatch; original `/schedule` is editorial-only. POST/PUT …/social/policy configures manual/authorized_auto and max_posts_daily (1–10, UTC day). Automatic mode still requires explicit authorization and an already approved revision. Changing content/media invalidates approval. Workers recheck all constraints, serialize quotas, mark dispatch before external calls and retain receipts. Unknown outcomes are ambiguous, require reconciliation and cannot be blindly retried; exactly-once delivery is not promised.
 
-- https://learn.microsoft.com/linkedin/consumer/integrations/self-serve/share-on-linkedin
-- https://learn.microsoft.com/linkedin/marketing/community-management/shares/posts-api
-- https://developer.linkedin.com/legal
-- https://www.linkedin.com/help/linkedin/answer/a1341387
-
-Stand dieser Implementierungsnotiz: 01.11.2026. Exakte API-Versionen und Produkte vor Implementierung anhand offizieller aktueller Dokumentation verifizieren.
+Authoritative SDK source checked: https://github.com/linkedin-developers/linkedin-api-python-client (create_posts example). Direct Microsoft documentation was policy-blocked in this environment. No live credentials, OAuth flow, image readiness, product approval or live publishing was verified. These are release gates, not completed external integration tests. Refresh/revocation APIs, rich engagement ingestion and reconciliation UI remain outstanding. AI reply drafts accept supplied context; no feed scraping, auto-like/comment, connection request or DM bot exists.

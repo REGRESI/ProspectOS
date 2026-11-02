@@ -6,6 +6,7 @@ x-api-image: &api-image
 
 x-runtime-environment: &runtime-environment
   APP_ENV: development
+  AUTH_PROVIDER: ${AUTH_PROVIDER:-demo}
   DATABASE_URL: postgresql+psycopg://prospectos_app:${DB_APP_PASSWORD:-prospectos_app_dev}@db:5432/prospectos
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
   ASSET_ROOT: /var/lib/prospectos/assets

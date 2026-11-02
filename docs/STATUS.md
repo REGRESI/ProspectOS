@@ -1,39 +1,36 @@
-# Implementierungsstand
+# ProspectOS implementation status — 2026-11-02
 
-Erster lokaler Aufbau am 01.11.2026. Kein vollständiges SaaS und keine Produktionsfreigabe. Der folgende Stand beschreibt die tatsächlich implementierte lokale Ausbaustufe.
+This extends `d103f23` on `feat/prospectos-local-pilot`; the original application was preserved. It is a substantially expanded MVP, **not a production release or a claim that paid providers have been connected**. The original supplied specification is retained as `CODEX_MASTER_PROMPT.md`.
 
-| Bereich | Stand |
-| --- | --- |
-| FastAPI und PostgreSQL16 | Implementiert, Migration/Seed und 25 Backendtests erfolgreich |
-| Lokale Identität | Argon2, serverseitige Sitzung, CSRF, zwei Demo-Workspaces; Produktion verweigert |
-| Mandanten/Rollen | Mitgliedschaft, RLS, Composite-FKs, Analyst-/Approver-Prüfungen; keine Team-Einladungen |
-| CSV/Kontakte | Vorschau, Mapping, begrenzter synchroner Commit, Reimport, Rollback von unveränderten Kontakten, Suche/Pagination |
-| Unternehmen | Import/manuelle Kontaktanlage erzeugen Unternehmen; reduzierte Metadaten |
-| ICP | Deterministische Regeln, fehlende Fakten explizit; keine Kaufwahrscheinlichkeit |
-| CRM | Gespeicherte Deals/Phasen; keine vollständige Aufgaben-/Notiz-/Kampagnenverwaltung |
-| Discovery | Nur synthetischer lokaler Anbieter, keine Recherche-/Lizenzanbieteranbindung |
-| Outreach | Offline-Entwürfe, kein Versand/keine automatische LinkedIn-Aktion |
-| Social | Entwürfe, revisionierte Freigabe, interne Terminplanung; kein Scheduler/Publisher/Medienworkflow |
-| Web | Deutsche responsive Oberfläche für Dashboard, Kontakte/Import, Unternehmen, ICP, Discovery-Demo, Pipeline, Social, Kalenderliste, Integrationen und Audit; Lint, Typprüfung und 5 Frontendtests bestanden |
-| Anbieter | LinkedIn, LLM, Bildgenerierung, E-Mail und Stripe nicht verbunden |
-| Betrieb | Vollständiger Docker-Stack (PostgreSQL/API/Web) gebaut, alle Healthchecks gesund, funktionaler Smoke und 3 Browser-E2E-Tests bestanden |
+| Area | Implemented | Verification / remaining boundary |
+| --- | --- | --- |
+| PostgreSQL | Additive Alembic 0001–0005, tenant RLS, composite FKs, runtime non-owner role, append-only audit/revisions | Fresh upgrade/downgrade/upgrade and regression suite; production backup/restore still needs operational validation |
+| Identity | Supabase password exchange, verified RSA/EC JWKS, issuer/audience/expiry/email checks, provider-bound short opaque sessions, CSRF, durable login throttling | Signed-token and mocked HTTP tests. Real Supabase project, HTTPS, asymmetric signing configuration and delivery required. Signup/recovery/MFA/refresh UI not implemented |
+| Team | Owner/admin/editor/approver/analyst checks, hashed expiring one-time invitations, email-bound acceptance, role/last-owner safeguards | API tests; invitations are manually delivered, no invitation-email or team-management UI claim |
+| Imports/contacts | Existing mapping/preview, Unicode/BOM/delimiters, deduplication, rollback conflicts, CRUD/search/pagination; optional durable import queue | Original 773-row workflow retained. Bounded CSV only; XLSX, complete 14-field preservation, full company rollback and large streamed imports remain open |
+| Companies/scoring | Exact provider/company identities, licensed-company provenance, configurable deterministic ICP factors and missing-evidence disclosure | No inferred emails, firm size or purchase intent. No fuzzy person merge or predictive scoring |
+| Discovery | Structured provider search and natural-language briefing UI, durable jobs, synthetic fixtures, concrete licensed PDL company adapter, attributed import | PDL credentials, approved license/use case and egress required. Briefing is stored, not falsely interpreted as verified criteria. No licensed people search |
+| Research | Exact reviewed-domain allowlist, robots, response/DNS checks, bounded text and source IDs | Disabled without terms approval AND an independently enforced private-IP egress guard; no arbitrary safe-crawling claim |
+| AI | Configurable OpenAI-compatible structured text, source-ID validation, unverified-claim flags, usage ledger, USD-cent reservations/limits, explicit unavailable/errors | Real LLM key/model/current prices/egress required. No live provider output verified. Offline templates stay separately labelled |
+| Media/brands | Private raster upload, pixel/byte limits, SVG rejection, metadata-stripping JPEG re-encode, tenant-authorized access, rights/alt text, brand profiles and composer selection | Local persistent private filesystem volume; S3, malware scanning and real AI image generation remain open |
+| Social | Existing editor/calendar/review retained; immutable revision snapshots, media approval invalidation; official OAuth and text/image adapters; capability-gated connect/publish UI; durable publication authorization and quota | LinkedIn app products/scopes, current API version, encrypted token key and egress required. Live OAuth/post/image delivery unverified; no fake receipts |
+| Automation | Explicitly authorized approved revision jobs, configurable manual/authorized-auto policy, UTC daily limit, actor/policy/scope/revision checks at dispatch | Internal `/schedule` remains editorial only. Actual publishing requires separate authorization. No blind retry after uncertain side effects; manual reconciliation remains necessary |
+| CRM/campaigns | Persisted pipeline, tasks, notes, selected audiences, campaign status, offline drafts and activity audit | Saved filter DSL, advanced sequences/reminders, full analytics and manual-handoff event taxonomy remain incomplete |
+| Email | Resend adapter, separately approved revisions, reviewed provenance, documented unexpired basis, suppression checks again at dispatch, durable job/idempotency | Provider/domain setup and explicit send enablement required; provider acceptance is not confirmed delivery. Email approval/send is API-only. No LinkedIn DM/connection automation |
+| Billing | Stripe test checkout/portal adapters, raw-body signature and timestamp verification, unique event ledger, subscription-derived limits | Test credentials/prices/webhooks/egress required. No live payments. Production ordering/reconciliation, invoices and billing UI remain open |
+| Limits/privacy | Contact/asset limits enforced server-side; AI budget; owner/admin export excluding credentials; subject deletion removes derived contact records and redacts associated job payloads | Export/deletion APIs are bounded synchronous workflows. Complete retention, workspace erasure, backup deletion, all historical free-text PII discovery and DPA processes remain open |
+| Operations | Isolated migrator, unprivileged API/worker, private shared media volume, standalone web image, safe route-template/request-ID logs, durable job failures, deployment example and CI | Production configuration validated structurally, not deployed. No full observability platform, penetration test, DR proof or production certification |
 
-Workspace-Anlage ist per API möglich; ein vollständiger Onboardingwizard und Team-Einladungen fehlen.
+## Integration truthfulness
 
-Lokale Betriebsgrenze: Der API-Container erhält für die Startmigration auch die Administrator-DSN. Runtime-Abfragen verwenden die geprüfte eingeschränkte Rolle; für Produktion müssen Migration und Serverprozess einschließlich ihrer Zugangsdaten getrennt werden. Produktionsstart ist gesperrt.
+No real external provider credentials were supplied. Official provider-owned GitHub SDK sources were available; several documentation sites returned policy-denied HTTP 403. Transport-mocked tests verify request/response handling, not provider approval, paid API access or live delivery. Missing credentials and scopes deny the operation. Synthetic discovery is restricted to development/test; existing scheduled editorial posts do not become live publication jobs.
 
-## Grenzen und nächste Prioritäten
+## Highest-priority remaining work
 
-1. Lokalen Kern als Pilot mit synthetischen Daten prüfen; offene Funktionsbereiche vor echten Kundendaten priorisieren.
-2. Produktionsidentität (Supabase/JWKS), Teamverwaltung, verschlüsselte Secrets, verteilte Rate-Limits und Privacy-Prozesse implementieren und prüfen.
-3. Imports über dauerhafte Jobs skalieren, vollständige Herkunft/Feldabdeckung, XLSX, vollständiges Änderungsjournal und sichere Exporte ergänzen. Die aktuelle CSV-Abbildung übernimmt nicht alle 14 Eingangsattribute und Rollback lässt Unternehmen bewusst bestehen.
-4. Brandprofile, private Assets mit Uploadprüfung, Kalender und Worker/Scheduler als vollständigen Social-Workflow ergänzen.
-5. Lizenzierte Discovery und verifizierte offizielle LinkedIn-Integration einschließlich Queue/Idempotenz/Reconciliation implementieren. Keine API-Nebenwirkung ohne geprüfte Rechte.
-6. Kampagnen, manuelle Aktivitäten, Aufgaben, vollständige Consent-/Suppression-Gates, reale Kosten-/Usage-Ledger und erst danach Billing ergänzen.
-7. Englischen Nachrichtenkatalog und Sprachumschaltung ergänzen; aktuell deutsche Oberfläche mit Intl-Formatierung. Die große initiale API-Datei schrittweise in Domainmodule aufteilen.
+1. Configure and verify Supabase, approved LinkedIn products, operator-owned provider credentials and exact egress domains in a controlled test environment. Exercise real OAuth, token expiry/revoke, official image processing and receipt reconciliation before enabling publication.
+2. Production security/operations review: backup restore, migration permissions, retention/DPA, distributed fairness, metrics/alerts, full CSP and accessibility audit. Implement account signup/recovery/MFA flows and team UI.
+3. S3-backed storage, malware scanning, AI image adapter with spend bounds, richer brand history, full consent revocation/suppression UI and scheduled email sequences.
+4. Full XLSX/staged import journaling, segments, large-data performance, research-to-company evidence normalization and licensed people data only if the contract permits it.
+5. Stripe event ordering/reconciliation and billing UI, privacy workflows across all free-text/history/backups, English message catalog and comprehensive analytics.
 
-Reale CleanStar-CSV nicht geliefert; ausschließlich synthetische Daten. Die Branch-/Commitreferenz wird im Übergabebericht genannt. Remote-Push, PR, Veröffentlichung und Wiederherstellung in einem neuen Task sind nicht durch lokale Builds belegt.
-
-## Cloud-Konfiguration
-
-`install_script` und `start_skill` wurden als Konfigurationsentwurf gespeichert. Die Schritte installieren per Lockfile, bauen mit CA-Verifikation und starten den lokalen Stack einschließlich funktionalem Smoke. Speichern veröffentlicht keinen Snapshot. Veröffentlichung und Wiederherstellung in einem neuen Task wurden nicht ausgeführt.
+See TESTING.md for observed checks. No environment publication or production deployment was performed in this task. Branch push is authorized; The final review branch uses the preserved pilot branch as its PR base; Forbidden GitHub API access still blocks PR creation. A new remote Pages workflow was preserved without triggering it. Details: MASTER_AUDIT.md.

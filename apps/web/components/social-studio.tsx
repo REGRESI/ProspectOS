@@ -43,7 +43,7 @@ export function Social({
   const assets = useData<Page<Asset>>(`${base}/assets?limit=100`, revision);
   const brands = useData<Page<Brand>>(`${base}/brands?limit=100`, revision);
   const integration = useData<{
-    items: { name: string; status: string; reason: string }[];
+    items: { name: string; status: string; reason: string; publish_available?:boolean }[];
   }>(`${base}/integrations`);
   const linkedin = integration.data?.items.find(
     (i) => i.name.toLowerCase() === "linkedin",
@@ -56,6 +56,8 @@ export function Social({
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState("");
   const [editing, setEditing] = useState<Post | null>(null);
+  const [publish,setPublish]=useState<Post|null>(null);
+  const [publishTime,setPublishTime]=useState("");
   const [schedule, setSchedule] = useState<Post | null>(null);
   const [time, setTime] = useState("");
   const [monthOffset, setMonthOffset] = useState(0);
@@ -149,7 +151,7 @@ export function Social({
         }
         description={
           calendar
-            ? "Redaktionelle Planung in Europe/Berlin. Kein automatischer Versand."
+            ? "Redaktionelle und ausdrücklich autorisierte Termine in Europe/Berlin."
             : "Entwickle Ideen, feile an deinem Text und bereite deinen nächsten Beitrag vor."
         }
       />
@@ -168,7 +170,7 @@ export function Social({
             {linkedin?.reason || "Entwürfe und interne Planung sind verfügbar."}
           </span>
         </div>
-        <Badge tone="neutral">Kein Versand</Badge>
+        <Badge tone="neutral">{linkedin?.publish_available?"Freigabe erforderlich":"Kein Versand"}</Badge>
       </div>
       <ErrorNote message={error || localError} />
       {calendar ? (
@@ -240,7 +242,7 @@ export function Social({
                         }).format(new Date(p.scheduled_at!))}
                       </span>
                       <strong>{p.caption.slice(0, 55)}</strong>
-                      <small>Redaktionell geplant</small>
+                      <small>{p.state==="scheduled"&&p.publish_enabled?"Veröffentlichung autorisiert":postLabels[p.state]||p.state}</small>
                     </div>
                   ))}
                 </div>
@@ -516,6 +518,7 @@ export function Social({
                       Freigeben
                     </button>
                   )}
+                  {post.state === "approved" && linkedin?.publish_available && <button className="button primary small" onClick={()=>{setPublish(post);setPublishTime("");}}>Auf LinkedIn veröffentlichen</button>}
                   {post.state === "approved" && (
                     <button
                       className="button primary small"
@@ -589,6 +592,7 @@ export function Social({
           </div>
         </Modal>
       )}
+      {publish&&<Modal title="Offizielle Veröffentlichung bestätigen" onClose={()=>setPublish(null)}><div className="modal-body"><p>Du autorisierst die Veröffentlichung dieser freigegebenen Revision über das verbundene LinkedIn-Konto. Ein Worker prüft Rechte, Revision, Medien und Tageslimit erneut.</p><p style={{whiteSpace:"pre-wrap"}}>{publish.caption}</p><label>Optionaler Zeitpunkt (deine lokale Zeitzone)<input type="datetime-local" value={publishTime} onChange={e=>setPublishTime(e.target.value)}/></label><p className="small muted">Ohne Zeitpunkt wird die Veröffentlichung jetzt in die Queue gestellt. Ein Auftrag ist noch keine veröffentlichte Nachricht; der bestätigte Anbieterbeleg entscheidet.</p><div className="form-actions"><button className="button secondary" onClick={()=>setPublish(null)}>Abbrechen</button><button className="button primary" onClick={async()=>{const ok=await action(publish,"publish",{scheduled_at:publishTime?new Date(publishTime).toISOString():null,automation_authorized:false});if(ok)setPublish(null);}}>Veröffentlichung autorisieren</button></div></div></Modal>}
     </>
   );
 }

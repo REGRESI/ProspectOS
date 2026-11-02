@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { Badge, Empty, Modal, Spinner, Heading, ErrorNote } from "./ui";
 import { Social } from "./social-studio";
+import { IntelligenceConsole } from "./intelligence-console";
 import {
   AssetLibrary,
   BrandProfiles,
@@ -75,6 +76,7 @@ const navigation: {
     items: [
       { path: "/overview", label: "Übersicht", icon: LayoutDashboard },
       { path: "/discover", label: "Lead Discovery", icon: Search },
+      { path: "/intelligence", label: "Recherche & KI", icon: Sparkles },
       { path: "/contacts", label: "Kontakte", icon: Users },
       { path: "/companies", label: "Unternehmen", icon: Building2 },
       { path: "/audiences", label: "Zielgruppen & ICP", icon: Target },
@@ -110,6 +112,7 @@ const titles: Record<string, string> = {
   "/overview": "Übersicht",
   "/contacts": "Kontakte",
   "/discover": "Lead Discovery",
+  "/intelligence": "Recherche & KI",
   "/companies": "Unternehmen",
   "/audiences": "Zielgruppen & ICP",
   "/pipeline": "CRM / Pipeline",
@@ -156,6 +159,14 @@ export default function WorkspaceApp() {
   const [theme, setTheme] = useState("light");
   const [revision, setRevision] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
+  useEffect(() => {
+    const nav = document.querySelector<HTMLElement>(".sidebar nav");
+    const active = nav?.querySelector<HTMLElement>(".nav-item.active");
+    if (nav && active) {
+      const delta=active.getBoundingClientRect().top-nav.getBoundingClientRect().top;
+      if(delta<0||delta+active.offsetHeight>nav.clientHeight) nav.scrollTop+=delta-nav.clientHeight/2+active.offsetHeight/2;
+    }
+  }, [route, session?.user.id]);
   const refresh = () => setRevision((v) => v + 1);
   const notify = (message: string) => {
     setToast(message);
@@ -350,7 +361,7 @@ export default function WorkspaceApp() {
             </div>
           </div>
           <span className="login-caption">
-            Keine echten Nachrichten. Keine externen Veröffentlichungen.
+            Externe Aktionen benötigen explizite Freigaben und verifizierte Berechtigungen.
           </span>
         </section>
       </main>
@@ -565,7 +576,7 @@ export default function WorkspaceApp() {
                 />
               )}
               {route === "/settings/integrations" && (
-                <Integrations base={base} />
+                <Integrations base={base} write={write} />
               )}
               {route === "/audit" && <Audit base={base} />}
               {route === "/outreach" && (
@@ -617,6 +628,9 @@ export default function WorkspaceApp() {
                   revision={revision}
                   onChange={refresh}
                 />
+              )}
+              {route === "/intelligence" && (
+                <IntelligenceConsole base={base} write={write} notify={notify} revision={revision} onChange={refresh} csrf={session.csrf_token}/>
               )}
               {route === "/operations" && (
                 <Operations
@@ -2205,10 +2219,12 @@ function Pipeline({
     </>
   );
 }
-function Integrations({ base }: { base: string }) {
+function Integrations({ base,write }: { base: string; write:Write }) {
+  const [localError,setLocalError]=useState("");
+  const [revision,setRevision]=useState(0);
   const { data, error, loading } = useData<{
-    items: { name: string; status: string; reason: string }[];
-  }>(`${base}/integrations`);
+    items: { name: string; status: string; reason: string; connect_available?:boolean; scopes?:string[] }[];
+  }>(`${base}/integrations`,revision);
   return (
     <>
       <Heading
@@ -2225,7 +2241,7 @@ function Integrations({ base }: { base: string }) {
           Backend gemeldet.
         </p>
       </div>
-      <ErrorNote message={error} />
+      <ErrorNote message={localError||error} />
       {loading ? (
         <Spinner />
       ) : (
@@ -2261,6 +2277,8 @@ function Integrations({ base }: { base: string }) {
                 </Badge>
               </div>
               <p>{integration.reason}</p>
+              {integration.name==="LinkedIn"&&<div className="form-actions">{integration.status==="connected"?<button className="button secondary" onClick={async()=>{try{await write("/integrations/linkedin/disconnect");setRevision(v=>v+1);}catch(e){setLocalError((e as Error).message)}}}>Verbindung entfernen</button>:<button className="button secondary" disabled={!integration.connect_available} title={integration.connect_available?"Offiziellen OAuth-Dialog öffnen":"Operator muss OAuth-Zugang und Token-Verschlüsselung konfigurieren."} onClick={async()=>{try{const result=await write<{authorization_url:string}>("/integrations/linkedin/start");window.location.assign(result.authorization_url);}catch(e){setLocalError((e as Error).message)}}}>Offiziell mit LinkedIn verbinden</button>}</div>}
+
               <div className="provider-footer">
                 <ShieldCheck size={14} /> Berechtigungen und Anbieterstatus
                 werden serverseitig geprüft

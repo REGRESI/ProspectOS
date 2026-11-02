@@ -1,17 +1,11 @@
-# Datenmodell
+# Persistent schema
 
-SQLAlchemy-Modelle: `services/api/app/models.py`. Versionierte Migrationen: `services/api/alembic/versions`. Vor App-Start `python -m app.migrate` aus `services/api` ausführen. Der Befehl provisioniert ausschließlich in development/test die lokale Laufzeitrolle und führt Alembic aus.
+Original tables and rows are preserved. Migrations0001/0002 establish the local core;0003 adds platform tables and tenant policies;0004 adds provider-bound identity/invitations;0005 adds source review, email approval metadata and actual dispatch timestamps. Migrations are frozen additive instructions, not live create_all calls. `python -m app.migrate` runs Alembic; production requires an explicit owner DSN and pre-provisioned prospectos_app role, with no development password provisioning.
 
-| Bereich | Tabellen und Zweck |
-| --- | --- |
-| Identität | users, auth_sessions, workspaces, memberships |
-| Leads | companies, contacts, import_jobs, icp_profiles |
-| Vertrieb | deals, message_drafts, discovery_runs |
-| Social | social_posts mit Revision und freigegebener Revision |
-| Nachweis | audit_events, append-only für Anwendungsrolle |
+Domains: users/auth_sessions/auth_rate_buckets/workspaces/memberships/workspace_invites; contacts/companies/import_jobs/icp_profiles; brands/assets/post_media/post_revisions/social_posts/content_policies/connections/oauth_states; jobs/usage_accounts/usage_events; tasks/notes/campaigns/campaign_enrollments/message_drafts/consents/suppressions; billing_accounts/webhook_events; audit_events.
 
-Tenant-Tabellen tragen `workspace_id`. Zusammengesetzte Fremdschlüssel verbinden Kontakte mit Unternehmen, Deals und Entwürfe mit Kontakten innerhalb desselben Workspace. Kontakt-URL und Importidentität besitzen Workspace-bezogene Eindeutigkeitsbedingungen. Leere E-Mail/Telefonwerte sind erlaubt. Namen allein sind keine eindeutige Personenidentität.
+Tenant business tables have indexed workspace_id and FORCE RLS. Composite tenant FKs cover contacts→companies, media→post/asset, post→brand, revisions→post, tasks/notes/consents/suppressions/enrollments/drafts→contact, enrollments→campaign and usage→job. Exact identity and idempotency uniqueness is workspace-scoped. Audit and revision history cannot be modified by the runtime role. Global auth/catalog, transient user-bound OAuth and signed webhook lookup tables are server-only exceptions, never direct browser DB access.
 
-RLS ist für Tenant-Tabellen erzwungen. Fehlender Workspace-Kontext darf keine Tenant-Zeilen sichtbar machen. Authentifizierungstabellen benötigen andere Zugriffsmuster und sind nicht für direkten Browserzugriff freigegeben. Die Migration ist keine automatische Datenbereinigung und kein Backup.
+Jobs persist claim attempts, due time, lease, dispatch marker/timestamp, safe error and result. User/capability checks run again at dispatch. Usage reservations and event uniqueness prevent repeated charging/settlement. Private asset metadata stores random storage keys, canonical byte type, SHA256, size, rights and alt text; contents live in an isolated persistent volume. Tokens use Fernet ciphertext, not browser storage or job payloads.
 
-Grenzen: Das vollständige Zielmodell aus dem Master-Prompt ist nicht implementiert. Unter anderem fehlen Einladungen, private Assets, Consent-Verwaltung, Provider-Verbindungen, Outbox, Rechnungen und vollständige Versionierung aller Objekte. Die echte Quelle bleibt Code plus Migration.
+The complete target schema remains larger than this MVP: full segments, per-field provenance, richer CRM attribution, job outbox, billing ordering/history, legal retention and object-storage lifecycle remain gaps. See STATUS.md and the executable models/migrations.

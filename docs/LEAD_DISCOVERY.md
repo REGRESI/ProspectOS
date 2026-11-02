@@ -1,9 +1,11 @@
-# Lead Discovery und Herkunft
+# Discovery, provenance and research
 
-Die lokale Datenquelle ist ein CSV-Import. Synthetische Discovery-Ergebnisse dienen ausschließlich dem Produktdurchlauf und sind keine recherchierten oder verifizierten Unternehmen. Provider und Quelle müssen im Datensatz erkennbar bleiben. Keine erfundenen E-Mails, Domains, Mitarbeiterzahlen oder Kaufabsichten.
+Existing CSV import and development-only synthetic samples are preserved. The Recherche & KI UI adds structured city/country/industry filters and a natural-language briefing. Briefing is stored as context; the app does not pretend it inferred verified search criteria. Synthetic results are fixed, labelled examples rather than researched matches.
 
-Ein lizenzierter externer Anbieter und automatisierte Website-Recherche sind noch nicht verbunden. Vor Integration prüfen: vertraglich erlaubter Zweck, Herkunft, einzelne Personenfelder, Marketing-/Weitergabebeschränkungen, Region, Aufbewahrung, Widerruf und Löschung, Attribution, Abruflimits und Kosten. Eine API-Antwort allein ist keine Werbeerlaubnis.
+`POST …/discovery/search` enqueues a durable job. `providers/licensed.py` implements the official People Data Labs company-search request shape with structured Elasticsearch filters, bounded results, provider IDs, source/license/allowed-use metadata and explicit operator license approval. Required: PDL_API_KEY, PDL_LICENSE_APPROVED=true, PDL_LICENSE_REFERENCE and user purpose confirmation. No license or marketing permission is inferred from possession of an API key. Company results are imported as companies, never fabricated contacts. Exact source IDs deduplicate; unverified names are not hard-merged.
 
-Öffentliche Websites erfordern gesonderte SSRF-, DNS-/Redirect-, robots-/Terms-, Inhalts- und Größenprüfungen. Deshalb wird kein beliebiges URL-Fetching als vermeintlich sichere Recherche angeboten.
+Company provenance, website and reported industry are persisted. CSV contacts retain source labels and high-confidence identity deduplication. ICP uses deterministic location/role/industry weights; unknown company size/need stays unknown and scores are not purchase probability. Full field-level evidence normalization, enrichment merge review, licensed people data, saved segments and fuzzy duplicate suggestions are not complete.
 
-CSV-Imports benötigen eine vom Nutzer bestätigte rechtmäßige Quelle. Reale CleanStar-Daten wurden nicht geliefert und werden nicht mitgeliefert. Tests verwenden ausschließlich synthetische Datensätze mit den dokumentierten 14 Spalten.
+`POST …/research` queues reviewed website research. Exact-domain allowlist, public DNS checks, robots, no automatic redirects, content type/size limits and source IDs are implemented. An inherited HTTPS proxy can resolve destinations independently; therefore independent network private-IP protection is required (`RESEARCH_NETWORK_GUARD_APPROVED`) as well as reviewed domains and terms approval. Missing prerequisites deny fetching. No generic arbitrary URL crawler or LinkedIn scraping is enabled.
+
+Official sources: https://github.com/peopledatalabs/peopledatalabs-python and configured company/source websites. No real PDL call or external research was verified; provider docs hosts were policy-blocked and credentials unavailable. See STATUS.md for remaining gates.

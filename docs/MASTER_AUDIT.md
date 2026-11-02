@@ -11,7 +11,7 @@ Ausgangspunkt dieser Fortsetzung: Commit `d103f23` (`feat/prospectos-local-pilot
 | Leads / PRO-020–024 | CSV-Vorschau/Mapping, 773-Zeilen-Test, Reimport, Rollback, ICP, einfache Deals | XLSX, sichere Exporte, vollständige Feldherkunft, Aufgaben/Kampagnen |
 | Discovery / PRO-030–034 | Gekennzeichnete synthetische Suche und Übernahme | Lizenzierter realer Anbieter, geprüfte Website-Recherche, dauerhafte Jobs |
 | KI/Outreach / PRO-040–044 | Deterministische Offline-Vorschläge und Entwürfe ohne Versand | Echter Gateway, Budgets/Ledger, Kampagnen, manuelle Aktivitäten, Consent-Verwaltung |
-| Social / PRO-050–054 | Entwürfe, Revisionsfreigaben, interne Terminplanung | Markenprofile, private geprüfte Medien, Templates, Kalender, Worker |
+| Social / PRO-050–054 | Entwürfe, Revisionsfreigaben, interne Terminplanung | Markenprofile, private geprüfte Medien, Templates, Medienanbindung und Worker |
 | LinkedIn / PRO-060–063 | Ehrlich nicht verbunden, kein externer Versand | OAuth, verschlüsselte Tokens, geprüfte Scopes, offizieller Publisher mit Reconciliation |
 | SaaS / PRO-070–073 | Lokale Audit-Ereignisse | Echte Usage, Privacy-Prozesse, sichere Billing-Grundlage und Betrieb |
 | Qualität / PRO-080–082 | 25 Backend-, 5 Frontend-, 3 E2E-Tests laut Übergabe | Zusätzliche Sicherheits-/Provider-/Workerprüfungen und erneute Integration nach Erweiterungen |
@@ -24,6 +24,8 @@ Architekturabweichungen werden in DECISIONS dokumentiert. Insbesondere PostgreSQ
 
 ## Repository und Veröffentlichung
 
-Der ursprüngliche Remote war vor dem ersten Push vollständig ohne Referenzen. Der bestehende Task-Branch wurde regulär ohne Force-Push übertragen; es wurde kein `main`, Basiscommit oder Ersatzverlauf erzeugt. Der Remote-HEAD zeigt auf denselben Task-Branch; ein unabhängiger PR-Basisbranch fehlt. Zusätzlich scheitert `gh repo view` an `api.github.com` mit `Forbidden`. Ein PR ist deshalb nicht erstellt.
+Der ursprüngliche Remote war leer. Der lokale Pilot und die ersten Erweiterungen wurden regulär ohne Force-Push auf `feat/prospectos-local-pilot` übertragen. Während der Arbeit kam Remote-Commit `d166d55` mit einem GitHub-Pages-Workflow hinzu; er wurde per Fast-forward übernommen und unverändert erhalten.
 
-Die Fortsetzung verändert keinen Cloud-Konfigurationsentwurf und veröffentlicht weder Anwendung noch Cloud-Snapshot. Frühere gespeicherte Installations-/Startanweisungen sind historische Konfiguration; die versionierten Anweisungen dieses Repositorys sind für die weiterentwickelte Compose-Struktur maßgeblich.
+Dieser Workflow veröffentlicht bei Push auf den Pilot-Branch. Da keine Veröffentlichung autorisiert ist, werden die finalen Erweiterungen auf dem davon abgeleiteten Review-Branch `feat/prospectos-production-mvp` gesichert und gepusht. Der Pilot-Branch bleibt unverändert; er kann als PR-Basis dienen. GitHub-API-Zugriff auf `api.github.com/graphql` liefert in der aktuellen Umgebung jedoch `Forbidden`; ein PR wird daher nicht als erstellt behauptet.
+
+Keine Force-Pushes, kein neuer `main`, keine Cloud-Konfigurationsänderung und keine Anwendung-/Cloud-Snapshot-Veröffentlichung. Frühere gespeicherte Startanweisungen sind historische Konfiguration; die versionierte Anleitung im README beschreibt die neue Migrator-/Worker-Struktur.

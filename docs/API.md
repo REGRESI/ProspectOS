@@ -1,38 +1,24 @@
-# API
+# API contracts
 
-FastAPI erzeugt OpenAPI unter `/openapi.json` und interaktive Dokumentation unter `/docs`. Diese Laufzeitbeschreibung ist der genaue Vertrag für Felder und Validierungsgrenzen. Frontend-Anfragen laufen über `/api` der Web-Origin; das Prefix wird dort entfernt.
+The complete executable contract is FastAPI `/openapi.json` (interactive `/docs`). Next proxies `/api/*` to the same-origin API. All workspace paths use `/v1/workspaces/{ws}` and require verified membership. Pagination is page/limit, maximum100. Writes require X-CSRF-Token from GET `/v1/me`; HttpOnly sessions never enter browser storage. Errors contain safe code/message/details; X-Request-Id links to structured metadata logs.
 
-## Authentifizierung und Mandant
-
-`POST /v1/auth/demo` mit `email` und `password` erzeugt ausschließlich im lokalen Modus eine Sitzung. `GET /v1/me` liefert Benutzer, Mitgliedschaften und das CSRF-Token. Das HttpOnly-Sessioncookie wird vom Browser mitgeführt; für Mutationen das CSRF-Token im Header `X-CSRF-Token` senden. `POST /v1/auth/logout` beendet die Sitzung. Ein Workspace-Parameter ist erst nach Mitgliedschaftsprüfung gültig.
-
-| Endpunkt | Verhalten |
+| Domain | Endpoints |
 | --- | --- |
-| GET/POST `/v1/workspaces` | Eigene Workspaces auflisten/neuen anlegen |
-| GET `/v1/workspaces/{ws}/dashboard` | Zähler aus gespeicherten Daten |
-| GET/POST `/v1/workspaces/{ws}/contacts` | Paginierte Suche/manueller Kontakt |
-| GET/PATCH/DELETE `/v1/workspaces/{ws}/contacts/{id}` | Tenant-geprüfter Einzelkontakt |
-| GET `/v1/workspaces/{ws}/companies` | Gespeicherte Unternehmen |
-| GET/PUT `/v1/workspaces/{ws}/icp` | Regelprofil lesen/speichern |
-| POST `/v1/workspaces/{ws}/imports/preview` | CSV, Mapping und Validierung |
-| POST `/v1/workspaces/{ws}/imports/{id}/commit` | Import mit Dublettenprüfung |
-| POST `/v1/workspaces/{ws}/imports/{id}/rollback` | Eigene unveränderte Import-Kontakte zurücknehmen |
-| GET/POST `/v1/workspaces/{ws}/deals` | Pipeline lesen/Deal anlegen |
-| PATCH `/v1/workspaces/{ws}/deals/{id}` | Persistierte Statusänderung |
-| GET/POST `/v1/workspaces/{ws}/social/posts` | Social-Entwürfe |
-| PATCH `/v1/workspaces/{ws}/social/posts/{id}` | Bearbeitung mit Freigabeinvalidierung |
-| POST `…/social/posts/{id}/submit-review` | Zur Prüfung geben |
-| POST `…/social/posts/{id}/approve` | Aktuelle Revision freigeben |
-| POST `…/social/posts/{id}/schedule` | Interne Planung; kein externes Publishing |
-| POST `…/social/posts/{id}/cancel` | Interne Planung abbrechen |
-| POST `…/social/captions/generate` | Deterministische Offline-Demo-Vorschläge |
-| GET/POST `…/outreach/drafts` | Gespeicherte Entwürfe, kein Versand |
-| POST `…/discovery/runs` | Klar gekennzeichnete synthetische lokale Suche |
-| POST `…/discovery/runs/{id}/import` | Demo-Ergebnisse übernehmen |
-| GET `…/integrations` | Ehrliche nicht verbundene Providerzustände |
-| GET `…/audit` | Workspace-Aktivitäten |
-| GET `/health/live`, `/health/ready` | Prozess/DB-Bereitschaft |
+| Identity | GET `/v1/auth/config`, POST `/v1/auth/demo` (dev only), POST `/v1/auth/login` (Supabase), GET `/v1/me`, POST `/v1/auth/logout` |
+| Workspaces/team | GET/POST `/v1/workspaces`; GET `…/members`, POST `…/invites`, PATCH `…/members/{user}`; POST `/v1/invites/{token}/accept` |
+| Leads | Original dashboard, contacts CRUD/search, company listing and ICP GET/PUT retained |
+| CSV | POST `…/imports/preview` multipart; POST `…/imports/{id}/commit` or durable `/enqueue`; POST `/rollback` |
+| Discovery | POST `…/discovery/search` structured provider query →202 job; existing `/discovery/runs` demo retained (dev only); POST `/discovery/runs/{id}/import` |
+| Research/AI | POST `…/research` reviewed URL →job; POST `…/ai/generate` purpose/prompt/optional contact source →job; GET `…/usage`, PUT `/usage/budget` |
+| Jobs | GET `…/jobs`, GET `…/jobs/{id}`, POST `/retry`, POST `/cancel`; uncertain/settled paid work is not automatically retried |
+| Media/brand | GET/POST `…/brands`, PUT `…/brands/{id}`; GET `…/assets`; POST `/assets/upload` file+alt_text+rights_confirmed; GET `/assets/{id}/content` tenant-private |
+| Social | Original posts/editor/review/approve/internal schedule/cancel retained; asset_ids and brand_id supported; POST `…/social/posts/{id}/publish` separately authorizes durable real publication; GET/PUT `…/social/policy` |
+| LinkedIn | POST `…/integrations/linkedin/start`, POST `/disconnect`; GET `/v1/integrations/linkedin/callback`; GET `…/integrations` reports actual connection/configuration/capabilities |
+| CRM | Original deals retained; GET/POST `…/tasks`, PATCH `/tasks/{id}`; GET/POST `…/notes`; GET/POST `…/campaigns`, PATCH `/campaigns/{id}`, POST `/campaigns/{id}/drafts` |
+| Email | PATCH `…/outreach/drafts/{id}` increments revision/invalidates approval; POST `/approve`; POST `/send-email` →202 job after source/consent/suppression/approval gates. Provider acceptance is not delivery. No LinkedIn send endpoint |
+| Consent | POST `…/contacts/{id}/source-review`, `…/consents`, `…/suppressions`; owner/admin proof/source review and last-moment dispatch checks |
+| Billing | GET `…/billing`, POST `/billing/checkout`, POST `/billing/portal`; POST `/v1/webhooks/stripe` requires raw-body signature, timestamp and test-mode event, transactionally deduplicated |
+| Privacy/audit | POST `…/privacy/export` (owner/admin, excludes credentials), POST `/privacy/delete-contact/{id}` atomically removes derived records/redacts associated jobs; GET `…/audit` |
+| Health | GET `/health/live`, `/health/ready`; API and worker use the same startup role/config checks |
 
-Listen verwenden `page` und `limit`; konkrete Obergrenzen und Filter stehen in OpenAPI. Fehler verwenden eine einheitliche Problemstruktur statt Stacktraces. Detaillierte Rollenprüfungen sind Backendlogik, keine reine UI-Sperre.
-
-Nicht implementiert: produktive OAuth-Callbacks, Versandschnittstellen, automatisierte LinkedIn-Operationen, Billing-Webhooks und hochgeladene Medien. Diese Endpunkte sind nicht aus dem Zielbrief als vorhanden zu verstehen.
+Owner/admin permissions gate provider connections, publication, email sending, legal/source reviews, budgets, privacy and billing. Editors cannot self-escalate to approver/admin; approvers can review but not edit leads. No API response implies a missing key, expired token or unavailable provider was bypassed. All unverified provider capabilities and remaining gaps are documented in STATUS.md.

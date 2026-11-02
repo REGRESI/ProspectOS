@@ -218,7 +218,7 @@ test("Responsive dashboard, keyboard modal and transparent integrations", async 
   ).toBeVisible();
   await expect(
     page.getByText(
-      "OAuth und Freigaben fehlen. Veröffentlichung nicht implementiert.",
+      "OAuth und Freigaben fehlen. Veröffentlichung nicht verfügbar.",
     ),
   ).toBeVisible();
   expect(errors).toEqual([]);
