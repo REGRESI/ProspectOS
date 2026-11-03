@@ -1704,6 +1704,16 @@ def register_journey_routes(
         activities_by_contact = {}
         for activity in activities:
             activities_by_contact.setdefault(activity.contact_id, []).append(activity.kind)
+        from app.linkedin_channel import LinkedInAction
+
+        for action in db.scalars(
+            select(LinkedInAction).where(LinkedInAction.campaign_id == campaign.id)
+        ):
+            kinds = activities_by_contact.setdefault(action.contact_id, [])
+            if action.state == "replied":
+                kinds.append("replied")
+            elif action.action == "message" and action.state in ("delivered", "sent"):
+                kinds.append("message_sent_manually")
         counts = {key: 0 for key in ("waiting", "approved", "completed", "replied", "suppressed")}
         output = output_contacts(db, audience, ws)
         for contact in output:

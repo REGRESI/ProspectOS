@@ -141,6 +141,10 @@ def dispatch(db, job):
     member = db.get(Membership, (job.workspace_id, job.actor_id))
     if not member or member.role not in ("owner", "admin", "editor"):
         raise HTTPException(403, "job_actor_permission_revoked")
+    if job.kind == "linkedin_sim":
+        from app.linkedin_channel import resolve_simulation
+
+        return resolve_simulation(db, job)
     if job.kind == "import":
         from app.main import commit_import
 

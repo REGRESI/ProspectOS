@@ -622,7 +622,9 @@ def register_platform_routes(app, db_session, scope, record, paginate, audit):
             SavedSearch,
             Segment,
         )
+        from app.linkedin_channel import LinkedInAction, SimAccount
         from app.models import Company, Deal
+        from app.sales_agent import DraftEvidence
         from app.studio import VoiceProfile
 
         tables = [
@@ -650,6 +652,9 @@ def register_platform_routes(app, db_session, scope, record, paginate, audit):
             ManualActivity,
             Interaction,
             WorkspaceSetup,
+            DraftEvidence,
+            SimAccount,
+            LinkedInAction,
         ]
         result = {
             model.__tablename__: [

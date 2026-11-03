@@ -7,6 +7,7 @@ from app import (
     experience,  # noqa: F401
     identity,  # noqa: F401
     journeys,  # noqa: F401
+    linkedin_channel,  # noqa: F401
     sales_agent,  # noqa: F401
     studio,  # noqa: F401
 )

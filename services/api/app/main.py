@@ -1328,3 +1328,7 @@ register_studio_routes(app, db_session, scope, record, paginate, audit)
 from app.sales_agent import register_sales_agent_routes  # noqa: E402
 
 register_sales_agent_routes(app, db_session, scope, record, paginate, audit)
+
+from app.linkedin_channel import register_linkedin_channel_routes  # noqa: E402
+
+register_linkedin_channel_routes(app, db_session, scope, record, paginate, audit)
