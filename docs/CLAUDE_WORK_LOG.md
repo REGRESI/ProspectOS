@@ -54,3 +54,12 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
 - Tests: `tests/test_sales_agent.py` 6 new. Full suite **144 passed**; ruff clean.
 - Not verified live: no LLM credentials; website research remains operator-gated.
 - Next: M3 LinkedIn channel simulator/manual/official gate.
+
+## Milestone 3 — LinkedIn channel (`3f33faa`)
+
+- `app/linkedin_channel.py`: `GET …/linkedin/capabilities`, simulator accounts list/create/seed, `GET/POST …/linkedin/actions`, `POST …/linkedin/actions/{id}/outcome` (manual only), `GET …/campaigns/{id}/linkedin` (sequence progress, next due step, stop on reply/suppression).
+- Simulator: synthetic personas only, worker job `linkedin_sim` resolves outcomes after `LINKEDIN_SIM_DELAY_SECONDS`; enabled by default only in development/test.
+- Official: refused with explanation; no API call exists.
+- Migration `0011`; export includes `draft_evidence`, simulator accounts, actions. AGENTS.md clarified.
+- Tests: `tests/test_linkedin_channel.py` 6 new. Full suite **150 passed**; ruff clean; compose validation passed.
+- Next: M4 frontend for discovery/evidence/LinkedIn, Playwright E2E, STATUS.md.
