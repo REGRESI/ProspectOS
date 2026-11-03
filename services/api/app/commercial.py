@@ -104,6 +104,8 @@ def register_commercial_routes(app, db_session, scope, record, audit):
         member=Depends(scope),
         db=Depends(db_session, scope="function"),
     ):
+        if member.role not in ("owner", "admin", "editor"):
+            raise HTTPException(403, "Bearbeitungsrecht erforderlich.")
         draft = record(db, Draft, ws, entity_id, True)
         if draft.state == "sending" or draft.revision != body.revision:
             raise HTTPException(409, "Draft is stale or in-flight.")

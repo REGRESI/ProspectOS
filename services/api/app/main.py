@@ -1324,3 +1324,7 @@ register_provider_tests(app, db_session, scope, audit)
 
 
 register_studio_routes(app, db_session, scope, record, paginate, audit)
+
+from app.sales_agent import register_sales_agent_routes  # noqa: E402
+
+register_sales_agent_routes(app, db_session, scope, record, paginate, audit)

@@ -310,7 +310,7 @@ def execute_one(ws):
                 # Free read-only lookups: no paid side effect, but run outside this transaction
                 # so slow public endpoints never hold row locks.
                 context = None
-            elif job.kind == "ai":
+            elif job.kind in ("ai", "outreach_ai"):
                 # A timed-out paid request may have incurred cost. Never blindly retry it.
                 job.side_effect_started = True
                 job.dispatched_at = now()
@@ -365,6 +365,10 @@ def execute_one(ws):
                 from app.experience import finalize_generation
 
                 result = finalize_generation(db, current, result)
+            if current.kind == "outreach_ai":
+                from app.sales_agent import finalize_outreach
+
+                result = finalize_outreach(db, current, result)
             current.status = "succeeded"
             current.result = result
             current.last_error = None

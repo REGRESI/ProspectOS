@@ -345,7 +345,7 @@ class SequenceStepInput(Strict):
         if self.channel not in ("linkedin_manual", "email"):
             raise ValueError("Unsupported channel")
         variables = set(re.findall(r"\{([^{}]+)\}", self.template))
-        if variables - {"first_name", "last_name", "company", "job_title"}:
+        if variables - {"first_name", "last_name", "company", "job_title", "evidence"}:
             raise ValueError("Unsupported template variable")
         return self
 
@@ -1863,8 +1863,8 @@ def register_journey_routes(
                     duplicates += 1
                     continue
                 content = re.sub(
-                    r"\{(first_name|last_name|company|job_title)\}",
-                    lambda match, values=values: values[match.group(1)],
+                    r"\{(first_name|last_name|company|job_title|evidence)\}",
+                    lambda match, values=values: values.get(match.group(1), ""),
                     template.replace("{{", "{").replace("}}", "}"),
                 )
                 content += "\n\n[Vorlagenentwurf – manuell prüfen. Kein KI-Anbieter aufgerufen; nichts versendet.]"
