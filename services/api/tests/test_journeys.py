@@ -210,7 +210,14 @@ def test_selected_discovery_import_deduplicates_and_preserves_kind(context, admi
         url(ws, f"discovery/runs/{run.id}/import-selected"), json={"keys": [rows[0]["key"]]}
     )
     assert first.status_code == 200, first.text
-    assert first.json() == {"created": 1, "duplicates": 0, "companies": 1, "contacts": 0}
+    assert first.json() == {
+        "created": 1,
+        "duplicates": 0,
+        "companies": 1,
+        "contacts": 0,
+        "linked_duplicates": 0,
+        "facts": 2,
+    }
     assert client.get(url(ws, "contacts")).json()["total"] == 0
     second = client.post(
         url(ws, f"discovery/runs/{run.id}/import-selected"), json={"keys": [rows[0]["key"]]}

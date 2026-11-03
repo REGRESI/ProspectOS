@@ -175,6 +175,8 @@ class Discovery(TenantMixin, Base):
     query: Mapped[str] = mapped_column(String(300))
     results: Mapped[list] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(30), default="completed")
+    criteria: Mapped[dict] = mapped_column(JSON, default=dict)
+    meta: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
 # Register additive domain tables for migration metadata and test cleanup.

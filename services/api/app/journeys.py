@@ -103,13 +103,33 @@ class CompanyFact(TenantMixin, Base):
     value: Mapped[str] = mapped_column(String(1000))
     source_url: Mapped[str] = mapped_column(String(2000))
     confidence: Mapped[str] = mapped_column(String(30), default="user_reported")
+    source_kind: Mapped[str] = mapped_column(String(40), default="manual")
+    source_id: Mapped[str | None] = mapped_column(String(64))
+    actor_id: Mapped[str | None] = mapped_column(String(36))
     __table_args__ = (
         ForeignKeyConstraint(
             ["workspace_id", "company_id"],
             ["companies.workspace_id", "companies.id"],
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ["workspace_id", "actor_id"],
+            ["memberships.workspace_id", "memberships.user_id"],
+            name="company_fact_actor",
+        ),
     )
+
+
+class GeocodeCache(TenantMixin, Base):
+    """Per-workspace cache of OSM Nominatim results (usage policy requires caching)."""
+
+    __tablename__ = "geocode_cache"
+    query_key: Mapped[str] = mapped_column(String(300))
+    latitude: Mapped[float]
+    longitude: Mapped[float]
+    display_name: Mapped[str] = mapped_column(String(300))
+    source_url: Mapped[str] = mapped_column(String(300))
+    __table_args__ = (UniqueConstraint("workspace_id", "query_key"),)
 
 
 class CampaignConfig(TenantMixin, Base):
@@ -265,13 +285,15 @@ class SearchFilters(Strict):
     job_titles: list[str] = Field(default_factory=list, max_length=20)
     seniority: list[str] = Field(default_factory=list, max_length=20)
     exclude_customers: bool = True
-    max_results: int = Field(default=10, ge=1, le=25)
+    max_results: int = Field(default=10, ge=1, le=50)
     license_confirmed: bool = False
 
     @model_validator(mode="after")
     def valid(self):
-        if self.provider not in ("synthetic", "pdl"):
+        if self.provider not in ("synthetic", "pdl", "osm"):
             raise ValueError("Unknown provider")
+        if self.provider == "osm" and self.radius_km is not None and self.radius_km > 50:
+            raise ValueError("OSM radius is limited to 50 km")
         if (
             self.min_employees is not None
             and self.max_employees is not None
@@ -1137,6 +1159,21 @@ def register_journey_routes(
                 suggested["job_titles"].append(value)
         if suggested["job_titles"]:
             found.append("job_titles")
+        from app.providers.osm import CATEGORIES
+        from app.providers.osm import enabled as osm_enabled
+
+        words = {w.casefold() for w in re.findall(r"[\wÄÖÜäöüß-]+", body.briefing)}
+        for label, spec in CATEGORIES.items():
+            if (
+                any(alias in words for alias in spec["aliases"])
+                and label not in suggested["industries"]
+            ):
+                suggested["industries"].append(label)
+        if suggested["industries"]:
+            found.append("industries")
+        if osm_enabled() and (suggested["city"] or suggested["region"]):
+            suggested["provider"] = "osm"
+            found.append("provider")
         return {
             "suggested_filters": suggested,
             "interpretation": {
@@ -1148,6 +1185,55 @@ def register_journey_routes(
             "warnings": [
                 "Regelbasierte Vorschläge sind keine validierten Suchkriterien. Prüfe Land, Region, Branche und die vollständigen Filter vor dem Start.",
                 "Personen-/Radiusfilter werden nur angewandt, wenn der Anbieter diese Funktion unterstützt.",
+            ],
+        }
+
+    @app.get("/v1/workspaces/{ws}/discovery/providers")
+    def discovery_providers(ws: str, member=Depends(scope)):
+        from app.providers.osm import ATTRIBUTION, CATEGORIES
+        from app.providers.osm import enabled as osm_enabled
+
+        development = os.getenv("APP_ENV", "development") in ("development", "test")
+        pdl = bool(os.getenv("PDL_API_KEY")) and os.getenv("PDL_LICENSE_APPROVED") == "true"
+        return {
+            "items": [
+                {
+                    "id": "osm",
+                    "label": "OpenStreetMap (Orte & Firmen)",
+                    "available": osm_enabled(),
+                    "reason": None
+                    if osm_enabled()
+                    else "OSM_DISCOVERY_ENABLED=true und OSM_CONTACT konfigurieren.",
+                    "supports": ["city", "region", "radius_km", "industries", "keywords"],
+                    "unsupported": ["employee_range", "job_titles", "seniority", "contacts"],
+                    "license": "ODbL 1.0",
+                    "attribution": ATTRIBUTION,
+                    "cost": "Kostenlos; öffentliche Infrastruktur mit Nutzungsgrenzen",
+                },
+                {
+                    "id": "pdl",
+                    "label": "People Data Labs (lizenziert)",
+                    "available": pdl,
+                    "reason": None if pdl else "Lizenz, Referenz und API-Schlüssel erforderlich.",
+                    "supports": ["country", "city", "industries", "employee_range"],
+                    "unsupported": ["radius_km", "job_titles", "seniority"],
+                    "license": "Vertragsabhängig",
+                    "cost": "Kostenpflichtig je Abfrage",
+                },
+                {
+                    "id": "synthetic",
+                    "label": "Synthetische Demo",
+                    "available": development,
+                    "reason": None if development else "Nur in Entwicklung/Test.",
+                    "supports": [],
+                    "unsupported": ["alle Filter – feste Beispieldaten"],
+                    "license": "Synthetisch",
+                    "cost": "Keine",
+                },
+            ],
+            "osm_categories": [
+                {"label": label, "tags": [f"{k}={v}" for k, v in spec["tags"]]}
+                for label, spec in CATEGORIES.items()
             ],
         }
 
@@ -1229,7 +1315,40 @@ def register_journey_routes(
         ):
             raise HTTPException(503, "Anbieterzugang und geprüfte Lizenz/Nutzungsrechte fehlen.")
         warnings = []
-        if criteria.radius_km is not None:
+        osm_fields = {}
+        if criteria.provider == "osm":
+            from app.providers.osm import enabled, resolve_categories
+
+            if not enabled():
+                raise HTTPException(
+                    503,
+                    "OpenStreetMap-Suche ist nicht aktiviert (OSM_DISCOVERY_ENABLED und OSM_CONTACT erforderlich).",
+                )
+            if not (criteria.city or criteria.region):
+                raise HTTPException(422, "Für die OSM-Suche Ort oder Region angeben.")
+            categories, unmapped = resolve_categories(criteria.industries)
+            if not categories and not criteria.keywords:
+                raise HTTPException(
+                    422,
+                    "Mindestens eine OSM-abbildbare Branche oder ein Namens-Schlüsselwort angeben.",
+                )
+            if unmapped:
+                warnings.append(
+                    "Nicht auf OSM-Kategorien abbildbar und nicht angewandt: " + ", ".join(unmapped)
+                )
+            if criteria.min_employees is not None or criteria.max_employees is not None:
+                warnings.append(
+                    "OpenStreetMap enthält keine Mitarbeiterzahlen; Größenfilter wird nicht angewandt."
+                )
+            osm_fields = {
+                "place": criteria.city or criteria.region,
+                "radius_km": criteria.radius_km or 10,
+                "categories": categories,
+                "keywords": criteria.keywords,
+            }
+            if criteria.radius_km is None:
+                warnings.append("Kein Radius angegeben; Standard 10 km angewandt.")
+        elif criteria.radius_km is not None:
             warnings.append(
                 "Radius wird von diesem Company-Adapter nicht unterstützt und nicht angewandt."
             )
@@ -1249,7 +1368,7 @@ def register_journey_routes(
             "search_id": search.id,
             "criteria": criteria.model_dump(),
             "warnings": warnings,
-        }
+        } | ({"osm": osm_fields} if osm_fields else {})
         audit(
             db,
             ws,
@@ -1266,17 +1385,22 @@ def register_journey_routes(
         }
 
     def normalized_results(db, ws, run, icp_id=None):
+        from app.prospecting import DuplicateIndex, company_fit_score, domain_of
+
         profile = profile_for(db, ws, icp_id)
+        index = DuplicateIndex(db, ws)
+        criteria = run.criteria or {}
         output = []
-        for index, row in enumerate(run.results):
+        for position, row in enumerate(run.results):
             source = str(row.get("source") or "unknown")
-            external = str(row.get("external_key") or index)
+            external = str(row.get("external_key") or position)
             key = hashlib.sha256((source + "\0" + external).encode()).hexdigest()
             kind = "person" if row.get("first_name") else "company"
             identity = external if source == "synthetic_demo" else source + ":" + external
-            company = db.scalar(
-                select(Company).where(Company.workspace_id == ws, Company.identity == identity)
+            match = index.match(
+                identity, row.get("website"), row.get("company", ""), row.get("location")
             )
+            company_id = match["company_id"] if match and match["reason"] == "identity" else None
             fingerprint = hashlib.sha256((source + ":" + external).encode()).hexdigest()
             known_contact = (
                 db.scalar(
@@ -1287,21 +1411,33 @@ def register_journey_routes(
                 if kind == "person"
                 else None
             )
-            website = row.get("website")
-            domain = urlsplit(website).hostname if website else None
-            prospect = SimpleNamespace(
-                location=row.get("location", ""), job_title=row.get("job_title", "")
-            )
-            firm = SimpleNamespace(
-                industry=row.get("industry", ""),
-                provenance={"employee_count": row.get("employee_count")},
-            )
+            domain = domain_of(row.get("website"))
+            if kind == "company":
+                fit = company_fit_score(row, profile, criteria)
+            else:
+                fit = explained_score(
+                    SimpleNamespace(
+                        location=row.get("location", ""), job_title=row.get("job_title", "")
+                    ),
+                    SimpleNamespace(
+                        industry=row.get("industry", ""),
+                        provenance={"employee_count": row.get("employee_count")},
+                    ),
+                    profile,
+                )
             missing = completeness(
                 {
                     "location": row.get("location"),
                     "industry": row.get("industry"),
                     "domain": domain,
                     "role": row.get("job_title"),
+                }
+                if kind == "person"
+                else {
+                    "location": row.get("location"),
+                    "industry": row.get("industry"),
+                    "domain": domain,
+                    "address": row.get("address"),
                 }
             )
             output.append(
@@ -1312,19 +1448,26 @@ def register_journey_routes(
                     "first_name": row.get("first_name"),
                     "last_name": row.get("last_name"),
                     "location": row.get("location", ""),
+                    "address": row.get("address", ""),
                     "industry": row.get("industry", ""),
                     "job_title": row.get("job_title"),
                     "domain": domain,
+                    "website": row.get("website"),
+                    "distance_km": row.get("distance_km"),
+                    "latitude": row.get("latitude"),
+                    "longitude": row.get("longitude"),
                     "source": source,
                     "source_url": row.get("source_url"),
+                    "attribution": row.get("attribution"),
                     "observed_at": row.get("observed_at"),
                     "last_verified_at": None,
                     "confidence": row.get("confidence", "unverified"),
                     "license": row.get("license"),
-                    "score": explained_score(prospect, firm, profile),
+                    "score": fit,
                     "completeness": missing,
-                    "imported": bool(known_contact if kind == "person" else company),
-                    "company_id": company.id if company else None,
+                    "imported": bool(known_contact if kind == "person" else company_id),
+                    "duplicate_of": match if match and match["reason"] != "identity" else None,
+                    "company_id": company_id or (match["company_id"] if match else None),
                     "contact_id": known_contact,
                     "_row": row,
                 }
@@ -1381,6 +1524,8 @@ def register_journey_routes(
             "page": page,
             "limit": limit,
             "notice": "Quellenangaben und Scoring sind keine Marketingfreigabe. Synthetische Einträge sind nicht recherchiert.",
+            "meta": run.meta or {},
+            "duplicates": sum(1 for r in rows if r["duplicate_of"]),
         }
 
     @app.post("/v1/workspaces/{ws}/discovery/runs/{entity_id}/import-selected")
@@ -1408,10 +1553,17 @@ def register_journey_routes(
             if any(r["entity_kind"] == "person" and not r["imported"] for r in selected)
             else 0
         )
-        created = duplicates = companies = contacts = 0
+        created = duplicates = companies = contacts = linked = facts = 0
         for result in selected:
             if result["imported"]:
                 duplicates += 1
+                continue
+            if result["duplicate_of"] and result["entity_kind"] == "company":
+                # Probable duplicate: never create a second company. Attach the new source's
+                # evidence to the existing record without overwriting its fields.
+                existing = record(db, Company, ws, result["duplicate_of"]["company_id"])
+                facts += record_source_facts(db, ws, existing, result["_row"], member.user_id)
+                linked += 1
                 continue
             row = result["_row"]
             source = result["source"]
@@ -1450,12 +1602,18 @@ def register_journey_routes(
                             "confidence",
                             "allowed_uses",
                             "employee_count",
+                            "attribution",
+                            "address",
+                            "latitude",
+                            "longitude",
+                            "osm_category",
                         )
                     },
                 )
                 db.add(company)
                 db.flush()
                 companies += 1
+                facts += record_source_facts(db, ws, company, row, member.user_id)
             if result["entity_kind"] == "person":
                 if contacts >= capacity:
                     raise HTTPException(
@@ -1491,13 +1649,16 @@ def register_journey_routes(
             ws,
             member.user_id,
             "discovery_selected_imported",
-            f"{created} ausgewählte Datensätze übernommen; {duplicates} Dubletten übersprungen",
+            f"{created} ausgewählte Datensätze übernommen; {duplicates} Dubletten übersprungen; "
+            f"{linked} wahrscheinliche Dubletten mit bestehenden Unternehmen verknüpft",
         )
         return {
             "created": created,
             "duplicates": duplicates,
             "companies": companies,
             "contacts": contacts,
+            "linked_duplicates": linked,
+            "facts": facts,
         }
 
     def campaign_workspace_data(db, ws, campaign):
@@ -1888,6 +2049,52 @@ def register_journey_routes(
         }
 
 
+SOURCE_FACT_FIELDS = (
+    ("address", "Adresse"),
+    ("industry", "Kategorie"),
+    ("osm_category", "OSM-Tag"),
+    ("website", "Website"),
+    ("opening_hours", "Öffnungszeiten"),
+    ("employee_count", "Mitarbeitende (Anbieterangabe)"),
+)
+
+
+def record_source_facts(db, ws, company, row, actor_id):
+    """Persist provider-reported fields as cited facts. Idempotent per field+source."""
+    source_url = str(row.get("source_url") or "")[:2000]
+    if not source_url:
+        return 0
+    existing = {
+        (f.field, f.source_url)
+        for f in db.scalars(
+            select(CompanyFact).where(
+                CompanyFact.workspace_id == ws, CompanyFact.company_id == company.id
+            )
+        )
+    }
+    created = 0
+    for key, label in SOURCE_FACT_FIELDS:
+        value = row.get(key)
+        if value is None or value == "" or (label, source_url) in existing:
+            continue
+        db.add(
+            CompanyFact(
+                workspace_id=ws,
+                company_id=company.id,
+                field=label,
+                value=str(value)[:1000],
+                source_url=source_url,
+                confidence=str(row.get("confidence") or "provider_reported")[:30],
+                source_kind=str(row.get("source") or "provider")[:40],
+                source_id=hashlib.sha256(source_url.encode()).hexdigest()[:32],
+                actor_id=actor_id,
+            )
+        )
+        created += 1
+    db.flush()
+    return created
+
+
 def apply_discovery_criteria(db, ws, rows, criteria):
     """Bounded post-filtering of known provider fields; absence is never fabricated."""
     warnings = []
@@ -1929,17 +2136,21 @@ def apply_discovery_criteria(db, ws, rows, criteria):
     )
     identities = {c.identity.casefold() for c in customers + won_companies}
     domains = {urlsplit(c.website).hostname for c in customers + won_companies if c.website}
+    upstream_geo = criteria.get("provider") == "osm"
     output = []
     for row in rows:
         industry = str(row.get("industry") or "").casefold()
         if any(term.casefold() in industry for term in criteria.get("excluded_industries", [])):
             continue
-        if criteria.get("industries") and not any(
-            term.casefold() in industry for term in criteria["industries"]
+        if (
+            not upstream_geo
+            and criteria.get("industries")
+            and not any(term.casefold() in industry for term in criteria["industries"])
         ):
             continue
         if (
-            criteria.get("region")
+            not upstream_geo
+            and criteria.get("region")
             and criteria["region"].casefold() not in str(row.get("location") or "").casefold()
         ):
             continue

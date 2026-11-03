@@ -159,6 +159,10 @@ def dispatch(db, job):
                 )
             ]
             notice = "Synthetische Beispieldaten, keine recherchierten Suchtreffer."
+            meta = {}
+        elif job.payload["provider"] == "osm":
+            rows, meta = osm_search(db, job.workspace_id, job.payload)
+            notice = "OpenStreetMap-Daten (ODbL, © OpenStreetMap contributors); gemeinschaftlich gepflegt, vor Nutzung prüfen."
         else:
             candidates = search_companies(
                 CompanySearchFilters(
@@ -172,6 +176,7 @@ def dispatch(db, job):
             )
             rows = [r.model_dump(mode="json") for r in candidates]
             notice = "Lizenzanbieter: Quellen und Nutzungsrechte vor Übernahme prüfen."
+            meta = {}
         if job.payload.get("criteria"):
             from app.journeys import apply_discovery_criteria
 
@@ -180,10 +185,23 @@ def dispatch(db, job):
             )
         else:
             warnings = []
-        run = Discovery(workspace_id=job.workspace_id, query=job.payload["query"], results=rows)
+        run = Discovery(
+            workspace_id=job.workspace_id,
+            query=job.payload["query"][:300],
+            results=rows,
+            criteria=(job.payload.get("criteria") or {})
+            | ({"radius_km": job.payload["osm"]["radius_km"]} if job.payload.get("osm") else {}),
+            meta=meta | {"notice": notice, "warnings": job.payload.get("warnings", []) + warnings},
+        )
         db.add(run)
         db.flush()
-        return {"run_id": run.id, "results": rows, "notice": notice, "warnings": warnings}
+        return {
+            "run_id": run.id,
+            "results": rows,
+            "notice": notice,
+            "warnings": warnings,
+            "meta": meta,
+        }
     if job.kind == "ai":
         from app.providers.ai import generate_text
 
@@ -199,6 +217,55 @@ def dispatch(db, job):
 
         return research_company(job.payload["url"]).model_dump(mode="json")
     raise HTTPException(422, "unknown_job_type")
+
+
+def osm_search(db, ws, payload):
+    """Geocode (cached per workspace) and query Overpass. Raises ProviderError on failure."""
+    from app.journeys import GeocodeCache
+    from app.providers.osm import ATTRIBUTION, GeoPoint, geocode, search_places
+
+    settings = payload["osm"]
+    country = payload.get("country") or ""
+    query_key = " | ".join(x.strip().casefold() for x in (settings["place"], country))[:300]
+    cached = db.scalar(
+        select(GeocodeCache).where(
+            GeocodeCache.workspace_id == ws, GeocodeCache.query_key == query_key
+        )
+    )
+    if cached:
+        center = GeoPoint(
+            latitude=cached.latitude,
+            longitude=cached.longitude,
+            display_name=cached.display_name,
+            source_url=cached.source_url,
+        )
+    else:
+        center = geocode(settings["place"], country)
+        db.add(
+            GeocodeCache(
+                workspace_id=ws,
+                query_key=query_key,
+                latitude=center.latitude,
+                longitude=center.longitude,
+                display_name=center.display_name,
+                source_url=center.source_url,
+            )
+        )
+        db.flush()
+    candidates = search_places(
+        center,
+        settings["radius_km"],
+        settings["categories"],
+        settings.get("keywords", []),
+        payload.get("limit", 10),
+    )
+    return [c.model_dump(mode="json") for c in candidates], {
+        "center": center.model_dump(),
+        "radius_km": settings["radius_km"],
+        "categories": settings["categories"],
+        "attribution": ATTRIBUTION,
+        "geocode_cached": bool(cached),
+    }
 
 
 def execute_one(ws):
@@ -238,6 +305,10 @@ def execute_one(ws):
             elif job.kind == "discovery" and job.payload.get("provider") == "pdl":
                 job.side_effect_started = True
                 job.dispatched_at = now()
+                context = None
+            elif job.kind == "discovery" and job.payload.get("provider") == "osm":
+                # Free read-only lookups: no paid side effect, but run outside this transaction
+                # so slow public endpoints never hold row locks.
                 context = None
             elif job.kind == "ai":
                 # A timed-out paid request may have incurred cost. Never blindly retry it.
