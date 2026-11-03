@@ -44,3 +44,13 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
 - Tests: `tests/test_osm_discovery.py` 8 new (transport-mocked, synthetic fixtures). Full `validate_database.py`: **138 passed**. Ruff clean. Compose validation passed.
 - Not verified live: OSM hosts blocked by environment network policy.
 - Next: M2 evidence review endpoints and evidence-cited drafts.
+
+## Milestone 2 — Evidence and cited drafts (`b1eaf96`)
+
+- `app/sales_agent.py`: `GET/POST/DELETE …/companies/{id}/facts`, `POST …/companies/{id}/research`, `POST …/campaigns/{id}/personalize` (`evidence` | `ai`), `GET …/outreach/drafts/{id}/evidence`.
+- Research excerpts are accepted only verbatim from a succeeded research job of that company on the company's own domain.
+- Evidence drafts use at most two ranked facts (website excerpt > provider > manual; website/opening-hours/tag facts are not used as message content). AI drafts reserve budget, run via the existing durable worker, and store only citations whose IDs match supplied facts.
+- Migration `0010` (`draft_evidence`, RLS). Security fix: draft edit role check.
+- Tests: `tests/test_sales_agent.py` 6 new. Full suite **144 passed**; ruff clean.
+- Not verified live: no LLM credentials; website research remains operator-gated.
+- Next: M3 LinkedIn channel simulator/manual/official gate.
