@@ -34,3 +34,13 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
 
 - `overpass-api.de` and `nominatim.openstreetmap.org` are denied by this environment's network policy (proxy HTTP 403). OSM adapters can therefore only be verified with transport-mocked responses here. Allowing these hosts in the environment's network settings would permit a live check.
 - No provider credentials (LLM, PDL, LinkedIn) are present; those paths stay gated.
+
+## Milestone 1 — OSM discovery, dedup, company fit (`ab824fe`)
+
+- `app/providers/osm.py`: Nominatim geocode + Overpass `around:` search; 18 curated categories → documented OSM tags; keyword name filter with strict charset + regex escaping; ODbL licence, attribution and `openstreetmap.org/{type}/{id}` per row; phone/e-mail tags dropped; ≥1.1 s per-process spacing; fail-closed unless `OSM_DISCOVERY_ENABLED=true` and `OSM_CONTACT` set.
+- `app/prospecting.py`: `DuplicateIndex` (identity → domain → normalized name+place) and `company_fit_score` (radius distance, category, unknown size; role excluded and disclosed).
+- Import: probable duplicates are linked (evidence attached, no new company); new companies get cited `company_facts`.
+- Migration `0009` (discovery criteria/meta, RLS `geocode_cache`, fact source kind/id/actor with composite FK). `GET …/discovery/providers`.
+- Tests: `tests/test_osm_discovery.py` 8 new (transport-mocked, synthetic fixtures). Full `validate_database.py`: **138 passed**. Ruff clean. Compose validation passed.
+- Not verified live: OSM hosts blocked by environment network policy.
+- Next: M2 evidence review endpoints and evidence-cited drafts.
