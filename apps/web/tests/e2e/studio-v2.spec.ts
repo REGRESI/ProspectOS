@@ -153,20 +153,35 @@ test("voice examples → gallery modes → preview → save/reload → revision 
     .first()
     .click();
   await expect(page.locator(".post-list")).toContainText("Archiviert");
-  await page
-    .getByRole("button", { name: "KI-Assistent öffnen", exact: true })
-    .click();
-  await page
-    .getByLabel("Thema für KI-Vorschläge")
-    .fill("Zusammenarbeit im Redaktionsteam");
-  await page
-    .getByRole("button", { name: "Drei KI-Varianten anfordern" })
-    .click();
-  await expect(page.getByText(/LLM_API_KEY und LLM_MODEL/)).toBeVisible();
-  await page.getByRole("button", { name: "KI-Bild", exact: true }).click();
-  await expect(
-    page.getByText("Bildanbieter einrichten", { exact: true }),
-  ).toBeVisible();
+  // Never trigger paid provider calls from E2E: only assert the "missing configuration"
+  // path when the stack really has no text/image provider configured.
+  const integrations = await (
+    await page.request.get(`${base}/integrations`)
+  ).json();
+  const textReady = integrations.items.some(
+    (i: { name: string; status: string }) => i.name === "KI-Text" && i.status === "configured",
+  );
+  const imageReady = integrations.items.some(
+    (i: { name: string; status: string }) => i.name === "KI-Bilder" && i.status === "configured",
+  );
+  if (!textReady) {
+    await page
+      .getByRole("button", { name: "KI-Assistent öffnen", exact: true })
+      .click();
+    await page
+      .getByLabel("Thema für KI-Vorschläge")
+      .fill("Zusammenarbeit im Redaktionsteam");
+    await page
+      .getByRole("button", { name: "Drei KI-Varianten anfordern" })
+      .click();
+    await expect(page.getByText(/LLM_API_KEY und LLM_MODEL/)).toBeVisible();
+  }
+  if (!imageReady) {
+    await page.getByRole("button", { name: "KI-Bild", exact: true }).click();
+    await expect(
+      page.getByText("Bildanbieter einrichten", { exact: true }),
+    ).toBeVisible();
+  }
   await expect(
     page.getByRole("button", { name: "Echtes Bild anfordern", exact: true }),
   ).toBeDisabled();

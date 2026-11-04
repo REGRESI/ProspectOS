@@ -107,6 +107,21 @@ class AutopilotInput(BaseModel):
 # ---- planning --------------------------------------------------------------------------
 
 
+def icp_region(db, ws) -> str:
+    """A region term from the ICP locations (e.g. "Ortenaukreis") used to disambiguate."""
+    from app.journeys import ICPProfile
+
+    icp = db.scalar(
+        select(ICPProfile)
+        .where(ICPProfile.workspace_id == ws)
+        .order_by(ICPProfile.created_at.desc())
+    )
+    for loc in (icp.profile or {}).get("locations", []) if icp else []:
+        if re.search(r"(kreis|landkreis|region)$", loc, re.I) and " " not in loc.strip():
+            return loc
+    return ""
+
+
 def default_place(db, ws) -> str:
     from app.journeys import ICPProfile
 
@@ -212,6 +227,7 @@ def _discovery_payload(plan: dict) -> dict:
             "provider": plan["provider"],
             "country": "germany",
             "city": plan["place"],
+            "region": plan.get("region", ""),
             "radius_km": plan["radius_km"],
             "industries": industries,
             "max_results": plan["companies"],
@@ -233,7 +249,8 @@ def _discovery_payload(plan: dict) -> dict:
     }
     if plan["provider"] == "osm":
         payload["osm"] = {
-            "place": plan["place"],
+            # City + ICP region disambiguates homonyms (Lahr/Schwarzwald vs. Lahr/Eifel).
+            "place": ", ".join(filter(None, [plan["place"], plan.get("region", "")])),
             "radius_km": plan["radius_km"],
             "categories": categories,
             "keywords": [],
@@ -672,6 +689,7 @@ def register_agent_routes(app, db_session, scope, record, audit):
     ):
         authoring(member)
         parsed = parse_instruction(body.instruction, default_place(db, ws))
+        parsed["region"] = icp_region(db, ws)
         if not parsed["place"]:
             raise HTTPException(
                 422,
@@ -769,6 +787,7 @@ def register_agent_routes(app, db_session, scope, record, audit):
         )
         plan = {
             "place": place,
+            "region": icp_region(db, ws),
             "radius_km": body.radius_km,
             "companies": body.new_companies,
             "research": body.research,

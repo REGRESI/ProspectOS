@@ -2,6 +2,18 @@
 
 Ein deutschsprachiger, LinkedIn-orientierter B2B-Arbeitsplatz für Kontakte, nachvollziehbares Scoring und vertriebsnahe Workflows. Die bestehende Anwendung wurde um produktionsorientierte MVP-Workflows erweitert; der Funktionsstand steht in [docs/STATUS.md](docs/STATUS.md).
 
+## Schnellstart (5 Befehle, Docker)
+
+```sh
+infra/scripts/bootstrap-local.sh                 # .env anlegen, gültiger Verschlüsselungs-Key, OSM-Auszug laden
+docker compose up --build -d                     # DB, Migration, API, Worker, Web
+docker compose run --rm migrate python -m app.seed   # Demo-Workspace (synthetisch)
+open http://localhost:3000                       # Demo-Workspace öffnen → Einstellungen → Integrationen
+docker compose logs -f worker                    # optional: Jobs beobachten
+```
+
+Zugangsdaten (OpenAI, LinkedIn-App, Brave, North Data, Postfächer) werden auf **Einstellungen → Integrationen** pro Workspace verschlüsselt hinterlegt; Werte in `.env` gelten als Fallback. Echte Kontaktdaten bleiben in der lokalen Datenbank, nie in Git.
+
 ## Lokal entwickeln
 
 Voraussetzungen: Node24, pnpm11.25.0, Python3.12, uv und Docker mit Compose.

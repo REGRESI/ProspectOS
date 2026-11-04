@@ -143,3 +143,13 @@ def test_worker_process_has_import_hooks():
     )
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr[-500:]
+
+
+def test_region_disambiguates_homonym_places(context, monkeypatch):
+    client, (ws, *_), _ = context
+    w = f"/v1/workspaces/{ws}"
+    client.post(f"{w}/icp-profiles/from-template", json={"template": "office_cleaning_ortenau"})
+    run = client.post(f"{w}/agent/plan", json={"instruction": "Finde 20 Firmen um Lahr"}).json()
+    assert run["plan"]["place"] == "Lahr" and run["plan"]["region"] == "Ortenaukreis"
+    payload = agent._discovery_payload(run["plan"])
+    assert payload["osm"]["place"] == "Lahr, Ortenaukreis"

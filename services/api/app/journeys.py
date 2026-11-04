@@ -1364,7 +1364,9 @@ def register_journey_routes(
                     "OpenStreetMap enthält keine Mitarbeiterzahlen; Größenfilter wird nicht angewandt."
                 )
             osm_fields = {
-                "place": criteria.city or criteria.region,
+                # City + region disambiguates homonyms (Lahr/Schwarzwald vs. Lahr/Eifel).
+                "place": ", ".join(filter(None, [criteria.city, criteria.region]))
+                or criteria.region,
                 "radius_km": criteria.radius_km or 10,
                 "categories": categories,
                 "keywords": criteria.keywords,

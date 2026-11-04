@@ -354,7 +354,11 @@ def contact_output(contact, company, icp):
             "version",
             "created_at",
         )
-    } | {"company": company.name if company else "", "score": score(contact, company, icp)}
+    } | {
+        "company": company.name if company else "",
+        "company_id": contact.company_id,
+        "score": score(contact, company, icp),
+    }
 
 
 def make_company(db, ws, name, location="", identity=None, source="user_entry"):

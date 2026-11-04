@@ -89,6 +89,9 @@ Legend: **live** = verified with real provider data in this round · **built** =
 | M3 Website/Impressum research | **live** | 65 real company websites researched: 51 succeeded, 14 failed (8 unreachable, 2 DNS, 2 robots.txt refusal, 2 redirect to foreign domain). **50 companies with Impressum data.** Sample of 10 (seed 20261104): 58/60 values literally on the live page (2 = mailto-only e-mails); semantic review ≈ 7/60 wrong/unclean (1 wrong entity via OSM website tag → county site, 2 label prefixes in company name, 1 technical mailbox) → label-prefix and technical-mailbox fixes added afterwards |
 | M4 Qualification & ranking | **live** | Ranking over the 208 real companies with reason per company (e.g. "Übereinstimmung mit ICP-Region: Offenburg; Branche passt: Steuerberatung / office=tax_advisor"), factors, gaps, missing facts, sources. Weakness: OSM categories are coarse (office=company → "Büro", craft=electronics_repair → IT) |
 | M5 LinkedIn "Heute" | built | Daily queue, notes ≤200 chars, bulk approval, copy & open, mark sent (manual action), CRM/task, accept/reply checks, AI reply analysis, Brave profile candidates (transient). Live acceptance (5 real requests, <30 s each) needs the user sending in LinkedIn |
+| M7 LinkedIn content | **live** (plan + 4 posts with GPT-Image) | `infra/scripts/live_content.py`: real 6-week plan (12 items, 4 pillars, storyline) and 4 posts with two variants each and a real GPT-Image image attached; ledger 208 → 615 US cents (images booked at cap). Writing profile from Nico's own 3–5 texts not done (no samples supplied); 1 of 4 variants contained an unsupported "Studien zeigen" claim → human approval stays mandatory. Official LinkedIn publishing not live (no app credentials); "Kopieren & LinkedIn öffnen" + `published_manually` |
+| M8 Job agent | see work log | Agent + autopilot built and tested; live run result in CLAUDE_WORK_LOG.md |
+| M9 Design | built | Flow navigation (Heute, Leads, Kampagnen, Content, CRM, Einstellungen), tokens incl. spacing/radius/type, system dark mode + persisted theme, large files split (largest component now ~1.2k lines; CSS in 9 ordered files). Screenshots via `tests/e2e/cleanstar.spec.ts` |
 | M6 E-mail outreach | built | SMTP/IMAP mailboxes (app password) with connection test, DNS assistant, ramp-up/rotation/window, legal basis per contact + country rules, bulk approval, one-click unsubscribe, IMAP reply/bounce/complaint detection, auto-pause, real-event metrics. No mailbox credentials → not live. OAuth (Google/Microsoft) and external warm-up service deferred |
 | M1 Integrations page | **live (OpenAI)** · built (LinkedIn, Brave, OSM, North Data tests) | Workspace-encrypted OpenAI settings → model check, real text job + real GPT-Image job succeeded via `infra/scripts/live_m1.py`; ledger 106 → 207 US cents. LinkedIn OAuth not live: `LINKEDIN_CLIENT_ID/SECRET` missing |
 
@@ -132,3 +135,18 @@ Legend: **live** = verified with real provider data in this round · **built** =
 - IMAP sync classifies replies (In-Reply-To/References), DSN bounces (hard 5.x.x → suppression) and ARF complaints; any of them stops the contact's sequence; mailboxes auto-pause above 5 % bounces or 0.3 % complaints over the last 100 sends. Metrics only from these real events.
 - Domain assistant: MX, SPF (exactly one), DKIM (common selectors), DMARC with the missing records shown.
 - Deferred: OAuth (Google Workspace/Microsoft 365), external warm-up service API, registrar API for domains.
+
+### LinkedIn content (M7)
+- `POST …/content/plans` (goal, audience, 3–4 pillars, posts/week, weeks, optional voice profile): the LLM returns strictly formatted lines; parser enforces pillars, weeks and cadence and keeps the storyline ("roter Faden").
+- Per item `POST …/content/plans/{id}/items/{item}/draft`: two variants in the voice profile (settings + up to 5 style examples, raised from 3) and an image idea → Social Studio post draft. `POST …/content/posts/{id}/apply` picks a variant or attaches a reviewed GPT-Image asset (approval reset).
+- Publishing: official Posts API path unchanged and capability-gated; otherwise "Kopieren & LinkedIn öffnen" and `POST …/social/posts/{id}/mark-published` → state `published_manually` (self-reported, `provider_post_id` stays empty).
+
+### Job agent and autopilot (M8)
+- `POST …/agent/plan` parses an instruction deterministically (count, place or ICP region, radius, steps) and returns steps with cost estimate; `…/confirm` starts a chain of durable `agent_step` jobs (discovery → import → research → AI profiles → ranking → Impressum contacts → campaign → today queue); `…/cancel`; progress and cited results via `GET …/agent/runs/{id}`.
+- Morning autopilot `PUT …/agent/autopilot` (owner/admin): the worker checks every 10 min and starts one run per day after the configured hour (Europe/Berlin), only internal steps.
+- The agent never sends LinkedIn requests, e-mails or posts; those keep their approvals.
+
+### Design (M9)
+- Navigation follows the workflow. Tokens: colours (existing), `--space-1..6` (4/8 px grid), `--radius-*`, `--font-*`; dark mode follows the OS until the user toggles (persisted per browser). New styles use tokens only.
+- Files: `journey-workspaces.tsx` → `journey-shared`, `discovery-workbench`, `lead-database`, `company-directory`, `outreach-workbench` (re-exported); `workspace-app.tsx` → shell + `workspace-nav`, `workspace-contacts`, `workspace-modules`; `globals.css` → `app/styles/*.css` imported in the original order.
+- Accessibility rules of DESIGN_SYSTEM.md kept (labels, real buttons, focus, reduced motion for the new spinner). No full audit performed.

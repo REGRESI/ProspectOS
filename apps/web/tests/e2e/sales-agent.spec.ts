@@ -146,11 +146,13 @@ test("cited company evidence → evidence draft → approval → simulated Linke
   const row = agent.getByTestId(/agent-row-Anna/);
   await row.getByRole("button", { name: /Anfrage simulieren/ }).click();
   await expect(page.getByRole("status")).toContainText("nichts wurde an LinkedIn gesendet");
-  await expect(row).toContainText("Verbunden", { timeout: 30000 });
+  // The simulator resolves after LINKEDIN_SIM_DELAY_SECONDS (30 s in the compose stack).
+  test.setTimeout(180000);
+  await expect(row).toContainText("Verbunden", { timeout: 90000 });
 
   // Message with the approved draft; persona replies -> sequence stops, CRM updated.
   await row.getByRole("button", { name: /Nachricht simulieren/ }).click();
-  await expect(row).toContainText("Antwort", { timeout: 30000 });
+  await expect(row).toContainText("Antwort", { timeout: 90000 });
   await expect(row).toContainText("Beantwortet – Sequenz gestoppt");
   const deals = await (await page.request.get(`${base}/deals`)).json();
   const items = deals.items ?? deals;
