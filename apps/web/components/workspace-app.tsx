@@ -1,5 +1,6 @@
 "use client";
 import { IntegrationCredentials } from "./integration-credentials";
+import { TopCandidates } from "./top-candidates";
 import { ICPBuilder } from "./icp-builder";
 import { useEffect, useState, useCallback, FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -104,6 +105,7 @@ const navigation: {
   {
     section: "LEADS",
     items: [
+      { path: "/leads/top", label: "Top-Kandidaten", icon: Target },
       { path: "/contacts", label: "Kontakte", icon: Users },
       { path: "/companies", label: "Unternehmen", icon: Building2 },
       { path: "/audiences", label: "Zielgruppen & ICP", icon: Target },
@@ -168,6 +170,7 @@ const titles: Record<string, string> = {
   "/discover": "Lead Discovery",
   "/intelligence": "Recherche & KI",
   "/companies": "Unternehmen",
+  "/leads/top": "Top-Kandidaten",
   "/audiences": "Zielgruppen & ICP",
   "/pipeline": "CRM / Pipeline",
   "/social/studio": "Social Studio",
@@ -647,6 +650,9 @@ export default function WorkspaceApp() {
                   onNavigate={go}
                   onImport={() => setImportOpen(true)}
                 />
+              )}
+              {route === "/leads/top" && (
+                <TopCandidates base={base} write={write} onNavigate={go} />
               )}
               {route === "/companies" && (
                 <CompanyDirectory

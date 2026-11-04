@@ -4944,3 +4944,15 @@ tbody tr:last-child td {
 .credential-result { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2, #f4f6f8); }
 .credential-result.error { background: #fdecec; color: #8a1c1c; }
 .credential-result.connected { background: #e8f6ee; color: #14532d; }
+
+/* Top-Kandidaten */
+.candidate-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.candidate { border: 1px solid var(--line, #e3e6ea); border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; min-width: 0; }
+.candidate-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; min-width: 0; }
+.candidate-rank { display: inline-flex; gap: 4px; align-items: center; font-weight: 700; min-width: 2.5em; }
+.candidate-reason { margin: 0; overflow-wrap: anywhere; }
+.candidate-missing { color: #8a5a00; overflow-wrap: anywhere; }
+.candidate-sources a { margin-right: 6px; }
+.link-button { background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: left; }
+.link-button:hover strong { text-decoration: underline; }
+.research-batch { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }

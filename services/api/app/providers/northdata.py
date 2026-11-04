@@ -174,6 +174,8 @@ WZ_CODES: dict[str, list[str]] = {
     "Industrie & Produktion": ["25.62", "28.29", "22.29"],
     "Logistik": ["49.41", "52.29"],
     "Bildung": ["85.59"],
+    "Agentur / Marketing": ["73.11", "73.12", "74.10"],
+    "Öffentliche Verwaltung": ["84.11"],
 }
 LICENSE = "North Data Datenlizenz gemäß Betreibervertrag"
 ALLOWED_USES = "Firmenrecherche im Rahmen des North-Data-Vertrags; personenbezogene Vertreterdaten nur zweckgebunden, Löschbegehren beachten."

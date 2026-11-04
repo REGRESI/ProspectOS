@@ -396,7 +396,7 @@ class HandoffInput(Strict):
 
 class IntelligenceProfileInput(Strict):
     name: str = Field(min_length=1, max_length=120)
-    locations: list[str] = Field(default_factory=list, max_length=30)
+    locations: list[str] = Field(default_factory=list, max_length=80)
     roles: list[str] = Field(default_factory=list, max_length=30)
     industries: list[str] = Field(default_factory=list, max_length=30)
     excluded_industries: list[str] = Field(default_factory=list, max_length=30)

@@ -87,6 +87,7 @@ Legend: **live** = verified with real provider data in this round · **built** =
 | M0 Baseline | live | Backend 150 passed (hermetic env), frontend 22 unit, E2E 12/15 (3 env-dependent failures). See CLAUDE_WORK_LOG.md |
 | M2 Company discovery | built (OSM + North Data) | OSM live run blocked 2026-11-04: all public Overpass instances returned 502/504/timeouts (overpass-api.de "at capacity"); backoff added. North Data: no key. Acceptance (≥100 real Offenburg companies) pending |
 | M3 Website/Impressum research | built; live spot checks on 3 real sites | Live: burda.com, herrenknecht.com, meiko.de (→ meiko.com) Impressum fields extracted correctly (company, legal form, board/partners, address, phone, e-mail, register, court, VAT). offenburg.de correctly refused by robots.txt. 50-company acceptance pending on M2 data |
+| M4 Qualification & ranking | built | ICP template "Büro-Unterhaltsreinigung Ortenaukreis" (54 Ortenau municipalities, CleanStar industries, competitors excluded), ranking `GET …/ranking/companies` with reason, factors, gaps, known/missing facts and sources; page "Top-Kandidaten". Live ranking pending on M2/M3 data |
 | M1 Integrations page | **live (OpenAI)** · built (LinkedIn, Brave, OSM, North Data tests) | Workspace-encrypted OpenAI settings → model check, real text job + real GPT-Image job succeeded via `infra/scripts/live_m1.py`; ledger 106 → 207 US cents. LinkedIn OAuth not live: `LINKEDIN_CLIENT_ID/SECRET` missing |
 
 ### Integrations (M1)
@@ -109,3 +110,8 @@ Legend: **live** = verified with real provider data in this round · **built** =
 - Extraction is deterministic (no AI): company + legal form, Geschäftsführung/Inhaber/Vorstand/persönlich haftende Gesellschafter (titles stripped, Aufsichtsrat excluded), address, phone, general e-mail (incl. `(at)`/`(dot)`), HRB/HRA, Registergericht, USt-IdNr. Each value keeps source URL + the exact line; stored as company facts `source_kind=website_impressum`, `confidence=extracted`.
 - `POST …/companies/research-batch` (≤200, skips researched), `POST …/companies/{id}/research` (site mode when `RESEARCH_ENABLED=true`; legacy single-page path unchanged), `POST …/companies/{id}/profile`: AI profile from stored page texts as numbered sources; only lines citing valid source IDs are stored (`ai_profile`, `ai_summary_cited`, unverified), budget reserved/settled in the ledger.
 - UI: "Websites recherchieren (50)" on Unternehmen, "Website & Impressum recherchieren" and "KI-Profil erstellen" in the company evidence panel.
+
+### Ranking (M4)
+- Priority = 0.8 × ICP fit (existing deterministic `company_fit_score`: region by municipality/PLZ text match or search radius, industry; unknown = 0 points) + 0.2 × data completeness (Geschäftsführung, Telefon, E-Mail, Adresse, Website, KI-Profil). Existing customers (`is_customer`) and excluded industries (competitors) are removed; `include_excluded=true` shows them with priority 0.
+- Each candidate returns a plain-language reason, the factor list, gaps, known/missing facts and up to 6 source URLs. No purchase probability.
+- New OSM/WZ categories "Agentur / Marketing" (office=advertising_agency/graphic_design, WZ 73.11/73.12/74.10) and "Öffentliche Verwaltung" (office=government, amenity=townhall, WZ 84.11). ICP locations limit raised 30 → 80.

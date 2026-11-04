@@ -51,7 +51,7 @@ CATEGORIES: dict[str, dict] = {
         "tags": [("office", "company"), ("office", "consulting")],
     },
     "IT & Software": {
-        "aliases": ["it", "software", "edv", "informatik", "it-dienstleister", "agentur"],
+        "aliases": ["it", "software", "edv", "informatik", "it-dienstleister"],
         "tags": [
             ("office", "it"),
             ("office", "telecommunication"),
@@ -131,6 +131,14 @@ CATEGORIES: dict[str, dict] = {
     "Logistik": {
         "aliases": ["logistik", "spedition", "transport", "logistics"],
         "tags": [("office", "logistics"), ("industrial", "warehouse"), ("shop", "storage_rental")],
+    },
+    "Agentur / Marketing": {
+        "aliases": ["agentur", "werbeagentur", "marketing", "werbung", "design", "agenturen"],
+        "tags": [("office", "advertising_agency"), ("office", "graphic_design")],
+    },
+    "Öffentliche Verwaltung": {
+        "aliases": ["verwaltung", "verwaltungen", "behörde", "rathaus", "amt", "stadtverwaltung"],
+        "tags": [("office", "government"), ("amenity", "townhall")],
     },
     "Reinigung / Facility": {
         "aliases": ["reinigung", "gebäudereinigung", "facility", "cleaning", "hausmeister"],
