@@ -17,7 +17,7 @@ total = 0
 for label in osm.CATEGORIES:
     query = osm.build_query(point.latitude, point.longitude, radius, [label], [], 50)
     query = query.rsplit("out center", 1)[0] + "out count;"
-    elements = osm.overpass(query, attempts=6).get("elements", [])
+    elements = osm.overpass(query, attempts=8).get("elements", [])
     n = int(elements[0]["tags"].get("total", 0)) if elements else 0
     total += n
     print(f"{label:32s} {n:5d}", flush=True)

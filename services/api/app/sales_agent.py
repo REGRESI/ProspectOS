@@ -341,6 +341,18 @@ def register_sales_agent_routes(app, db_session, scope, record, paginate, audit)
 
         authoring(member)
         company = record(db, Company, ws, entity_id)
+        from app.providers import site_research
+
+        if site_research.enabled() and company.website:
+            job = enqueue(
+                db,
+                ws,
+                member.user_id,
+                "research",
+                {"mode": "site", "url": company.website, "company_id": company.id},
+            )
+            audit(db, ws, member.user_id, "company_research_queued", "Website-Recherche eingeplant")
+            return job_output(job)
         if not company.website or not company.website.startswith("https://"):
             raise HTTPException(422, "Für die Recherche ist eine HTTPS-Website erforderlich.")
         if (

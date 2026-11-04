@@ -40,6 +40,9 @@ type ResearchJob = {
 const sourceLabels: Record<string, string> = {
   openstreetmap: "OpenStreetMap",
   website_research: "Website-Auszug",
+  website_impressum: "Impressum (ausgelesen)",
+  ai_profile: "KI-Profil (zitiert, ungeprüft)",
+  northdata: "North Data",
   manual: "Manuell belegt",
   people_data_labs: "People Data Labs",
   linkedin_simulator: "Simulator",
@@ -168,7 +171,24 @@ export function CompanyEvidence(
                 )
               }
             >
-              Website-Recherche anfragen
+              Website & Impressum recherchieren
+            </button>
+            <button
+              className="button secondary small"
+              disabled={busy || !research}
+              title={
+                research
+                  ? "KI fasst die recherchierten Seiten mit Quellenangabe zusammen"
+                  : "Zuerst die Website recherchieren"
+              }
+              onClick={() =>
+                run(
+                  () => write(`/companies/${companyId}/profile`),
+                  "KI-Firmenprofil eingeplant. Nur zitierte Aussagen werden gespeichert.",
+                )
+              }
+            >
+              KI-Profil erstellen
             </button>
             {facts.data?.research_jobs.map((job) => (
               <small key={job.id} className="muted">

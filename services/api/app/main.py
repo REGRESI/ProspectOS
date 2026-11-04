@@ -1349,3 +1349,7 @@ register_linkedin_channel_routes(app, db_session, scope, record, paginate, audit
 from app.integrations import register_integration_routes  # noqa: E402
 
 register_integration_routes(app, db_session, scope, audit)
+
+from app.research_flow import register_research_routes  # noqa: E402
+
+register_research_routes(app, db_session, scope, record, audit)

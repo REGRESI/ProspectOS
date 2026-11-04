@@ -2135,6 +2135,46 @@ export function LeadProfile(
   );
 }
 
+function ResearchBatchButton({ write }: { write: JourneyProps["write"] }) {
+  const [state, setState] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <span className="research-batch">
+      <button
+        className="button secondary small"
+        disabled={busy}
+        title="Recherchiert Website und Impressum aller Unternehmen mit Website, die noch nicht recherchiert wurden"
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const r = await write<{ queued: number; skipped_already_researched: number }>(
+              "/companies/research-batch",
+              { limit: 50, only_missing: true },
+            );
+            setState(
+              `${r.queued} Recherchen eingeplant` +
+                (r.skipped_already_researched
+                  ? `, ${r.skipped_already_researched} bereits recherchiert`
+                  : ""),
+            );
+          } catch (e) {
+            setState((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? <Spinner /> : "Websites recherchieren (50)"}
+      </button>
+      {state && (
+        <small className="muted" role="status">
+          {state}
+        </small>
+      )}
+    </span>
+  );
+}
+
 export function CompanyDirectory(props: JourneyProps) {
   const { base, revision, onNavigate } = props;
   const [search, setSearch] = useState("");
@@ -2165,6 +2205,7 @@ export function CompanyDirectory(props: JourneyProps) {
             />
           </div>
           <Badge>{companies.data?.total || 0} Unternehmen</Badge>
+          <ResearchBatchButton write={props.write} />
         </div>
         <ErrorNote message={companies.error} />
         {companies.loading ? (
