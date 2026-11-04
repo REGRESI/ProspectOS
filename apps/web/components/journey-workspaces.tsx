@@ -3495,8 +3495,10 @@ function SequenceEditor({
       <div className="journey-sequence">
         <p className="small muted">
           Verfügbare Variablen:{" "}
-          {"{{first_name}}, {{last_name}}, {{company}}, {{job_title}}"}.
-          Unbekannte Fakten werden nicht ergänzt.
+          {"{{first_name}}, {{last_name}}, {{company}}, {{job_title}}, {{evidence}}"}.
+          {"{{evidence}}"} wird nur bei „Mit Belegen personalisieren“ mit bis zu
+          zwei zitierten Unternehmensangaben gefüllt. Unbekannte Fakten werden
+          nicht ergänzt.
         </p>
         {items.map((step, index) => (
           <article className="journey-sequence-step" key={index}>

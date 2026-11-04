@@ -230,6 +230,7 @@ type ProgressRow = {
   contact_id: string;
   name: string;
   simulator_account: boolean;
+  linkedin_url: string | null;
   suppressed: boolean;
   connection: string;
   replied: boolean;
@@ -295,13 +296,18 @@ export function CampaignAgent(
     const timer = window.setInterval(() => setLocal((v) => v + 1), 5000);
     return () => window.clearInterval(timer);
   }, [pending]);
-  async function run<T>(action: () => Promise<T>, message: (r: T) => string) {
+  async function run<T>(
+    action: () => Promise<T>,
+    message: (r: T) => string,
+    reloadCampaign = true,
+  ) {
     setBusy(true);
     setError("");
     try {
       const result = await action();
       setLocal((v) => v + 1);
-      onRefresh();
+      // Reloading the parent remounts this panel; skip it when only local state changes.
+      if (reloadCampaign) onRefresh();
       notify(message(result));
       return result;
     } catch (e) {
@@ -326,7 +332,22 @@ export function CampaignAgent(
           ? "Im Simulator ausgeführt – nichts wurde an LinkedIn gesendet."
           : "Manuelle Übergabe vorbereitet. Bitte in LinkedIn selbst handeln.";
       },
+      channel === "simulator",
     );
+  const showHandoff = (row: ProgressRow, open: Action) =>
+    setHandoff({
+      id: open.id,
+      profile_url: row.linkedin_url,
+      text: open.content,
+      missing_profile_url: !row.linkedin_url,
+      steps: [
+        "LinkedIn selbst im Browser öffnen und das Profil prüfen.",
+        open.content
+          ? "Text kopieren und selbst senden (nicht automatisiert)."
+          : "Kontaktanfrage ohne Notiz selbst senden.",
+        "Ergebnis hier bestätigen.",
+      ],
+    });
   const outcome = (id: string, value: string) =>
     run(
       () => write(`/linkedin/actions/${id}/outcome`, { outcome: value }),
@@ -477,7 +498,7 @@ export function CampaignAgent(
                         {row.completed_steps.length
                           ? `Erledigt: ${row.completed_steps.map((p) => p + 1).join(", ")}`
                           : "Noch keine Nachricht"}
-                        {row.next_due_at && (
+                        {row.next_due_at && !row.stopped && (
                           <small className="journey-cell-sub">
                             Schritt {(row.next_step ?? 0) + 1} fällig {dateTime(row.next_due_at)}
                           </small>
@@ -490,6 +511,12 @@ export function CampaignAgent(
                           </span>
                         ) : open ? (
                           <span className="outcome-buttons">
+                            <button
+                              className="button ghost small"
+                              onClick={() => showHandoff(row, open)}
+                            >
+                              <Hand size={13} /> Übergabe anzeigen
+                            </button>
                             {(open.state === "handed_off" ? ["sent", "not_sent"] : []).concat(
                               open.action === "connection_request" ? ["accepted", "declined"] : ["replied"],
                             ).map((value) => (
@@ -531,7 +558,13 @@ export function CampaignAgent(
                           )
                         ) : (
                           <span className="muted small">
-                            {row.connection === "pending" ? "Warte auf simulierte Reaktion…" : "Keine Aktion möglich"}
+                            {row.connection === "pending"
+                              ? "Warte auf simulierte Reaktion…"
+                              : row.connection === "accepted" && !progress.data?.steps.length
+                                ? "Zuerst Sequenzschritte anlegen"
+                                : row.connection === "accepted"
+                                  ? "Alle Schritte erledigt"
+                                  : "Keine weitere Anfrage (Empfänger respektieren)"}
                           </span>
                         )}
                       </td>

@@ -4319,7 +4319,8 @@ tbody tr:last-child td {
   .journey-discovery-layout,
   .journey-outreach-layout,
   .setup-layout {
-    grid-template-columns: 1fr;
+    /* minmax(0, …) lets wide tables scroll inside .table-scroll instead of widening the page */
+    grid-template-columns: minmax(0, 1fr);
   }
   .journey-campaign-list {
     display: flex;
@@ -4924,4 +4925,9 @@ tbody tr:last-child td {
   .agent-toolbar > * {
     flex: 1 1 100%;
   }
+}
+.journey-outreach-layout > *,
+.campaign-agent,
+.campaign-agent .modal-body {
+  min-width: 0;
 }

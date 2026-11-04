@@ -811,6 +811,7 @@ def register_linkedin_channel_routes(app, db_session, scope, record, paginate, a
                     "contact_id": contact.id,
                     "name": f"{contact.first_name} {contact.last_name}".strip(),
                     "simulator_account": contact.id in sim_contacts,
+                    "linkedin_url": contact.linkedin_url,
                     "suppressed": contact.id in suppressed,
                     "connection": connection_state(db, ws, contact.id),
                     "replied": replied,

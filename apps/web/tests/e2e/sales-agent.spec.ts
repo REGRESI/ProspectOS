@@ -224,7 +224,7 @@ test("manual handoff for a real-style contact requires self-reported outcomes", 
   await row.getByRole("button", { name: "Gesendet", exact: true }).click();
   await row.getByRole("button", { name: "Angenommen", exact: true }).click();
   await expect(row).toContainText("Verbunden");
-  await expect(row).toContainText("Entwurf für nächsten Schritt erstellen");
+  await expect(row).toContainText("Zuerst Sequenzschritte anlegen");
   await page.setViewportSize({ width: 375, height: 800 });
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

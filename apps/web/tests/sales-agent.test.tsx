@@ -43,6 +43,7 @@ function row(overrides: object) {
     contact_id: "c1",
     name: "Anna Keller (synthetisch)",
     simulator_account: true,
+    linkedin_url: null,
     suppressed: false,
     connection: "none",
     replied: false,
