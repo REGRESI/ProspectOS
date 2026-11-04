@@ -40,6 +40,12 @@ from app.models import Company, Contact, TenantMixin
 from app.platform_models import Suppression, Task
 
 NOTE_LIMIT = 200
+PROFESSION = re.compile(
+    r"^(?:(?:Steuerberater(?:in)?|Rechtsanw(?:alt|ältin)|Wirtschaftsprüfer(?:in)?|Notar(?:in)?|"
+    r"Architekt(?:in)?|Zahnarzt|Zahnärztin|Arzt|Ärztin|Fachanwalt|Fachanwältin|Dipl\.?-?\s?\w+\.?|"
+    r"Dr\.?(?:\s?med\.?)?|Prof\.?|Ing\.?|Herr|Frau)\s+)+",
+    re.I,
+)
 _candidate_cache: dict[str, tuple[float, list]] = {}
 
 
@@ -469,14 +475,35 @@ def brave_candidates(contact: Contact, company: Company | None, client=None) -> 
     hit = _candidate_cache.get(cache_key)
     if hit and time.monotonic() - hit[0] < 600:
         return hit[1]
-    query = f'site:linkedin.com/in "{name}"' + (f" {company.name}" if company else "")
-    data, _ = request_json(
-        "GET",
-        "https://api.search.brave.com/res/v1/web/search",
-        client=client,
-        params={"q": query[:380], "count": 10, "country": "DE", "search_lang": "de"},
-        headers={"Accept": "application/json", "X-Subscription-Token": key},
+    firm_word = next(
+        (
+            t
+            for t in re.findall(r"[A-Za-zÄÖÜäöüß]{3,}", company.name if company else "")
+            if t.casefold() not in {"gmbh", "und", "der", "die", "das", "co", "kg", "mbh", "ohg"}
+        ),
+        "",
     )
+    city = ((company.location or "").split("/")[0].strip() if company else "")[:60]
+    # Live check 2026-11-04: `site:linkedin.com/in "Name" <full company>` returned nothing,
+    # `linkedin "Name" <keyword> <city>` found the right profile. Try narrow -> broad.
+    queries = [f'linkedin "{name}" {firm_word} {city}'.strip(), f'linkedin "{name}" {city}'.strip()]
+    results: list = []
+    for query in dict.fromkeys(queries):
+        data, _ = request_json(
+            "GET",
+            "https://api.search.brave.com/res/v1/web/search",
+            client=client,
+            params={"q": query[:380], "count": 10, "country": "DE", "search_lang": "de"},
+            headers={"Accept": "application/json", "X-Subscription-Token": key},
+        )
+        results = [
+            r
+            for r in (data.get("web") or {}).get("results", [])
+            if "linkedin.com/in/" in str(r.get("url"))
+        ]
+        if results:
+            break
+    data = {"web": {"results": results}}
     tokens_name = [t.casefold() for t in name.split() if len(t) > 1]
     firm_tokens = [
         t.casefold()
@@ -528,6 +555,7 @@ def contacts_from_impressum(db, ws, company_ids=(), limit=50) -> int:
             role = "Geschäftsführung / Inhaber (lt. Impressum)"
             m = re.match(r"^\s*(.+?)\s*\((.+)\)\s*$", raw)
             name = m.group(1) if m else raw.strip()
+            name = PROFESSION.sub("", name).strip()
             if m:
                 role = m.group(2) + " (lt. Registerangabe)"
             parts = name.split()

@@ -214,7 +214,7 @@ def test_brave_candidates_are_transient_and_scored(context, admin, monkeypatch):
         "https://www.linkedin.com/in/someone-else/",
     ]
     assert r["items"][0]["confidence"] > r["items"][1]["confidence"]
-    assert "site:linkedin.com/in" in seen[0].url.params["q"]
+    assert seen[0].url.params["q"] == 'linkedin "Erika Fiktiv0" Synthetische Offenburg'
     assert r["fallback_search_url"].startswith("https://www.linkedin.com/search/results/people/")
     # Cached in memory only: a second call does not hit Brave again, nothing stored on the contact.
     client.get(f"{w}/contacts/{contact.id}/linkedin-candidates")

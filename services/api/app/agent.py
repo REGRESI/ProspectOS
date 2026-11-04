@@ -487,11 +487,16 @@ def _run_step(db, job) -> dict:
             facts: dict = {}
             for f in db.scalars(select(CompanyFact).where(CompanyFact.workspace_id == ws)):
                 facts.setdefault(f.company_id, []).append(f)
+            stmt = select(Company).where(Company.workspace_id == ws)
+            scope_label = "alle Firmen"
+            if "discover" in plan["steps"] and run.confirmed_at:
+                # Focus contacts/campaign on what this run found (new or linked duplicates).
+                fresh = list(db.scalars(stmt.where(Company.created_at >= run.confirmed_at)))
+                if fresh:
+                    stmt = stmt.where(Company.id.in_([c.id for c in fresh]))
+                    scope_label = "Firmen dieses Laufs"
             ranked = sorted(
-                (
-                    rank_company(c, facts.get(c.id, []), profile)
-                    for c in db.scalars(select(Company).where(Company.workspace_id == ws))
-                ),
+                (rank_company(c, facts.get(c.id, []), profile) for c in db.scalars(stmt)),
                 key=lambda r: (-r["priority"], r["name"]),
             )
             ranked = [r for r in ranked if not r["excluded"]]
@@ -503,7 +508,7 @@ def _run_step(db, job) -> dict:
                 for r in ranked[:20]
             ]
             finish(
-                f"{len(ranked)} Firmen bewertet; Top: {', '.join(r['name'] for r in ranked[:3])}"
+                f"{len(ranked)} {scope_label} bewertet; Top: {', '.join(r['name'] for r in ranked[:3])}"
             )
         elif kind == "contacts":
             from app.today import contacts_from_impressum
