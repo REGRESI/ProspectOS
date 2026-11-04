@@ -138,7 +138,7 @@ export function TodayView({ base, write }: { base: string; write: Write }) {
         description="Vorbereitete LinkedIn-Schritte: prüfen, freigeben, in LinkedIn selbst senden, hier abhaken."
       />
       <ErrorNote message={error || data.error} />
-      <section className="panel today-toolbar">
+      <section className="panel pad today-toolbar">
         <label>
           Absender
           <input
@@ -226,7 +226,7 @@ export function TodayView({ base, write }: { base: string; write: Write }) {
         </p>
       )}
       {d && d.checks.length > 0 && (
-        <section className="panel">
+        <section className="panel pad">
           <h2>Rückmeldungen abfragen</h2>
           <ul className="today-checks">
             {d.checks.map((c) => (

@@ -68,7 +68,7 @@ export function AgentConsole({ base, write, onNavigate }: { base: string; write:
         description="Beschreibe, was passieren soll. Der Agent zeigt Plan und Kosten, startet erst nach Bestätigung und nutzt nur belegte Daten. Er sendet nichts nach außen."
       />
       <ErrorNote message={error} />
-      <form className="panel agent-form" onSubmit={plan}>
+      <form className="panel pad agent-form" onSubmit={plan}>
         <label>
           Auftrag
           <textarea rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} />
@@ -82,7 +82,7 @@ export function AgentConsole({ base, write, onNavigate }: { base: string; write:
       {run && <RunView run={run} write={write} onUpdate={(r) => { setRun(r); setRevision((v) => v + 1); }} onNavigate={onNavigate} />}
       <AutopilotCard base={base} write={write} />
       {history.data && history.data.items.length > 0 && (
-        <section className="panel">
+        <section className="panel pad">
           <h2>Letzte Aufträge</h2>
           <ul className="agent-history">
             {history.data.items.map((r) => (
@@ -111,7 +111,7 @@ function RunView({ run, write, onUpdate, onNavigate }: { run: Run; write: Write;
   const [error, setError] = useState("");
   const euros = (minor: number) => (minor / 100).toLocaleString("de-DE", { style: "currency", currency: "USD" });
   return (
-    <section className="panel" data-testid="agent-run">
+    <section className="panel pad" data-testid="agent-run">
       <div className="panel-head">
         <h2>Plan</h2>
         <Badge tone={run.status === "done" ? "green" : run.status === "failed" ? "red" : "amber"}>{run.status}</Badge>
@@ -220,7 +220,7 @@ function AutopilotCard({ base, write }: { base: string; write: Write }) {
     }
   }
   return (
-    <section className="panel">
+    <section className="panel pad">
       <h2>Morgen-Autopilot</h2>
       <p className="muted">
         Lädt täglich neue Firmen nach, recherchiert, bewertet und füllt „Heute“. Nur interne Schritte – Anfragen, E-Mails und Posts bleiben freigabepflichtig.

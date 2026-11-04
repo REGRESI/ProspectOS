@@ -274,7 +274,7 @@ export function CampaignEmail({ base, write, campaignId }: { base: string; write
   const v = view.data;
   const allowed = v?.contacts.filter((x) => x.eligibility.allowed).length || 0;
   return (
-    <section className="panel" data-testid="campaign-email">
+    <section className="panel pad" data-testid="campaign-email">
       <div className="panel-head">
         <h2>
           <Mail size={17} /> E-Mail-Sequenz

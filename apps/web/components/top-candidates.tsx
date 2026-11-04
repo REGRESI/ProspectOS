@@ -55,7 +55,7 @@ export function TopCandidates({
       />
       <ErrorNote message={error || (needsProfile ? "" : ranking.error)} />
       {needsProfile && (
-        <section className="panel">
+        <section className="panel pad">
           <h2>Noch kein ICP-Profil</h2>
           <p className="muted">Starte mit einer Vorlage und passe sie unter „Zielgruppen & ICP“ an.</p>
           <div className="form-actions">
@@ -88,7 +88,7 @@ export function TopCandidates({
         />
       ) : (
         ranking.data && (
-          <section className="panel">
+          <section className="panel pad">
             <div className="table-toolbar">
               <Badge tone="green">ICP: {ranking.data.profile.name}</Badge>
               <Badge>{ranking.data.total} bewertet</Badge>

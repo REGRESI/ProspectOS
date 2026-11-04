@@ -86,3 +86,9 @@
 @media (prefers-reduced-motion: reduce) { .agent-step .spin { animation: none; } }
 .agent-form + .panel, .agent-form + section, [data-testid="agent-run"] + .panel { margin-top: var(--space-4); }
 .agent-form { margin-bottom: var(--space-4); }
+
+/* Panels of the CleanStar pages carry their own padding (base .panel has none). */
+.panel.pad { padding: var(--space-5); margin-bottom: var(--space-4); }
+.panel.pad h2 { margin: 0 0 var(--space-3); }
+@media (max-width: 640px) { .panel.pad { padding: var(--space-4); } }
+.panel.pad > p.muted { font-size: var(--font-sm); margin: 0 0 var(--space-4); }

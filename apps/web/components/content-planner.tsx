@@ -88,7 +88,7 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
         description="Ziel, Zielgruppe und Themensäulen festlegen. Daraus entsteht ein Plan mit rotem Faden, pro Post zwei Varianten im eigenen Stil."
       />
       <ErrorNote message={error || plans.error} />
-      <section className="panel">
+      <section className="panel pad">
         <h2>
           <CalendarRange size={17} /> Neuer Plan
         </h2>
@@ -173,7 +173,7 @@ function PlanView({ base, write, planId }: { base: string; write: Write; planId:
   if (!p) return <ErrorNote message={plan.error} />;
   const weeks = Array.from({ length: p.weeks }, (_, i) => i + 1);
   return (
-    <section className="panel" data-testid="content-plan">
+    <section className="panel pad" data-testid="content-plan">
       <h2>{p.name}</h2>
       <p className="muted">
         {p.goal} · {p.audience} · {p.cadence}× pro Woche
