@@ -1,6 +1,7 @@
 "use client";
 import { IntegrationCredentials } from "./integration-credentials";
 import { TopCandidates } from "./top-candidates";
+import { TodayView } from "./today-view";
 import { ICPBuilder } from "./icp-builder";
 import { useEffect, useState, useCallback, FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -92,7 +93,10 @@ const navigation: {
 }[] = [
   {
     section: "START",
-    items: [{ path: "/overview", label: "Übersicht", icon: LayoutDashboard }],
+    items: [
+      { path: "/today", label: "Heute", icon: CheckCircle2 },
+      { path: "/overview", label: "Übersicht", icon: LayoutDashboard },
+    ],
   },
   {
     section: "DISCOVER",
@@ -171,6 +175,7 @@ const titles: Record<string, string> = {
   "/intelligence": "Recherche & KI",
   "/companies": "Unternehmen",
   "/leads/top": "Top-Kandidaten",
+  "/today": "Heute",
   "/audiences": "Zielgruppen & ICP",
   "/pipeline": "CRM / Pipeline",
   "/social/studio": "Social Studio",
@@ -651,6 +656,7 @@ export default function WorkspaceApp() {
                   onImport={() => setImportOpen(true)}
                 />
               )}
+              {route === "/today" && <TodayView base={base} write={write} />}
               {route === "/leads/top" && (
                 <TopCandidates base={base} write={write} onNavigate={go} />
               )}

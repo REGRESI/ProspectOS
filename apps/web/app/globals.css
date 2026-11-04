@@ -4956,3 +4956,25 @@ tbody tr:last-child td {
 .link-button { background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: left; }
 .link-button:hover strong { text-decoration: underline; }
 .research-batch { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Heute */
+.today-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.today-toolbar label { display: grid; gap: 4px; min-width: min(100%, 200px); }
+.today-stats { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.today-approve { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+.today-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.today-card { border: 1px solid var(--line, #e3e6ea); border-radius: 12px; padding: 14px; display: grid; gap: 8px; min-width: 0; background: var(--surface, #fff); }
+.today-card.active { border-color: var(--accent, #2f6fed); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #2f6fed) 25%, transparent); }
+.today-card header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.today-reason { margin: 0; overflow-wrap: anywhere; }
+.today-reason a { margin-left: 4px; }
+.today-text { display: grid; gap: 4px; }
+.today-text textarea { width: 100%; min-width: 0; }
+.today-text .over { color: #b42318; font-weight: 600; }
+.today-preview { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; background: var(--surface-2, #f4f6f8); padding: 8px; border-radius: 8px; }
+.today-checks { list-style: none; padding: 0; display: grid; gap: 8px; }
+.today-checks li { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.today-keys kbd { border: 1px solid var(--line, #ccc); border-radius: 4px; padding: 0 4px; }
+.profile-candidates { list-style: none; padding: 0; display: grid; gap: 10px; }
+.profile-candidates li { display: flex; gap: 10px; justify-content: space-between; align-items: start; min-width: 0; }
+.profile-candidates li > div { min-width: 0; overflow-wrap: anywhere; }

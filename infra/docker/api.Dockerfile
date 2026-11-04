@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
 FROM python:3.12-slim-bookworm
 WORKDIR /app
+# libexpat1: runtime dependency of pyosmium (local OSM extract discovery)
+RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.12.23 /uv /usr/local/bin/uv
 COPY services/api/pyproject.toml services/api/uv.lock ./
 RUN --mount=type=secret,id=ca_bundle \
