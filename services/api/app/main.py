@@ -1357,3 +1357,7 @@ register_research_routes(app, db_session, scope, record, audit)
 from app.ranking import register_ranking_routes  # noqa: E402
 
 register_ranking_routes(app, db_session, scope, record, audit)
+
+from app.today import register_today_routes  # noqa: E402
+
+register_today_routes(app, db_session, scope, record, audit)

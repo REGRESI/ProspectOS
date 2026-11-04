@@ -323,3 +323,63 @@ def test_overpass_backs_off_when_public_instance_is_at_capacity(monkeypatch):
 
     with pytest.raises(ProviderError, match="provider_rejected"):
         osm.overpass("bad", client=client)
+
+
+def test_local_extract_search_matches_overpass_selection(tmp_path, monkeypatch):
+    """Synthetic .osm.pbf written in the test; no download or network."""
+    import osmium
+
+    path = str(tmp_path / "synthetic.osm.pbf")
+    writer = osmium.SimpleWriter(path)
+    node = osmium.osm.mutable.Node
+    writer.add_node(
+        node(
+            id=1,
+            location=(7.9500, 48.4740),
+            tags={"office": "tax_advisor", "name": "Fiktive Steuer GmbH", "phone": "+49 1"},
+        )
+    )
+    writer.add_node(
+        node(
+            id=2,
+            location=(7.9600, 48.4800),
+            tags={"office": "lawyer", "name": "Synthetische Kanzlei"},
+        )
+    )
+    writer.add_node(
+        node(id=3, location=(7.9500, 48.4740), tags={"office": "tax_advisor"})
+    )  # unnamed
+    writer.add_node(
+        node(
+            id=4, location=(9.1800, 48.7800), tags={"office": "tax_advisor", "name": "Zu weit weg"}
+        )
+    )
+    for i, (lon, lat) in enumerate([(7.940, 48.470), (7.941, 48.470), (7.941, 48.471)], start=10):
+        writer.add_node(node(id=i, location=(lon, lat)))
+    writer.add_way(
+        osmium.osm.mutable.Way(
+            id=20,
+            nodes=[10, 11, 12, 10],
+            tags={"office": "accountant", "name": "Fiktiv Buchhaltung"},
+        )
+    )
+    writer.close()
+    monkeypatch.setenv("OSM_DISCOVERY_ENABLED", "true")
+    monkeypatch.setenv("OSM_CONTACT", "ops@prospectos.example.test")
+    monkeypatch.setenv("OSM_EXTRACT_PATH", path)
+    center = osm.GeoPoint(
+        latitude=48.4735,
+        longitude=7.9498,
+        display_name="Synthetic Town",
+        source_url="https://www.openstreetmap.org",
+    )
+    rows = osm.search_places(center, 15, ["Steuerberatung"], [], 10)
+    assert [r.external_key for r in rows] == ["node/1", "way/20"]
+    assert rows[0].source_url == "https://www.openstreetmap.org/node/1"
+    assert "phone" not in rows[0].tags and "ODbL" in rows[0].license
+    assert [
+        r.company for r in osm.search_places(center, 15, ["Steuerberatung"], ["Buchhaltung"], 10)
+    ] == ["Fiktiv Buchhaltung"]
+    assert [r.company for r in osm.search_places(center, 15, ["Rechtsberatung"], [], 10)] == [
+        "Synthetische Kanzlei"
+    ]

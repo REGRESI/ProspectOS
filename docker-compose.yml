@@ -39,6 +39,13 @@ x-runtime-environment: &runtime-environment
   OSM_CONTACT: ${OSM_CONTACT:-}
   OSM_NOMINATIM_URL: ${OSM_NOMINATIM_URL:-}
   OSM_OVERPASS_URL: ${OSM_OVERPASS_URL:-}
+  # Local OSM extract (.osm.pbf) mounted read-only from ./data/private/osm
+  OSM_EXTRACT_PATH: ${OSM_EXTRACT_PATH_CONTAINER:-}
+  BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+  NORTHDATA_API_KEY: ${NORTHDATA_API_KEY:-}
+  NORTHDATA_ENABLED: ${NORTHDATA_ENABLED:-false}
+  NORTHDATA_LICENSE_APPROVED: ${NORTHDATA_LICENSE_APPROVED:-false}
+  RESEARCH_ENABLED: ${RESEARCH_ENABLED:-false}
   LINKEDIN_SIMULATOR_ENABLED: ${LINKEDIN_SIMULATOR_ENABLED:-true}
   LINKEDIN_SIM_DELAY_SECONDS: ${LINKEDIN_SIM_DELAY_SECONDS:-30}
   LINKEDIN_DAILY_CONNECTION_LIMIT: ${LINKEDIN_DAILY_CONNECTION_LIMIT:-20}
@@ -90,6 +97,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - asset_data:/var/lib/prospectos/assets
+      - ./data/private/osm:/data/osm:ro
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -107,6 +115,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - asset_data:/var/lib/prospectos/assets
+      - ./data/private/osm:/data/osm:ro
     restart: unless-stopped
   web:
     build:

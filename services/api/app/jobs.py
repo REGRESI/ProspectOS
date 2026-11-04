@@ -367,7 +367,7 @@ def _execute_one(ws):
             elif job.kind == "research" and job.payload.get("mode") == "site":
                 # Read-only website fetches; run outside the transaction.
                 context = None
-            elif job.kind in ("ai", "outreach_ai", "company_profile"):
+            elif job.kind in ("ai", "outreach_ai", "company_profile", "reply_analysis"):
                 # A timed-out paid request may have incurred cost. Never blindly retry it.
                 job.side_effect_started = True
                 job.dispatched_at = now()
@@ -438,6 +438,10 @@ def _execute_one(ws):
                 from app.research_flow import finalize_company_profile
 
                 result = finalize_company_profile(db, current, result)
+            if current.kind == "reply_analysis":
+                from app.today import finalize_reply_analysis
+
+                result = finalize_reply_analysis(db, current, result)
             current.status = "succeeded"
             current.result = result
             current.last_error = None

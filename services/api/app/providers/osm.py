@@ -504,6 +504,72 @@ def search_places(
 ) -> list[OsmCandidate]:
     if not enabled():
         raise ProviderError("osm_not_enabled")
+    # Validates area, limit and keywords for both backends.
     query = build_query(center.latitude, center.longitude, radius_km, categories, keywords, limit)
-    payload = overpass(query, client=client)
+    extract = os.getenv("OSM_EXTRACT_PATH", "").strip()
+    if extract:
+        payload = search_extract(extract, center, radius_km, categories, keywords, limit)
+    else:
+        payload = overpass(query, client=client)
     return parse_elements(payload, (center.latitude, center.longitude), categories, limit)
+
+
+def search_extract(path, center, radius_km, categories, keywords, limit) -> dict:
+    """Same selection as the Overpass query, evaluated on a local OSM extract (.osm.pbf,
+    e.g. from download.geofabrik.de). No public API load; data date = extract date."""
+    import osmium
+
+    if not os.path.isfile(path):
+        raise ProviderError("osm_extract_missing")
+    pairs = [pair for label in categories for pair in CATEGORIES[label]["tags"]]
+    if not pairs:
+        pairs = [(key, "*") for key in sorted(_TAG_KEYS)]
+    keys = sorted({k for k, _ in pairs})
+    name_re = (
+        re.compile("|".join(re.escape(k) for k in keywords), re.IGNORECASE) if keywords else None
+    )
+    lat0, lon0 = center.latitude, center.longitude
+    dlat = radius_km / 111.0
+    dlon = radius_km / (111.0 * max(math.cos(math.radians(lat0)), 0.01))
+
+    def wanted(tags) -> bool:
+        name = tags.get("name")
+        if not name or (name_re and not name_re.search(name)):
+            return False
+        return any((value == "*" and key in tags) or tags.get(key) == value for key, value in pairs)
+
+    elements = []
+    processor = (
+        osmium.FileProcessor(path, osmium.osm.NODE | osmium.osm.WAY)
+        .with_locations()
+        .with_filter(osmium.filter.KeyFilter(*keys))
+    )
+    for obj in processor:
+        tags = {t.k: t.v for t in obj.tags}
+        if not wanted(tags):
+            continue
+        if obj.is_node():
+            if not obj.location.valid():
+                continue
+            lat, lon = obj.location.lat, obj.location.lon
+            entry = {"type": "node", "id": obj.id, "lat": lat, "lon": lon, "tags": tags}
+        else:
+            points = [(n.lat, n.lon) for n in obj.nodes if n.location.valid()]
+            if not points:
+                continue
+            lat = sum(p[0] for p in points) / len(points)
+            lon = sum(p[1] for p in points) / len(points)
+            entry = {"type": "way", "id": obj.id, "center": {"lat": lat, "lon": lon}, "tags": tags}
+        if abs(lat - lat0) > dlat or abs(lon - lon0) > dlon:
+            continue
+        if haversine_km(lat0, lon0, lat, lon) > radius_km:
+            continue
+        elements.append(entry)
+    elements.sort(key=lambda e: haversine_km(lat0, lon0, *_coords(e)))
+    return {"elements": elements[: max(1, min(limit * 3, 100000))], "source": "osm_extract"}
+
+
+def _coords(element):
+    if "center" in element:
+        return element["center"]["lat"], element["center"]["lon"]
+    return element["lat"], element["lon"]
