@@ -77,3 +77,19 @@ Branch `claude/inspiring-meitner-vf8sut` (fast-forwarded from `feat/social-studi
 ### Deferred
 
 Automatic dispatch of due sequence steps (due dates are planning only), withdrawing stale simulated/manual requests, OSM result caching across runs, map view, contact-person discovery (not available from OSM), fuzzy company merge UI, evidence review queue across companies, reply ingestion from real channels.
+
+## CleanStar round — 2026-11-04 (branch `claude/cleanstar-sales-v2`)
+
+Legend: **live** = verified with real provider data in this round · **built** = implemented and tested against transport-mocked responses, not live confirmed · **open** = not implemented.
+
+| Milestone | State | Evidence / gap |
+| --- | --- | --- |
+| M0 Baseline | live | Backend 150 passed (hermetic env), frontend 22 unit, E2E 12/15 (3 env-dependent failures). See CLAUDE_WORK_LOG.md |
+| M1 Integrations page | **live (OpenAI)** · built (LinkedIn, Brave, OSM, North Data tests) | Workspace-encrypted OpenAI settings → model check, real text job + real GPT-Image job succeeded via `infra/scripts/live_m1.py`; ledger 106 → 207 US cents. LinkedIn OAuth not live: `LINKEDIN_CLIENT_ID/SECRET` missing |
+
+### Integrations (M1)
+- Settings → Integrationen: per-workspace credentials for OpenAI, LinkedIn app, OSM contact, Brave Search, North Data. Fernet-encrypted (`TOKEN_ENCRYPTION_KEY`), masked display, source shown (workspace/environment/missing), status gekoppelt/fehlt/Fehler/nicht geprüft, "Speichern und testen", "Verbindung testen", "Entfernen". Owner/admin only. Environment remains fallback; operator switches (approvals, enable flags, base URLs, cost caps) are environment-only by design.
+- Connection tests are read-only: OpenAI `/models/{id}` (text + image model), LinkedIn app probe (invalid code exchange distinguishes `invalid_client`; no token issued), Nominatim `/status`, Brave 1 web query, North Data `suggest` (not billed).
+- LinkedIn OAuth callback now redirects to `/settings/integrations?linkedin_connected=1` or `?linkedin_error=…` (cancel) instead of returning JSON.
+- `LINKEDIN_API_VERSION=202610` = latest per learn.microsoft.com/linkedin/marketing/versioning (checked 2026-11-04). LinkedIn's official sample app registers `http://localhost:8080/login`; a local `http://localhost:3000/v1/integrations/linkedin/callback` redirect is accepted, no tunnel needed locally.
+- Known weakness: image jobs are booked at the configured cap (`IMAGE_MAX_COST_USD_CENTS`), not the actual provider price.

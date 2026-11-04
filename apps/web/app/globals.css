@@ -4931,3 +4931,16 @@ tbody tr:last-child td {
 .campaign-agent .modal-body {
   min-width: 0;
 }
+
+/* Integrations: per-workspace credentials */
+.credential-list { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.credential-card { border: 1px solid var(--line, #e3e6ea); border-radius: 12px; padding: 16px; display: grid; gap: 10px; min-width: 0; }
+.credential-card h3 { display: flex; gap: 8px; align-items: center; margin: 0; font-size: 1rem; }
+.credential-form { display: grid; gap: 10px; }
+.credential-form label { display: grid; gap: 4px; min-width: 0; }
+.credential-form input { width: 100%; min-width: 0; }
+.credential-form small { color: var(--muted, #667085); overflow-wrap: anywhere; }
+.credential-form code { overflow-wrap: anywhere; }
+.credential-result { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2, #f4f6f8); }
+.credential-result.error { background: #fdecec; color: #8a1c1c; }
+.credential-result.connected { background: #e8f6ee; color: #14532d; }

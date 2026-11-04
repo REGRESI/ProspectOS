@@ -187,3 +187,19 @@ def test_linkedin_app_credentials_probe(monkeypatch, status, body, ok):
 
         with pytest.raises(ProviderError):
             check_linkedin_app(client=client)
+
+
+def test_linkedin_callback_cancel_redirects_without_storing(context, admin, monkeypatch):
+    c, (ws, *_), _ = context
+    monkeypatch.setenv("APP_BASE_URL", "http://localhost:3000")
+    r = c.get(
+        "/v1/integrations/linkedin/callback?state=anything&error=user_cancelled_authorize",
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert r.headers["location"] == (
+        "http://localhost:3000/settings/integrations?linkedin_error=user_cancelled_authorize"
+    )
+    from app.platform_models import Connection
+
+    assert admin.scalar(select(Connection).where(Connection.workspace_id == ws)) is None

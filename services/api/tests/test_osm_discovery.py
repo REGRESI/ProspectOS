@@ -303,3 +303,23 @@ def test_osm_transient_failure_is_retried_not_failed(context, monkeypatch):
     assert execute_one(ws)
     job = client.get(url(ws, f"jobs/{queued['id']}")).json()
     assert job["status"] == "retry" and job["last_error"] == "provider_unavailable"
+
+
+def test_overpass_backs_off_when_public_instance_is_at_capacity(monkeypatch):
+    monkeypatch.setenv("OSM_DISCOVERY_ENABLED", "true")
+    monkeypatch.setenv("OSM_CONTACT", "ops@prospectos.example.test")
+    monkeypatch.setattr(osm, "_throttle", lambda: None)
+    sleeps = []
+    monkeypatch.setattr(osm, "_sleep", sleeps.append)
+    responses = iter(
+        [httpx.Response(502), httpx.Response(429), httpx.Response(200, json={"elements": []})]
+    )
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: next(responses)))
+    assert osm.overpass("[out:json];out count;", client=client) == {"elements": []}
+    assert sleeps == [2.0, 4.0]
+    # Non-retryable errors surface immediately.
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(400)))
+    from app.providers.ai import ProviderError
+
+    with pytest.raises(ProviderError, match="provider_rejected"):
+        osm.overpass("bad", client=client)

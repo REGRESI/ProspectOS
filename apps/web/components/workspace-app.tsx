@@ -1,4 +1,5 @@
 "use client";
+import { IntegrationCredentials } from "./integration-credentials";
 import { ICPBuilder } from "./icp-builder";
 import { useEffect, useState, useCallback, FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -2518,6 +2519,7 @@ function Integrations({ base, write }: { base: string; write: Write }) {
           ))}
         </div>
       )}
+      <IntegrationCredentials base={base} write={write} />
       <ProviderChecks write={write} />
       <section className="panel integration-doc">
         <h2>Bereit für den nächsten Schritt?</h2>

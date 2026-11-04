@@ -452,6 +452,39 @@ def geocode(place: str, country: str = "", *, client=None) -> GeoPoint:
     )
 
 
+def overpass(query: str, *, client=None, attempts: int = 4) -> dict:
+    """Read-only Overpass call with the exponential backoff the public instance asks for
+    when it is at capacity (HTTP 429/502/503/504)."""
+    delay = 2.0
+    for attempt in range(attempts):
+        with _lock:
+            _throttle()
+            try:
+                payload, _ = request_json(
+                    "POST",
+                    _endpoint("OSM_OVERPASS_URL", DEFAULT_OVERPASS),
+                    client=client,
+                    side_effect=False,
+                    max_response_bytes=8 * 1024 * 1024,
+                    headers={"User-Agent": _user_agent()},
+                    data={"data": query},
+                )
+                return payload
+            except ProviderError as exc:
+                if (
+                    exc.code not in ("rate_limited", "provider_unavailable")
+                    or attempt == attempts - 1
+                ):
+                    raise
+        _sleep(delay)
+        delay *= 2
+    raise ProviderError("provider_unavailable")
+
+
+def _sleep(seconds: float):
+    time.sleep(seconds)
+
+
 def search_places(
     center: GeoPoint,
     radius_km: float,
@@ -464,15 +497,5 @@ def search_places(
     if not enabled():
         raise ProviderError("osm_not_enabled")
     query = build_query(center.latitude, center.longitude, radius_km, categories, keywords, limit)
-    with _lock:
-        _throttle()
-        payload, _ = request_json(
-            "POST",
-            _endpoint("OSM_OVERPASS_URL", DEFAULT_OVERPASS),
-            client=client,
-            side_effect=False,
-            max_response_bytes=8 * 1024 * 1024,
-            headers={"User-Agent": _user_agent()},
-            data={"data": query},
-        )
+    payload = overpass(query, client=client)
     return parse_elements(payload, (center.latitude, center.longitude), categories, limit)

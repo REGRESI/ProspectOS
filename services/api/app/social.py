@@ -7,6 +7,7 @@ from datetime import timedelta
 
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Depends, HTTPException
+from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 
 from app import credentials
@@ -15,6 +16,11 @@ from app.jobs import enqueue
 from app.models import Membership, Post
 from app.platform_models import Asset, Connection, ContentPolicy, Job, OAuthState, PostMedia
 from app.platform_schemas import PolicyInput, PublishInput
+
+
+def _integrations_url(query: str) -> str:
+    base = os.getenv("APP_BASE_URL", "").rstrip("/")
+    return f"{base}/settings/integrations?linkedin_{query}"
 
 
 def cipher():
@@ -190,13 +196,21 @@ def register_social_routes(app, db_session, current_auth, scope, record, audit):
 
     @app.get("/v1/integrations/linkedin/callback")
     def callback(
-        state: str, code: str, auth=Depends(current_auth), db=Depends(db_session, scope="function")
+        state: str,
+        code: str = "",
+        error: str = "",
+        auth=Depends(current_auth),
+        db=Depends(db_session, scope="function"),
     ):
         from app.jobs import tenant
         from app.providers.linkedin import exchange_code
 
-        if len(state) > 200 or len(code) > 2000:
+        if len(state) > 200 or len(code) > 2000 or len(error) > 100:
             raise HTTPException(400, "Invalid callback.")
+        if error or not code:
+            # Member cancelled or LinkedIn refused; nothing stored. Back to the UI.
+            reason = "".join(c for c in (error or "missing_code") if c.isalnum() or c == "_")
+            return RedirectResponse(_integrations_url("error=" + reason[:60]), status_code=303)
         item = db.scalar(
             select(OAuthState)
             .where(
@@ -234,12 +248,7 @@ def register_social_routes(app, db_session, current_auth, scope, record, audit):
             "linkedin_connected",
             "Official OAuth connection established; granted scopes recorded",
         )
-        return {
-            "status": "connected",
-            "workspace_id": item.workspace_id,
-            "scopes": connection.scopes,
-            "account": connection.display_name,
-        }
+        return RedirectResponse(_integrations_url("connected=1"), status_code=303)
 
     @app.post("/v1/workspaces/{ws}/integrations/linkedin/disconnect")
     def disconnect(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
