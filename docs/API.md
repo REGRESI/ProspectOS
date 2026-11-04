@@ -41,3 +41,16 @@ All paths below are workspace-relative, with the same membership/RLS/CSRF rules.
 | Provider checks | POST `/providers/{provider}/test` owner/admin; read-only token/model/test-mode checks only; licensed search/email return requirements without hidden paid calls |
 
 Template variables accept `{first_name}`, `{last_name}`, `{company}`, `{job_title}` and double-brace equivalents. They are string substitution only. Profile scores distinguish unsupported/missing evidence from matched criteria. All generated claims require review. Paid social jobs reject model/base/pricing changes before dispatch and never blindly retry ambiguous calls. Image review is rechecked when attaching and publishing media.
+
+## Internal Sales Agent V1 endpoints (additive, 2026-11-04)
+
+Same membership/RLS/CSRF rules. Writes require owner/admin/editor unless stated.
+
+| Domain | Endpoints |
+| --- | --- |
+| Discovery sources | GET `/discovery/providers` – availability, licence, cost, supported/unsupported filters per source, OSM category→tag map. Search filters accept `provider: "osm"` (radius ≤ 50 km, `max_results` ≤ 50). Results add `distance_km`, `address`, `source_url`, `attribution`, `duplicate_of {company_id, name, reason, explanation}`; run `meta` has geocoded centre and attribution. `import-selected` returns `linked_duplicates` and `facts`. |
+| Evidence | GET/POST `/companies/{id}/facts` (manual: HTTPS `source_url`; website: `research_job_id` + verbatim excerpt from that company's own domain); DELETE `/companies/{id}/facts/{fact_id}`; POST `/companies/{id}/research` (operator-gated) |
+| Personalization | POST `/campaigns/{id}/personalize` `{mode: "evidence"|"ai", step_position, contact_ids?, instructions?}`; GET `/outreach/drafts/{id}/evidence` (immutable citation snapshot). Template variable `{evidence}` added. |
+| LinkedIn channel | GET `/linkedin/capabilities`; GET/POST `/linkedin/simulator/accounts`; POST `/linkedin/simulator/seed`; GET/POST `/linkedin/actions` `{contact_id, channel: simulator|manual|official, action: connection_request|message, campaign_id?, draft_id?}` (`official` → 403); POST `/linkedin/actions/{id}/outcome` (manual only: sent, not_sent, accepted, declined, replied); GET `/campaigns/{id}/linkedin` per-contact progress |
+
+Fixes: PATCH `/outreach/drafts/{id}` now requires owner/admin/editor.

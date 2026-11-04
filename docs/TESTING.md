@@ -81,3 +81,13 @@ Screenshots: `apps/web/test-results/studio-v2-{voice,workspace,image-configurati
 Live LLM prose quality, paid image authorization/costs, real LinkedIn publishing and remote CI are **not** verified. No provider keys were supplied, no real paid calls were made, no production/public deployment occurred. One existing Starlette/httpx deprecation warning and terminal color warnings are non-failing.
 
 Repeat the commands in the existing Repeat section above, including the disposable-database script, `pnpm build`, and the running API/worker/web for E2E. Local start commands with migrator credentials removed are in [SOCIAL_STUDIO_V2.md](SOCIAL_STUDIO_V2.md).
+
+## Internal Sales Agent V1 verification — 2026-11-04
+
+Observed on `claude/inspiring-meitner-vf8sut` at `6783e85`, local PostgreSQL 16 (no Docker daemon in this container), source API + worker (`LINKEDIN_SIM_DELAY_SECONDS=2`) and the production Next.js build:
+
+- `validate_database.py` (migrate → downgrade base → migrate → seed ×2 → pytest): **150 passed** (130 baseline + 8 OSM + 6 evidence/drafts + 6 LinkedIn channel).
+- `ruff check` / `ruff format --check`: clean. `pnpm lint`, `pnpm typecheck`: clean. `pnpm test`: **22 passed** (19 baseline + 3). `pnpm build`: success. `validate_compose.py`: passed.
+- Playwright `pnpm test:e2e` with `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium`: **15 passed** (12 baseline + 3 new: OSM source disclosure, evidence → draft → approval → simulated connect/message/reply → CRM, manual handoff with outcomes and 375 px overflow check).
+
+OSM and LLM HTTP calls are transport-mocked or injected; no live OpenStreetMap, LLM or LinkedIn request was made. The OSM hosts were denied by the environment network policy.

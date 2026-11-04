@@ -63,3 +63,22 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
 - Migration `0011`; export includes `draft_evidence`, simulator accounts, actions. AGENTS.md clarified.
 - Tests: `tests/test_linkedin_channel.py` 6 new. Full suite **150 passed**; ruff clean; compose validation passed.
 - Next: M4 frontend for discovery/evidence/LinkedIn, Playwright E2E, STATUS.md.
+
+## Milestone 4 — UI, E2E, docs (`c27aeec`, `6783e85`)
+
+- `apps/web/components/sales-agent.tsx`: `CompanyEvidence` (company profile) and `CampaignAgent` (campaign view). Discovery workbench: OSM source, capability box, category chips, distance/source/duplicate columns, ODbL attribution.
+- Fixed during E2E: handoff card lost on parent reload; mobile outreach grid overflow (910 px at 375 px viewport) — pre-existing layout rule, fixed with `minmax(0, 1fr)`.
+- Results: backend **150 passed**, frontend unit **22 passed**, E2E **15 passed**, build/lint/typecheck/ruff/compose clean. Details in TESTING.md; status matrix in STATUS.md.
+- Session note: the container restarted once mid-milestone; uncommitted work survived on disk and was committed immediately afterwards.
+
+### Blockers
+
+- OSM public endpoints blocked by environment network policy → no live OSM verification.
+- No LLM / LinkedIn partner credentials → AI drafts and official sending unverified/refused.
+
+### Next tasks
+
+1. Allow `nominatim.openstreetmap.org` and `overpass-api.de` (or a self-hosted mirror) and run one live, low-volume OSM search to validate tag coverage.
+2. Scheduled reminders for due sequence steps (still manual send/approval), withdraw stale requests.
+3. Evidence review queue and fuzzy merge UI for probable duplicates.
+4. Map view for OSM results; cross-run OSM result cache with TTL.

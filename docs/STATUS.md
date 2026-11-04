@@ -46,3 +46,34 @@ See TESTING.md for observed checks. No environment publication or production dep
 `feat/social-studio-v2` extends the experience branch (`8b92928`) with reusable structured voice profiles and labeled examples, source-bound generation controls, distinct variant angles, inherited-context refinements and persistent comparison/history, all five image source modes, searchable private gallery thumbnails/metadata, transparent automatic/random selection, extended image prompt/format controls, provenance and preview, draft duplication/archive and responsive media controls. Additive migration `0008` preserves the existing RLS, composite tenant references, durable paid jobs, cost ledger and approval/publishing gates. Details and exact local commands: [SOCIAL_STUDIO_V2.md](SOCIAL_STUDIO_V2.md).
 
 Real provider output and qualitative improvements remain credential-gated and unverified live. No simulated provider successes or automatic publication were added. Metadata matching is disclosed as lexical matching, not image understanding; no-match fallback is explicit. Voice examples (up to three) are style references only. Existing offline templates remain clearly labeled. Latest 30 text jobs are browsable; full retention/workspace erasure, unlimited history, visual embeddings, production provider validation and accessibility certification remain deferred. No public deployment is authorized or performed.
+
+## Internal Sales Agent V1 slice — 2026-11-04
+
+Branch `claude/inspiring-meitner-vf8sut` (fast-forwarded from `feat/social-studio-v2` `56f14d9`). Detailed log: [CLAUDE_WORK_LOG.md](CLAUDE_WORK_LOG.md). Migrations `0009`–`0011` are additive with RLS and composite tenant FKs.
+
+### Implemented and tested locally
+
+| Area | What works | Verification |
+| --- | --- | --- |
+| OSM discovery | Nominatim geocode (per-workspace cache), Overpass radius search over 18 curated sales categories, keyword name filter, ODbL attribution + object URL per result, node/way merge, no person/phone/e-mail data | Transport-mocked unit + API tests; UI E2E for source disclosure |
+| Deduplication | Existing companies matched by provider identity, website domain, normalized name + place, each with a reason; import links probable duplicates instead of creating new records | API tests |
+| Company ICP fit | Radius distance, category, unknown size disclosed; role factor excluded (no contact person) and disclosed | API tests |
+| Evidence | Cited company facts (OSM/provider on import, manual with HTTPS source, verbatim website excerpts bound to the company domain) | API + E2E |
+| Drafts | Evidence-template personalization (≤ 2 ranked facts, citation snapshot); AI personalization jobs with budget reservation and citation-ID validation; contacts without evidence skipped | API tests (AI with injected generation result), E2E for evidence path |
+| LinkedIn workflow | Approval-gated connection/message actions with suppression, enrollment, one-use drafts, connect-before-message, no repeat after decline, daily/weekly pacing; CRM updates (contact status, follow-up task, conversation deal); per-contact sequence progress with next due step | API + E2E |
+
+### Demo / simulated
+
+- **LinkedIn simulator**: synthetic personas only (accept+reply, accept, decline, ignore), resolved by the durable worker after `LINKEDIN_SIM_DELAY_SECONDS`. Nothing is sent to LinkedIn; DB constraint ties `simulated` to the simulator channel. Enabled by default only in development/test.
+- **Manual handoff**: real contacts get a handoff package; outcomes are self-reported and audited, not provider-confirmed.
+
+### Disabled / gated
+
+- OSM discovery requires `OSM_DISCOVERY_ENABLED=true` and an operator `OSM_CONTACT`. **Not verified live:** `nominatim.openstreetmap.org` / `overpass-api.de` were blocked by this environment's network policy (HTTP 403 at the proxy). Public instances have strict usage policies; heavy use needs a self-hosted or commercial endpoint (`OSM_NOMINATIM_URL`, `OSM_OVERPASS_URL`).
+- AI personalization requires LLM credentials and token prices; no live model output was verified.
+- Website research remains fail-closed without terms approval and an independent egress guard.
+- **Official LinkedIn connection/DM sending is refused.** LinkedIn provides no generally available API for member invitations or messages; no unofficial endpoints, scraping or browser automation exist.
+
+### Deferred
+
+Automatic dispatch of due sequence steps (due dates are planning only), withdrawing stale simulated/manual requests, OSM result caching across runs, map view, contact-person discovery (not available from OSM), fuzzy company merge UI, evidence review queue across companies, reply ingestion from real channels.
