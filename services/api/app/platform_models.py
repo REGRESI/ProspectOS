@@ -172,6 +172,8 @@ class Consent(TenantMixin, Base):
     legal_basis: Mapped[str] = mapped_column(String(60))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked: Mapped[bool] = mapped_column(default=False)
+    country: Mapped[str] = mapped_column(String(2), default="DE")
+    evidence_url: Mapped[str | None] = mapped_column(String(2000))
     __table_args__ = (
         ForeignKeyConstraint(
             ["workspace_id", "contact_id"], ["contacts.workspace_id", "contacts.id"]

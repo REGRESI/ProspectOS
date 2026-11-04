@@ -1,4 +1,5 @@
 "use client";
+import { CampaignEmail } from "./email-outreach";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
   ArrowRight,
@@ -3221,6 +3222,11 @@ export function OutreachWorkbench(
                     {...props}
                     campaignId={active}
                     onRefresh={refresh}
+                  />
+                  <CampaignEmail
+                    base={props.base}
+                    write={props.write}
+                    campaignId={active}
                   />
                   <section className="panel">
                     <div className="panel-head">

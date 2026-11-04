@@ -364,6 +364,19 @@ def _execute_one(ws):
                 # Free read-only lookups: no paid side effect, but run outside this transaction
                 # so slow public endpoints never hold row locks.
                 context = None
+            elif job.kind == "email_send":
+                from app.email_outreach import prepare_send
+
+                # Rechecks legal basis, suppression, approval and mailbox at dispatch;
+                # dispatch is marked before the SMTP call (unknown outcomes = ambiguous).
+                context = prepare_send(db, job)
+                if not context.get("skip"):
+                    job.side_effect_started = True
+                    job.dispatched_at = now()
+            elif job.kind == "mailbox_sync":
+                from app.email_outreach import mailbox_sync_payload
+
+                context = mailbox_sync_payload(db, job)
             elif job.kind == "research" and job.payload.get("mode") == "site":
                 # Read-only website fetches; run outside the transaction.
                 context = None
@@ -405,6 +418,15 @@ def _execute_one(ws):
             from app.experience import external_generation
 
             result, usage = external_generation(job)
+        elif job.kind == "email_send":
+            from app.email_outreach import send
+
+            result, usage = send(context), None
+        elif job.kind == "mailbox_sync":
+            from app.email_outreach import sync_mailbox
+
+            job.payload = {**job.payload, **context}
+            result, usage = sync_mailbox(job), None
         elif job.kind == "research":
             from app.providers.site_research import research_site
 
@@ -430,6 +452,14 @@ def _execute_one(ws):
                 from app.sales_agent import finalize_outreach
 
                 result = finalize_outreach(db, current, result)
+            if current.kind == "email_send":
+                from app.email_outreach import finalize_send
+
+                result = finalize_send(db, current, result)
+            if current.kind == "mailbox_sync":
+                from app.email_outreach import finalize_sync
+
+                result = finalize_sync(db, current, result)
             if current.kind == "research":
                 from app.research_flow import finalize_site_research
 

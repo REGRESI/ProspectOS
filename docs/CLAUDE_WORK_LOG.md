@@ -113,3 +113,13 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
 - `git push` failed: no GitHub credentials on this machine (`gh auth login` needed). Commits are local only.
 - M2: North Data wired into discovery/search/job/import with register facts; OSM/North Data limit 200 per run; Overpass backoff; shared geocode cache. Tests: `test_northdata.py` (3), Overpass backoff test. Full suite 162 passed.
 - M2 live blocked: overpass-api.de 502 "at capacity", maps.mail.ru 504, overpass.kumi.systems and overpass.private.coffee no response (2026-11-04 ~16:30 CET). Background retry scheduled. Acceptance (≥100 real companies) still open.
+
+## 2026-11-04 — M2–M6 (`2ac1515` … this commit)
+
+- M2 live: public Overpass refused automated use ("at capacity … run a local instance", HTTP 502 in 0.1 s; alternative public instances 504/no answer). Implemented `OSM_EXTRACT_PATH` (pyosmium over a Geofabrik `.osm.pbf`, same tag selection, no API load). Coverage Offenburg 30 km (named objects): Büro 296, IT 24, Steuerberatung 24, Rechtsberatung 35, Immobilien 27, Versicherung 72, Architektur 25, Handwerk 429, Praxis 257, Gastronomie 922, Hotellerie 327, Einzelhandel 2442, Kfz 234, Fitness 293, Bildung 220, Industrie 403, Logistik 20, Agentur 17, Verwaltung 211, Reinigung 302. `infra/scripts/live_pipeline.py`: 200 results → 197 imported, 3 linked duplicates.
+- M3 live: 65 sites, 51 succeeded; 50 companies with Impressum facts. Sample 10: 58/60 literal, ≈7/60 semantic issues (see STATUS). Fixes: label prefix stripping, technical mailbox de-prioritisation, homepage cross-domain re-bind, per-host robots, 2 MB cap with prefix evaluation, language-prefixed Impressum paths, Impressum detection by URL path.
+- M4 live: ranking over 208 companies with reasons.
+- M5/M6 built with transport-faked tests (`test_today.py`, `test_email_outreach.py`).
+- Container fix: `libexpat1` for pyosmium. Compose now passes RESEARCH/North Data/Brave/extract settings.
+- Tests: backend 178 passed, ruff clean; frontend lint/typecheck clean.
+- Open: M5 live (user sends 5 real requests), M6 live (needs a real mailbox + 3 own test addresses), M7–M9.

@@ -2,6 +2,7 @@
 import { IntegrationCredentials } from "./integration-credentials";
 import { TopCandidates } from "./top-candidates";
 import { TodayView } from "./today-view";
+import { MailboxManager } from "./email-outreach";
 import { ICPBuilder } from "./icp-builder";
 import { useEffect, useState, useCallback, FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -2532,6 +2533,7 @@ function Integrations({ base, write }: { base: string; write: Write }) {
         </div>
       )}
       <IntegrationCredentials base={base} write={write} />
+      <MailboxManager base={base} write={write} />
       <ProviderChecks write={write} />
       <section className="panel integration-doc">
         <h2>Bereit für den nächsten Schritt?</h2>

@@ -16,6 +16,7 @@ dependencies = [
     "cryptography>=50.0.2,<51",
     "pillow>=13.0.0,<14",
     "osmium>=4.3.2",
+    "dnspython>=2.9.2",
 ]
 [dependency-groups]
 dev = ["pytest>=8,<10", "httpx>=0.28,<1", "ruff>=0.11,<1"]

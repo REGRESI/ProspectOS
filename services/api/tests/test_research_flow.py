@@ -262,3 +262,22 @@ def test_batch_research_facts_and_cited_profile(context, admin, research_on, mon
     assert profile["KI-Profil: Standorte"].source_url.endswith("/rechtliches/impressum")
     usage = client.get(f"/v1/workspaces/{ws}/usage").json()
     assert usage["ai_reserved_minor"] == 0 and usage["ai_spent_minor"] >= 1
+
+
+def test_label_prefix_and_technical_mailbox_are_handled():
+    html = (
+        "<h1>Impressum</h1><p>Gesetzliche Anbieterkennung: Fiktiv Karosserie OHG</p>"
+        "<p>E-Mail: technik@fiktiv.example</p><p>Kontakt: info@fiktiv.example</p>"
+    )
+    f = site_research.extract_impressum(
+        site_research._parse("https://f.example/i", "text/html", html)
+    )
+    assert f["company"]["value"] == "Fiktiv Karosserie OHG"
+    assert f["email"]["value"] == "info@fiktiv.example"
+    page = site_research._parse(
+        "https://f.example/i",
+        "text/html",
+        "<p>Anbieter: Fiktiv AG</p><a href='mailto:webmaster@f.example'>W</a><a href='mailto:hallo@f.example'>H</a>",
+    )
+    f = site_research.extract_impressum(page)
+    assert f["company"]["value"] == "Fiktiv AG" and f["email"]["value"] == "hallo@f.example"

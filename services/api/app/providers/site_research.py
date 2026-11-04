@@ -265,6 +265,18 @@ def _names(raw: str) -> list[str]:
     return names[:5]
 
 
+LABEL_PREFIX = re.compile(
+    r"^(?:gesetzliche\s+)?(?:anbieter(?:kennung)?|betreiber(?:in)?|herausgeber(?:in)?|verantwortlich(?:e[rs]?)?|"
+    r"diensteanbieter(?:in)?|unternehmen|firma|name|inhalt(?:lich)?\s+verantwortlich|angaben\s+gemäß\s+§\s*5\s+\w+)"
+    r"(?:\s+\w+)?\s*:\s*",
+    re.I,
+)
+TECHNICAL_MAILBOX = re.compile(
+    r"^(?:webmaster|technik|tech|it|admin|hostmaster|postmaster|abuse|noreply|no-reply|datenschutz|privacy|dsb|presse|press|pr|bewerbung|jobs|karriere)@",
+    re.I,
+)
+
+
 def _company(window, put, found):
     def ends_with_form(line):
         matches = list(LEGAL_FORM.finditer(line))
@@ -275,7 +287,7 @@ def _company(window, put, found):
         None,
     )
     if exact:
-        put("company", exact.rstrip(" ."), exact)
+        put("company", LABEL_PREFIX.sub("", exact).rstrip(" ."), exact)
     else:
         for ln in window:
             if CREDIT.search(ln) and not re.search(r"Eigentum", ln):
@@ -364,9 +376,10 @@ def extract_impressum(page: dict) -> dict:
             m = VAT.search(line)
             if m:
                 put("vat_id", m.group(0).replace(" ", ""), line)
-        if "email" not in found:
+        if "email" not in found or TECHNICAL_MAILBOX.match(found["email"]["value"]):
             m = EMAIL.search(line)
-            if m:
+            if m and not ("email" in found and TECHNICAL_MAILBOX.match(m.group(0))):
+                found.pop("email", None)
                 put("email", m.group(0), line)
             else:
                 ob = OBFUSCATED.search(line)
@@ -376,10 +389,17 @@ def extract_impressum(page: dict) -> dict:
                     ).replace(" ", "")
                     put("email", f"{ob.group(1)}@{domain}", line)
     _company(window, put, found)
-    if "email" not in found and page.get("mailto"):
-        address = page["mailto"][0]
-        if EMAIL.fullmatch(address):
-            put("email", address, "mailto:" + address)
+    if ("email" not in found or TECHNICAL_MAILBOX.match(found["email"]["value"])) and page.get(
+        "mailto"
+    ):
+        general = [
+            a for a in page["mailto"] if EMAIL.fullmatch(a) and not TECHNICAL_MAILBOX.match(a)
+        ]
+        if general:
+            found.pop("email", None)
+            put("email", general[0], "mailto:" + general[0])
+        elif "email" not in found and EMAIL.fullmatch(page["mailto"][0]):
+            put("email", page["mailto"][0], "mailto:" + page["mailto"][0])
     return found
 
 
