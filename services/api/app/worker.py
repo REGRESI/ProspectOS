@@ -21,7 +21,18 @@ def main():
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
     logging.basicConfig(level=logging.INFO)
+    from app.agent import autopilot_tick
+
+    last_tick = 0.0
     while not stop:
+        if time.monotonic() - last_tick > 600:
+            last_tick = time.monotonic()
+            try:
+                started = autopilot_tick()
+                if started:
+                    logging.info("autopilot_runs_started=%s", started)
+            except Exception:
+                logging.error("autopilot_tick_failed")
         try:
             count = run_once()
             if count:

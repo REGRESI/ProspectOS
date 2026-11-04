@@ -2,6 +2,7 @@
 import { IntegrationCredentials } from "./integration-credentials";
 import { TopCandidates } from "./top-candidates";
 import { TodayView } from "./today-view";
+import { AgentConsole } from "./agent-console";
 import { ContentPlanner } from "./content-planner";
 import { MailboxManager } from "./email-outreach";
 import { ICPBuilder } from "./icp-builder";
@@ -97,6 +98,7 @@ const navigation: {
     section: "START",
     items: [
       { path: "/today", label: "Heute", icon: CheckCircle2 },
+      { path: "/agent", label: "Auftrags-Agent", icon: Sparkles },
       { path: "/overview", label: "Übersicht", icon: LayoutDashboard },
     ],
   },
@@ -179,6 +181,7 @@ const titles: Record<string, string> = {
   "/companies": "Unternehmen",
   "/leads/top": "Top-Kandidaten",
   "/today": "Heute",
+  "/agent": "Auftrags-Agent",
   "/content/plan": "LinkedIn-Strategie",
   "/audiences": "Zielgruppen & ICP",
   "/pipeline": "CRM / Pipeline",
@@ -661,6 +664,9 @@ export default function WorkspaceApp() {
                 />
               )}
               {route === "/today" && <TodayView base={base} write={write} />}
+              {route === "/agent" && (
+                <AgentConsole base={base} write={write} onNavigate={go} />
+              )}
               {route === "/content/plan" && (
                 <ContentPlanner base={base} write={write} />
               )}

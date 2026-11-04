@@ -229,6 +229,10 @@ def dispatch(db, job):
         from app.providers.research import research_company
 
         return research_company(job.payload["url"]).model_dump(mode="json")
+    if job.kind == "agent_step":
+        from app.agent import run_step
+
+        return run_step(db, job)
     raise HTTPException(422, "unknown_job_type")
 
 

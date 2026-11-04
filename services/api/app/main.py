@@ -1372,3 +1372,7 @@ register_content_routes(app, db_session, scope, record, audit)
 from app.content_plan import register_content_apply  # noqa: E402
 
 register_content_apply(app, db_session, scope, record, audit)
+
+from app.agent import register_agent_routes  # noqa: E402
+
+register_agent_routes(app, db_session, scope, record, audit)

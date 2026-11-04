@@ -514,6 +514,54 @@ def brave_candidates(contact: Contact, company: Company | None, client=None) -> 
     return out[:5]
 
 
+def contacts_from_impressum(db, ws, company_ids=(), limit=50) -> int:
+    """Create contacts from cited Impressum/register managers (idempotent per company+name)."""
+    stmt = select(CompanyFact).where(
+        CompanyFact.workspace_id == ws,
+        CompanyFact.field.in_(["Geschäftsführung / Inhaber", "Vertretung (Registerangabe)"]),
+    )
+    if company_ids:
+        stmt = stmt.where(CompanyFact.company_id.in_(company_ids))
+    created, seen = 0, set()
+    for fact in db.scalars(stmt.order_by(CompanyFact.created_at)):
+        for raw in re.split(r";|,", fact.value):
+            role = "Geschäftsführung / Inhaber (lt. Impressum)"
+            m = re.match(r"^\s*(.+?)\s*\((.+)\)\s*$", raw)
+            name = m.group(1) if m else raw.strip()
+            if m:
+                role = m.group(2) + " (lt. Registerangabe)"
+            parts = name.split()
+            if len(parts) < 2 or len(name) > 80:
+                continue
+            key = hashlib.sha256(f"{fact.company_id}:{name.casefold()}".encode()).hexdigest()
+            if key in seen or db.scalar(
+                select(Contact.id).where(Contact.workspace_id == ws, Contact.import_key == key)
+            ):
+                continue
+            seen.add(key)
+            company = db.scalar(
+                select(Company).where(Company.workspace_id == ws, Company.id == fact.company_id)
+            )
+            db.add(
+                Contact(
+                    workspace_id=ws,
+                    company_id=fact.company_id,
+                    first_name=" ".join(parts[:-1])[:120],
+                    last_name=parts[-1][:120],
+                    job_title=role[:240],
+                    location=company.location if company else "",
+                    import_key=key,
+                    source=("impressum " + fact.source_url)[:100],
+                )
+            )
+            created += 1
+            if created >= limit:
+                break
+        if created >= limit:
+            break
+    return created
+
+
 # ---- routes ----------------------------------------------------------------------------
 
 
@@ -523,56 +571,14 @@ def register_today_routes(app, db_session, scope, record, audit):
             raise HTTPException(403, "Diese Rolle darf keine Ansprache vorbereiten.")
 
     @app.post("/v1/workspaces/{ws}/contacts/from-impressum", status_code=201)
-    def contacts_from_impressum(
+    def contacts_from_impressum_route(
         ws: str,
         body: ImpressumContactsInput,
         member=Depends(scope),
         db=Depends(db_session, scope="function"),
     ):
         authoring(member)
-        stmt = select(CompanyFact).where(
-            CompanyFact.workspace_id == ws,
-            CompanyFact.field.in_(["Geschäftsführung / Inhaber", "Vertretung (Registerangabe)"]),
-        )
-        if body.company_ids:
-            stmt = stmt.where(CompanyFact.company_id.in_(body.company_ids))
-        created, seen = 0, set()
-        for fact in db.scalars(stmt.order_by(CompanyFact.created_at)):
-            for raw in re.split(r";|,", fact.value):
-                role = "Geschäftsführung / Inhaber (lt. Impressum)"
-                m = re.match(r"^\s*(.+?)\s*\((.+)\)\s*$", raw)
-                name = m.group(1) if m else raw.strip()
-                if m:
-                    role = m.group(2) + " (lt. Registerangabe)"
-                parts = name.split()
-                if len(parts) < 2 or len(name) > 80:
-                    continue
-                key = hashlib.sha256(f"{fact.company_id}:{name.casefold()}".encode()).hexdigest()
-                if key in seen or db.scalar(
-                    select(Contact.id).where(Contact.workspace_id == ws, Contact.import_key == key)
-                ):
-                    continue
-                seen.add(key)
-                company = db.scalar(
-                    select(Company).where(Company.workspace_id == ws, Company.id == fact.company_id)
-                )
-                db.add(
-                    Contact(
-                        workspace_id=ws,
-                        company_id=fact.company_id,
-                        first_name=" ".join(parts[:-1])[:120],
-                        last_name=parts[-1][:120],
-                        job_title=role[:240],
-                        location=company.location if company else "",
-                        import_key=key,
-                        source=("impressum " + fact.source_url)[:100],
-                    )
-                )
-                created += 1
-                if created >= body.limit:
-                    break
-            if created >= body.limit:
-                break
+        created = contacts_from_impressum(db, ws, body.company_ids, body.limit)
         audit(
             db,
             ws,

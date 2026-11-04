@@ -5004,3 +5004,17 @@ tbody tr:last-child td {
 .plan-items { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
 .plan-card { border: 1px solid var(--line, #e3e6ea); border-radius: 12px; padding: 12px; display: grid; gap: 6px; min-width: 0; align-content: start; }
 .plan-card header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* Auftrags-Agent */
+.agent-form label { display: grid; gap: 6px; }
+.agent-form textarea { width: 100%; }
+.agent-steps { list-style: none; padding: 0; display: grid; gap: 8px; }
+.agent-step { display: flex; gap: 10px; align-items: flex-start; }
+.agent-step span { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.agent-step .ok { color: #16803c; }
+.agent-step .bad { color: #b42318; }
+.agent-step .spin { animation: agent-spin 1s linear infinite; }
+.agent-detail { color: var(--muted, #667085); }
+.agent-history { list-style: none; padding: 0; display: grid; gap: 6px; }
+@keyframes agent-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .agent-step .spin { animation: none; } }
