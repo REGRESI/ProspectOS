@@ -388,7 +388,9 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                 ? "Entwicklungsbeispiele"
                 : filters.provider === "osm"
                   ? "OpenStreetMap"
-                  : "Lizenzanbieter"}
+                  : filters.provider === "northdata"
+                    ? "North Data"
+                    : "Lizenzanbieter"}
             </Badge>
           </div>
           <div className="modal-body">
@@ -441,6 +443,14 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                   OpenStreetMap · Orte & Firmen im Umkreis
                   {providers.data &&
                   !providers.data.items.find((p) => p.id === "osm")?.available
+                    ? " (nicht aktiviert)"
+                    : ""}
+                </option>
+                <option value="northdata">
+                  North Data · Registerdaten im Umkreis
+                  {providers.data &&
+                  !providers.data.items.find((p) => p.id === "northdata")
+                    ?.available
                     ? " (nicht aktiviert)"
                     : ""}
                 </option>
@@ -536,11 +546,14 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                 }
                 placeholder="Kommagetrennt"
                 list={
-                  filters.provider === "osm" ? "osm-category-options" : undefined
+                  filters.provider === "osm" || filters.provider === "northdata"
+                    ? "osm-category-options"
+                    : undefined
                 }
               />
             </label>
-            {filters.provider === "osm" && (
+            {(filters.provider === "osm" ||
+              filters.provider === "northdata") && (
               <>
                 <datalist id="osm-category-options">
                   {providers.data?.osm_categories.map((c) => (
@@ -657,7 +670,11 @@ export function DiscoveryWorkbench(props: JourneyProps) {
               <input
                 type="number"
                 min={1}
-                max={filters.provider === "osm" ? 50 : 25}
+                max={
+                  filters.provider === "osm" || filters.provider === "northdata"
+                    ? 200
+                    : 25
+                }
                 value={filters.max_results}
                 onChange={(e) => patch("max_results", Number(e.target.value))}
               />
@@ -730,7 +747,9 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                           ? "Demo"
                           : item.filters.provider === "osm"
                             ? `OSM · ${item.filters.radius_km || 10} km`
-                            : "Lizenzanbieter"}
+                            : item.filters.provider === "northdata"
+                              ? `North Data · ${item.filters.radius_km || 10} km`
+                              : "Lizenzanbieter"}
                       </small>
                     </span>
                   </button>

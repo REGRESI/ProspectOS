@@ -85,6 +85,7 @@ Legend: **live** = verified with real provider data in this round · **built** =
 | Milestone | State | Evidence / gap |
 | --- | --- | --- |
 | M0 Baseline | live | Backend 150 passed (hermetic env), frontend 22 unit, E2E 12/15 (3 env-dependent failures). See CLAUDE_WORK_LOG.md |
+| M2 Company discovery | built (OSM + North Data) | OSM live run blocked 2026-11-04: all public Overpass instances returned 502/504/timeouts (overpass-api.de "at capacity"); backoff added. North Data: no key. Acceptance (≥100 real Offenburg companies) pending |
 | M1 Integrations page | **live (OpenAI)** · built (LinkedIn, Brave, OSM, North Data tests) | Workspace-encrypted OpenAI settings → model check, real text job + real GPT-Image job succeeded via `infra/scripts/live_m1.py`; ledger 106 → 207 US cents. LinkedIn OAuth not live: `LINKEDIN_CLIENT_ID/SECRET` missing |
 
 ### Integrations (M1)
@@ -93,3 +94,10 @@ Legend: **live** = verified with real provider data in this round · **built** =
 - LinkedIn OAuth callback now redirects to `/settings/integrations?linkedin_connected=1` or `?linkedin_error=…` (cancel) instead of returning JSON.
 - `LINKEDIN_API_VERSION=202610` = latest per learn.microsoft.com/linkedin/marketing/versioning (checked 2026-11-04). LinkedIn's official sample app registers `http://localhost:8080/login`; a local `http://localhost:3000/v1/integrations/linkedin/callback` redirect is accepted, no tunnel needed locally.
 - Known weakness: image jobs are booked at the configured cap (`IMAGE_MAX_COST_USD_CENTS`), not the actual provider price.
+
+### Company discovery (M2)
+- Sources behind one candidate shape (`external_key, company, address, distance_km, source, source_url, license, observed_at, tags`): OSM (Nominatim+Overpass), North Data (register data), PDL, synthetic. A new source only has to emit that shape and declare whether it filters place/radius/category upstream (`upstream_geo`).
+- Per run up to 200 results for OSM/North Data (previously 50). Overpass calls back off exponentially on 429/502/503/504 as the public instance requests; Nominatim geocodes are cached per workspace and shared by both sources.
+- North Data (`app/providers/northdata.py`): power search with `address` + `maxDistanceKm`, curated WZ codes per category, paging via `nextPos`, one concurrent search, `censor=true`, `blocked` records/persons dropped, only `register.uniqueKey` stored (internal id never). Import adds cited facts Rechtsform, Handelsregister, Vertretung (Registerangabe), Adresse with the North Data URL. Gated by key + `NORTHDATA_ENABLED=true` + `NORTHDATA_LICENSE_APPROVED=true` (no public licence/pricing page retrievable; operator must attest the contract). Billing per unique company per month (user guide, Appendix I).
+- Dedup unchanged: provider identity → domain → normalized name + place; probable duplicates are linked, never duplicated.
+- Coverage script: `infra/scripts/osm_coverage.py Offenburg 30` (one `out count` per category).

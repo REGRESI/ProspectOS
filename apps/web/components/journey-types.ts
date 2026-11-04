@@ -76,7 +76,7 @@ export type SearchFilters = {
   seniority: string[];
   exclude_customers: boolean;
   max_results: number;
-  provider: "synthetic" | "pdl" | "osm";
+  provider: "synthetic" | "pdl" | "osm" | "northdata";
 };
 export const initialSearchFilters: SearchFilters = {
   country: "germany",
@@ -135,7 +135,7 @@ export type Candidate = {
   } | null;
 };
 export type DiscoveryProvider = {
-  id: "osm" | "pdl" | "synthetic";
+  id: "osm" | "pdl" | "synthetic" | "northdata";
   label: string;
   available: boolean;
   reason: string | null;

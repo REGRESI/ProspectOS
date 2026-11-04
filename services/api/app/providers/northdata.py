@@ -158,3 +158,68 @@ def power_search(
             if not pos:
                 break
     return results[:limit]
+
+
+# Curated WZ 2008 codes for the canonical discovery categories (same labels as OSM).
+WZ_CODES: dict[str, list[str]] = {
+    "Steuerberatung": ["69.20"],
+    "Rechtsberatung": ["69.10"],
+    "Architektur & Ingenieurwesen": ["71.11", "71.12"],
+    "IT & Software": ["62.01", "62.02", "62.03", "62.09", "63.11"],
+    "Immobilien": ["68.10", "68.20", "68.31", "68.32"],
+    "Versicherung & Finanzen": ["64.19", "65.12", "66.12", "66.19", "66.22"],
+    "Gesundheit / Praxis": ["86.21", "86.22", "86.23", "86.90"],
+    "Kfz": ["45.11", "45.20"],
+    "Büro / Dienstleistung": ["70.22", "73.11", "74.10", "78.10", "82.11"],
+    "Industrie & Produktion": ["25.62", "28.29", "22.29"],
+    "Logistik": ["49.41", "52.29"],
+    "Bildung": ["85.59"],
+}
+LICENSE = "North Data Datenlizenz gemäß Betreibervertrag"
+ALLOWED_USES = "Firmenrecherche im Rahmen des North-Data-Vertrags; personenbezogene Vertreterdaten nur zweckgebunden, Löschbegehren beachten."
+
+
+def segment_codes(categories: list[str]) -> list[str]:
+    return [code for label in categories for code in WZ_CODES.get(label, [])]
+
+
+def to_candidate(row: dict, center: tuple[float, float] | None, category: str = "") -> dict:
+    """Same shape as OsmCandidate so dedup, scoring and import stay provider-neutral."""
+    from app.providers.osm import haversine_km
+
+    distance = None
+    if center and row.get("lat") is not None and row.get("lng") is not None:
+        distance = round(haversine_km(center[0], center[1], row["lat"], row["lng"]), 1)
+    city = " ".join(filter(None, [row["postal_code"], row["city"]]))
+    return {
+        "external_key": row["identity"].removeprefix("northdata:"),
+        "company": row["name"],
+        "location": row["city"],
+        "address": ", ".join(filter(None, [row["street"], city])),
+        "postcode": row["postal_code"],
+        "industry": category,
+        "osm_category": "",
+        "website": None,
+        "latitude": row.get("lat") or 0.0,
+        "longitude": row.get("lng") or 0.0,
+        "distance_km": distance,
+        "opening_hours": "",
+        "source": "northdata",
+        "source_url": row["source_url"] or "https://www.northdata.com",
+        "license": LICENSE,
+        "attribution": "Quelle: North Data (northdata.com)",
+        "allowed_uses": ALLOWED_USES,
+        "confidence": "register_data",
+        "observed_at": row["retrieved_at"],
+        "tags": {
+            k: v
+            for k, v in {
+                "legal_form": row["legal_form"],
+                "register_id": row["register_id"],
+                "register_city": row["register_city"],
+                "wz": ",".join(row["segment_codes"][:5]),
+            }.items()
+            if v
+        },
+        "representatives": row["representatives"],
+    }

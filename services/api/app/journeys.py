@@ -285,15 +285,21 @@ class SearchFilters(Strict):
     job_titles: list[str] = Field(default_factory=list, max_length=20)
     seniority: list[str] = Field(default_factory=list, max_length=20)
     exclude_customers: bool = True
-    max_results: int = Field(default=10, ge=1, le=50)
+    max_results: int = Field(default=10, ge=1, le=200)
     license_confirmed: bool = False
 
     @model_validator(mode="after")
     def valid(self):
-        if self.provider not in ("synthetic", "pdl", "osm"):
+        if self.provider not in ("synthetic", "pdl", "osm", "northdata"):
             raise ValueError("Unknown provider")
-        if self.provider == "osm" and self.radius_km is not None and self.radius_km > 50:
-            raise ValueError("OSM radius is limited to 50 km")
+        if (
+            self.provider in ("osm", "northdata")
+            and self.radius_km is not None
+            and self.radius_km > 50
+        ):
+            raise ValueError("Radius is limited to 50 km")
+        if self.provider in ("synthetic", "pdl") and self.max_results > 50:
+            raise ValueError("This provider returns at most 50 results per run")
         if (
             self.min_employees is not None
             and self.max_employees is not None
@@ -1190,6 +1196,7 @@ def register_journey_routes(
 
     @app.get("/v1/workspaces/{ws}/discovery/providers")
     def discovery_providers(ws: str, member=Depends(scope)):
+        from app.providers.northdata import enabled as northdata_enabled
         from app.providers.osm import ATTRIBUTION, CATEGORIES
         from app.providers.osm import enabled as osm_enabled
 
@@ -1209,6 +1216,19 @@ def register_journey_routes(
                     "license": "ODbL 1.0",
                     "attribution": ATTRIBUTION,
                     "cost": "Kostenlos; öffentliche Infrastruktur mit Nutzungsgrenzen",
+                },
+                {
+                    "id": "northdata",
+                    "label": "North Data (Registerdaten, lizenziert)",
+                    "available": northdata_enabled(),
+                    "reason": None
+                    if northdata_enabled()
+                    else "North-Data-Key (Integrationen), NORTHDATA_ENABLED=true und NORTHDATA_LICENSE_APPROVED=true erforderlich.",
+                    "supports": ["city", "radius_km", "industries", "keywords"],
+                    "unsupported": ["employee_range", "job_titles", "seniority", "contacts"],
+                    "license": "Vertrag mit North Data; Vertreterdaten personenbezogen",
+                    "attribution": "Quelle: North Data (northdata.com)",
+                    "cost": "Abrechnung je eindeutiger Firma pro Monat",
                 },
                 {
                     "id": "pdl",
@@ -1316,6 +1336,7 @@ def register_journey_routes(
             raise HTTPException(503, "Anbieterzugang und geprüfte Lizenz/Nutzungsrechte fehlen.")
         warnings = []
         osm_fields = {}
+        payload_extra: dict = {}
         if criteria.provider == "osm":
             from app.providers.osm import enabled, resolve_categories
 
@@ -1348,6 +1369,35 @@ def register_journey_routes(
             }
             if criteria.radius_km is None:
                 warnings.append("Kein Radius angegeben; Standard 10 km angewandt.")
+        elif criteria.provider == "northdata":
+            from app.providers.northdata import enabled as northdata_enabled
+            from app.providers.northdata import segment_codes
+            from app.providers.osm import resolve_categories
+
+            if not northdata_enabled():
+                raise HTTPException(
+                    503,
+                    "North Data ist nicht aktiviert (Key, NORTHDATA_ENABLED und NORTHDATA_LICENSE_APPROVED erforderlich).",
+                )
+            if not criteria.city:
+                raise HTTPException(422, "Für die North-Data-Umkreissuche einen Ort angeben.")
+            categories, unmapped = resolve_categories(criteria.industries)
+            codes = segment_codes(categories)
+            if unmapped or (categories and not codes):
+                warnings.append(
+                    "Ohne WZ-Zuordnung nicht angewandt: "
+                    + ", ".join(unmapped + [c for c in categories if not segment_codes([c])])
+                )
+            osm_fields = {}
+            payload_extra = {
+                "northdata": {
+                    "address": criteria.city,
+                    "radius_km": criteria.radius_km or 10,
+                    "categories": categories,
+                    "segment_codes": codes,
+                    "keywords": " ".join(criteria.keywords),
+                }
+            }
         elif criteria.radius_km is not None:
             warnings.append(
                 "Radius wird von diesem Company-Adapter nicht unterstützt und nicht angewandt."
@@ -1356,19 +1406,23 @@ def register_journey_routes(
             warnings.append(
                 "Personenrollen/Seniorität sind im Company-Adapter nicht suchbar. Keine Personenrecherche wird behauptet."
             )
-        payload = {
-            "query": search.briefing or search.name,
-            "provider": criteria.provider,
-            "country": criteria.country,
-            "city": criteria.city,
-            "industry": criteria.industries[0] if criteria.industries else "",
-            "min_employees": criteria.min_employees,
-            "max_employees": criteria.max_employees,
-            "limit": criteria.max_results,
-            "search_id": search.id,
-            "criteria": criteria.model_dump(),
-            "warnings": warnings,
-        } | ({"osm": osm_fields} if osm_fields else {})
+        payload = (
+            {
+                "query": search.briefing or search.name,
+                "provider": criteria.provider,
+                "country": criteria.country,
+                "city": criteria.city,
+                "industry": criteria.industries[0] if criteria.industries else "",
+                "min_employees": criteria.min_employees,
+                "max_employees": criteria.max_employees,
+                "limit": criteria.max_results,
+                "search_id": search.id,
+                "criteria": criteria.model_dump(),
+                "warnings": warnings,
+            }
+            | ({"osm": osm_fields} if osm_fields else {})
+            | payload_extra
+        )
         audit(
             db,
             ws,
@@ -2083,8 +2137,20 @@ def record_source_facts(db, ws, company, row, actor_id):
         )
     }
     created = 0
-    for key, label in SOURCE_FACT_FIELDS:
-        value = row.get(key)
+    tags = row.get("tags") or {}
+    register = " ".join(filter(None, [tags.get("register_id"), tags.get("register_city")]))
+    people = "; ".join(
+        f"{p.get('name')} ({p.get('role')})"
+        for p in (row.get("representatives") or [])
+        if isinstance(p, dict) and p.get("name")
+    )
+    derived = {
+        "Rechtsform": tags.get("legal_form"),
+        "Handelsregister": register if tags.get("register_id") else "",
+        "Vertretung (Registerangabe)": people,
+    }
+    for key, label in [*SOURCE_FACT_FIELDS, *((k, k) for k in derived)]:
+        value = derived[key] if key in derived else row.get(key)
         if value is None or value == "" or (label, source_url) in existing:
             continue
         db.add(
@@ -2146,7 +2212,8 @@ def apply_discovery_criteria(db, ws, rows, criteria):
     )
     identities = {c.identity.casefold() for c in customers + won_companies}
     domains = {urlsplit(c.website).hostname for c in customers + won_companies if c.website}
-    upstream_geo = criteria.get("provider") == "osm"
+    # Providers that already applied place/radius/category upstream.
+    upstream_geo = criteria.get("provider") in ("osm", "northdata")
     output = []
     for row in rows:
         industry = str(row.get("industry") or "").casefold()

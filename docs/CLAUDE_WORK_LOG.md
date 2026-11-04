@@ -104,3 +104,12 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
 1. M1 frontend: extend existing `/settings/integrations` page (workspace-app.tsx ~2418) with credential forms, masked values, test button, status; OAuth callback should redirect to that page instead of returning JSON.
 2. M1 live acceptance: one real text + one GPT-Image job through workspace credentials, verify ledger entries; LinkedIn connect/disconnect once Client ID/Secret are entered.
 3. Fix the 3 environment-dependent E2E tests; then M2 (OSM live count for Offenburg, North Data import path) onward.
+
+## 2026-11-04 — M1 live + M2 (`e68b483`, next commit)
+
+- `.env` `TOKEN_ENCRYPTION_KEY` contained the generator command instead of a key (invalid Fernet → nothing could ever be encrypted). Backed up to `.env.backup-2026-11-04` (ignored) and replaced with a fresh key. No encrypted data existed.
+- M1 live (OpenAI): `infra/scripts/live_m1.py` stored OpenAI settings in the demo workspace (all fields source=workspace), test "Key gültig, Modelle verfügbar: gpt-4.1-mini, gpt-image-2.5-sunburst", real text job and real GPT-Image job succeeded, usage ledger 106 → 207 US cents. Image is booked at the cost cap, not the actual price.
+- LinkedIn: no Client ID/Secret in `.env` → OAuth connect/disconnect not live tested. Callback now redirects back to the integrations page.
+- `git push` failed: no GitHub credentials on this machine (`gh auth login` needed). Commits are local only.
+- M2: North Data wired into discovery/search/job/import with register facts; OSM/North Data limit 200 per run; Overpass backoff; shared geocode cache. Tests: `test_northdata.py` (3), Overpass backoff test. Full suite 162 passed.
+- M2 live blocked: overpass-api.de 502 "at capacity", maps.mail.ru 504, overpass.kumi.systems and overpass.private.coffee no response (2026-11-04 ~16:30 CET). Background retry scheduled. Acceptance (≥100 real companies) still open.

@@ -39,7 +39,7 @@ ALLOWED_USES = (
 DEFAULT_NOMINATIM = "https://nominatim.openstreetmap.org"
 DEFAULT_OVERPASS = "https://overpass-api.de/api/interpreter"
 MAX_RADIUS_KM = 50
-MAX_RESULTS = 50
+MAX_RESULTS = 200
 
 # Curated mapping of sales-relevant categories to documented OSM tags
 # (https://wiki.openstreetmap.org/wiki/Map_features). Keys are canonical labels;
@@ -269,7 +269,7 @@ def build_query(
     return (
         "[out:json][timeout:25];\n(\n"
         + "\n".join(selectors)
-        + f"\n);\nout center tags {min(limit * 3, 200)};"
+        + f"\n);\nout center tags {min(limit * 3, 600)};"
     )
 
 

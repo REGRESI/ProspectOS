@@ -168,6 +168,9 @@ def dispatch(db, job):
         elif job.payload["provider"] == "osm":
             rows, meta = osm_search(db, job.workspace_id, job.payload)
             notice = "OpenStreetMap-Daten (ODbL, © OpenStreetMap contributors); gemeinschaftlich gepflegt, vor Nutzung prüfen."
+        elif job.payload["provider"] == "northdata":
+            rows, meta = northdata_search(db, job.workspace_id, job.payload)
+            notice = "North Data Registerdaten (lizenziert); Vertretungsangaben personenbezogen, zweckgebunden nutzen."
         else:
             candidates = search_companies(
                 CompanySearchFilters(
@@ -195,7 +198,12 @@ def dispatch(db, job):
             query=job.payload["query"][:300],
             results=rows,
             criteria=(job.payload.get("criteria") or {})
-            | ({"radius_km": job.payload["osm"]["radius_km"]} if job.payload.get("osm") else {}),
+            | ({"radius_km": job.payload["osm"]["radius_km"]} if job.payload.get("osm") else {})
+            | (
+                {"radius_km": job.payload["northdata"]["radius_km"]}
+                if job.payload.get("northdata")
+                else {}
+            ),
             meta=meta | {"notice": notice, "warnings": job.payload.get("warnings", []) + warnings},
         )
         db.add(run)
@@ -224,39 +232,72 @@ def dispatch(db, job):
     raise HTTPException(422, "unknown_job_type")
 
 
-def osm_search(db, ws, payload):
-    """Geocode (cached per workspace) and query Overpass. Raises ProviderError on failure."""
-    from app.journeys import GeocodeCache
-    from app.providers.osm import ATTRIBUTION, GeoPoint, geocode, search_places
+def northdata_search(db, ws, payload):
+    """North Data power search; distance is measured from the geocoded place if available."""
+    from app.providers import northdata
 
-    settings = payload["osm"]
-    country = payload.get("country") or ""
-    query_key = " | ".join(x.strip().casefold() for x in (settings["place"], country))[:300]
+    settings = payload["northdata"]
+    rows = northdata.power_search(
+        settings["address"],
+        settings["radius_km"],
+        segment_codes=settings["segment_codes"],
+        keywords=settings.get("keywords", ""),
+        limit=payload.get("limit", 10),
+    )
+    center = None
+    from app.providers.osm import enabled as osm_enabled
+
+    if osm_enabled():
+        point, _ = geocode_cached(db, ws, settings["address"], payload.get("country") or "")
+        center = (point.latitude, point.longitude)
+    label = settings["categories"][0] if len(settings["categories"]) == 1 else ""
+    return [northdata.to_candidate(r, center, label) for r in rows], {
+        "radius_km": settings["radius_km"],
+        "categories": settings["categories"],
+        "segment_codes": settings["segment_codes"],
+        "attribution": "Quelle: North Data (northdata.com)",
+    }
+
+
+def geocode_cached(db, ws, place, country=""):
+    """Nominatim geocode, cached per workspace (OSM usage policy: avoid repeats)."""
+    from app.journeys import GeocodeCache
+    from app.providers.osm import GeoPoint, geocode
+
+    query_key = " | ".join(x.strip().casefold() for x in (place, country))[:300]
     cached = db.scalar(
         select(GeocodeCache).where(
             GeocodeCache.workspace_id == ws, GeocodeCache.query_key == query_key
         )
     )
     if cached:
-        center = GeoPoint(
+        return GeoPoint(
             latitude=cached.latitude,
             longitude=cached.longitude,
             display_name=cached.display_name,
             source_url=cached.source_url,
+        ), True
+    center = geocode(place, country)
+    db.add(
+        GeocodeCache(
+            workspace_id=ws,
+            query_key=query_key,
+            latitude=center.latitude,
+            longitude=center.longitude,
+            display_name=center.display_name,
+            source_url=center.source_url,
         )
-    else:
-        center = geocode(settings["place"], country)
-        db.add(
-            GeocodeCache(
-                workspace_id=ws,
-                query_key=query_key,
-                latitude=center.latitude,
-                longitude=center.longitude,
-                display_name=center.display_name,
-                source_url=center.source_url,
-            )
-        )
-        db.flush()
+    )
+    db.flush()
+    return center, False
+
+
+def osm_search(db, ws, payload):
+    """Geocode (cached per workspace) and query Overpass. Raises ProviderError on failure."""
+    from app.providers.osm import ATTRIBUTION, search_places
+
+    settings = payload["osm"]
+    center, cached = geocode_cached(db, ws, settings["place"], payload.get("country") or "")
     candidates = search_places(
         center,
         settings["radius_km"],
