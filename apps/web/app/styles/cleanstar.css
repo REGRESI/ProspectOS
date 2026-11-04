@@ -84,3 +84,5 @@
 .agent-history { list-style: none; padding: 0; display: grid; gap: 6px; }
 @keyframes agent-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .agent-step .spin { animation: none; } }
+.agent-form + .panel, .agent-form + section, [data-testid="agent-run"] + .panel { margin-top: var(--space-4); }
+.agent-form { margin-bottom: var(--space-4); }

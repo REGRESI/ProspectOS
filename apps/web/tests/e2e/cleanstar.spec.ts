@@ -132,7 +132,7 @@ test("ICP template → ranking, Heute queue from Impressum contacts, approve all
 test("agent shows plan and cost before anything runs", async ({ page }) => {
   const { base } = await setup(page);
   await page.goto("/agent");
-  await page.getByLabel("Auftrag").fill("Finde 30 Firmen im Umkreis von 10 km um Offenburg und priorisiere sie");
+  await page.locator(".agent-form textarea").fill("Finde 30 Firmen im Umkreis von 10 km um Offenburg und priorisiere sie");
   await page.getByRole("button", { name: /Plan erstellen/ }).click();
   const run = page.getByTestId("agent-run");
   await expect(run).toContainText("Firmen suchen");

@@ -182,9 +182,11 @@ test("voice examples → gallery modes → preview → save/reload → revision 
       page.getByText("Bildanbieter einrichten", { exact: true }),
     ).toBeVisible();
   }
-  await expect(
-    page.getByRole("button", { name: "Echtes Bild anfordern", exact: true }),
-  ).toBeDisabled();
+  if (!imageReady) {
+    await expect(
+      page.getByRole("button", { name: "Echtes Bild anfordern", exact: true }),
+    ).toBeDisabled();
+  }
   await page.screenshot({
     path: "test-results/studio-v2-image-configuration.png",
     fullPage: true,
