@@ -1,0 +1,86 @@
+/* Integrations: per-workspace credentials */
+.credential-list { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.credential-card { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px; display: grid; gap: 10px; min-width: 0; }
+.credential-card h3 { display: flex; gap: 8px; align-items: center; margin: 0; font-size: 1rem; }
+.credential-form { display: grid; gap: 10px; }
+.credential-form label { display: grid; gap: 4px; min-width: 0; }
+.credential-form input { width: 100%; min-width: 0; }
+.credential-form small { color: var(--secondary); overflow-wrap: anywhere; }
+.credential-form code { overflow-wrap: anywhere; }
+.credential-result { margin: 0; padding: 8px 10px; border-radius: var(--radius); background: var(--surface-alt); }
+.credential-result.error { background: var(--red-soft); color: var(--red); }
+.credential-result.connected { background: var(--green-soft); color: var(--green); }
+
+/* Top-Kandidaten */
+.candidate-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.candidate { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; display: grid; gap: 6px; min-width: 0; }
+.candidate-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; min-width: 0; }
+.candidate-rank { display: inline-flex; gap: 4px; align-items: center; font-weight: 700; min-width: 2.5em; }
+.candidate-reason { margin: 0; overflow-wrap: anywhere; }
+.candidate-missing { color: var(--amber); overflow-wrap: anywhere; }
+.candidate-sources a { margin-right: 6px; }
+.link-button { background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: left; }
+.link-button:hover strong { text-decoration: underline; }
+.research-batch { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Heute */
+.today-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.today-toolbar label { display: grid; gap: 4px; min-width: min(100%, 200px); }
+.today-stats { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.today-approve { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+.today-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.today-card { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px; display: grid; gap: 8px; min-width: 0; background: var(--surface); }
+.today-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+.today-card header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.today-reason { margin: 0; overflow-wrap: anywhere; }
+.today-reason a { margin-left: 4px; }
+.today-text { display: grid; gap: 4px; }
+.today-text textarea { width: 100%; min-width: 0; }
+.today-text .over { color: var(--red); font-weight: 600; }
+.today-preview { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; background: var(--surface-alt); padding: 8px; border-radius: var(--radius); }
+.today-checks { list-style: none; padding: 0; display: grid; gap: 8px; }
+.today-checks li { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.today-keys kbd { border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.profile-candidates { list-style: none; padding: 0; display: grid; gap: 10px; }
+.profile-candidates li { display: flex; gap: 10px; justify-content: space-between; align-items: start; min-width: 0; }
+.profile-candidates li > div { min-width: 0; overflow-wrap: anywhere; }
+
+/* E-Mail */
+.mailbox-form { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); margin: 12px 0; }
+.mailbox-form label { display: grid; gap: 4px; min-width: 0; }
+.mailbox-form .wide { grid-column: 1 / -1; }
+.mailbox-list, .email-contacts { list-style: none; padding: 0; display: grid; gap: 12px; }
+.mailbox, .email-contacts li { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px; display: grid; gap: 6px; min-width: 0; }
+.mailbox header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.dns-table { width: 100%; border-collapse: collapse; }
+.dns-table th, .dns-table td { text-align: left; padding: 4px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+.dns-value { overflow-wrap: anywhere; }
+.email-metrics { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.email-step { align-items: end; }
+.email-step label { display: grid; gap: 4px; }
+.email-step .grow { flex: 1 1 240px; }
+.legal-basis-form { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); align-items: end; }
+.legal-basis-form label { display: grid; gap: 4px; }
+
+/* LinkedIn-Strategie */
+.planner-form { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); align-items: end; }
+.planner-form label { display: grid; gap: 4px; min-width: 0; }
+.planner-form .wide { grid-column: 1 / -1; }
+.plan-week h3 { margin: 16px 0 8px; font-size: 1rem; }
+.plan-items { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.plan-card { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px; display: grid; gap: 6px; min-width: 0; align-content: start; }
+.plan-card header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* Auftrags-Agent */
+.agent-form label { display: grid; gap: 6px; }
+.agent-form textarea { width: 100%; }
+.agent-steps { list-style: none; padding: 0; display: grid; gap: 8px; }
+.agent-step { display: flex; gap: 10px; align-items: flex-start; }
+.agent-step span { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.agent-step .ok { color: var(--green); }
+.agent-step .bad { color: var(--red); }
+.agent-step .spin { animation: agent-spin 1s linear infinite; }
+.agent-detail { color: var(--secondary); }
+.agent-history { list-style: none; padding: 0; display: grid; gap: 6px; }
+@keyframes agent-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .agent-step .spin { animation: none; } }

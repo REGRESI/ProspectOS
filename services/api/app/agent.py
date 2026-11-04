@@ -262,7 +262,38 @@ def _jobs_done(db, ws, ids) -> tuple[bool, dict]:
     return done, counts
 
 
+def ensure_hooks():
+    """The worker never imports app.main; route registration fills journeys.HOOKS."""
+    from app.journeys import HOOKS
+
+    if "import_discovery_results" not in HOOKS:
+        import app.main  # noqa: F401
+
+
 def run_step(db, job) -> dict:
+    """Run one step in a savepoint; an unexpected error marks the run failed (visible)."""
+    try:
+        with db.begin_nested():
+            return _run_step(db, job)
+    except HTTPException:
+        raise
+    except Exception as exc:  # never leave a run stuck in "running"
+        run = db.scalar(
+            select(AgentRun)
+            .where(AgentRun.workspace_id == job.workspace_id, AgentRun.id == job.payload["run_id"])
+            .with_for_update()
+        )
+        if run:
+            progress = [dict(p) for p in run.progress]
+            for p in progress:
+                if p["status"] in ("pending", "running"):
+                    p.update(status="failed", detail=f"Interner Fehler: {type(exc).__name__}")
+                    break
+            run.progress, run.status, run.finished_at = progress, "failed", now()
+        return {"failed": type(exc).__name__}
+
+
+def _run_step(db, job) -> dict:
     """One agent_step: start or check the current step, then schedule the next one."""
     from app.jobs import enqueue
 
@@ -394,6 +425,8 @@ def run_step(db, job) -> dict:
             wait_or(step["jobs"], on_discover)
         elif kind == "import":
             from app.journeys import HOOKS
+
+            ensure_hooks()
 
             member = db.get(Membership, (ws, actor))
             from app.journeys import Discovery

@@ -1,0 +1,245 @@
+/* Internal Sales Agent V1: discovery sources, evidence and LinkedIn channel */
+.button.ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--secondary);
+}
+.button.ghost:hover:not(:disabled) {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+.badge.amber {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.badge svg {
+  vertical-align: -2px;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--secondary);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.provider-capability {
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  border: 1px solid var(--line);
+}
+.provider-capability.ok {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.provider-capability.off {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.provider-capability p {
+  margin: 4px 0 0;
+}
+.info-note.warning {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.osm-attribution {
+  text-align: right;
+  margin: 8px 4px 0;
+}
+.osm-attribution a {
+  color: inherit;
+}
+.evidence-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.evidence-list li {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface-alt);
+}
+.evidence-list small {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-size: 10.5px;
+}
+.evidence-list p {
+  margin: 2px 0 6px;
+  overflow-wrap: anywhere;
+}
+.evidence-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.evidence-meta a {
+  color: var(--accent);
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+.evidence-add summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+}
+.evidence-add form {
+  margin-top: 10px;
+}
+.span-2 {
+  grid-column: 1 / -1;
+}
+.evidence-research {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.research-excerpt,
+.handoff-card blockquote,
+.research-excerpt blockquote {
+  width: 100%;
+}
+.research-excerpt blockquote,
+.handoff-card blockquote {
+  margin: 6px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--line);
+  background: var(--surface-alt);
+  color: var(--secondary);
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+.research-excerpt textarea {
+  width: 100%;
+}
+.campaign-agent {
+  position: relative;
+}
+.agent-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+.agent-toolbar label {
+  min-width: 150px;
+}
+.channel-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.channel {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 999px;
+}
+.channel.on {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.channel.off {
+  background: var(--red-soft);
+  color: var(--red);
+}
+.agent-table td {
+  vertical-align: top;
+}
+.agent-table td .badge + .badge {
+  margin-left: 4px;
+}
+.agent-actions .button svg {
+  vertical-align: -2px;
+}
+.outcome-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.agent-rules {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.handoff-card {
+  position: absolute;
+  right: 16px;
+  top: 56px;
+  width: min(420px, calc(100% - 32px));
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px #0000002a;
+  padding: 16px;
+  z-index: 5;
+  display: grid;
+  gap: 8px;
+}
+.handoff-card h3 {
+  margin: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.handoff-card ol {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  .handoff-card {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 16px;
+    width: auto;
+  }
+  .agent-toolbar > * {
+    flex: 1 1 100%;
+  }
+}
+.journey-outreach-layout > *,
+.campaign-agent,
+.campaign-agent .modal-body {
+  min-width: 0;
+}

@@ -130,3 +130,16 @@ def test_agent_run_end_to_end_and_autopilot(context, admin, monkeypatch):
     assert agent.autopilot_tick() == 0  # same day
     runs = client.get(f"{w}/agent/runs").json()["items"]
     assert runs[0]["kind"] == "autopilot" and runs[0]["status"] == "running"
+
+
+def test_worker_process_has_import_hooks():
+    """Regression: the worker process must reach the shared import logic without app.main."""
+    import subprocess
+    import sys
+
+    code = (
+        "import app.jobs, app.agent; from app.journeys import HOOKS;"
+        "app.agent.ensure_hooks(); assert 'import_discovery_results' in HOOKS"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr[-500:]
