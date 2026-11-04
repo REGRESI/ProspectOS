@@ -2,6 +2,7 @@
 import { IntegrationCredentials } from "./integration-credentials";
 import { TopCandidates } from "./top-candidates";
 import { TodayView } from "./today-view";
+import { ContentPlanner } from "./content-planner";
 import { MailboxManager } from "./email-outreach";
 import { ICPBuilder } from "./icp-builder";
 import { useEffect, useState, useCallback, FormEvent } from "react";
@@ -126,6 +127,7 @@ const navigation: {
   {
     section: "SOCIAL",
     items: [
+      { path: "/content/plan", label: "LinkedIn-Strategie", icon: CalendarDays },
       { path: "/social/studio", label: "Social Studio", icon: Sparkles },
       {
         path: "/social/calendar",
@@ -177,6 +179,7 @@ const titles: Record<string, string> = {
   "/companies": "Unternehmen",
   "/leads/top": "Top-Kandidaten",
   "/today": "Heute",
+  "/content/plan": "LinkedIn-Strategie",
   "/audiences": "Zielgruppen & ICP",
   "/pipeline": "CRM / Pipeline",
   "/social/studio": "Social Studio",
@@ -658,6 +661,9 @@ export default function WorkspaceApp() {
                 />
               )}
               {route === "/today" && <TodayView base={base} write={write} />}
+              {route === "/content/plan" && (
+                <ContentPlanner base={base} write={write} />
+              )}
               {route === "/leads/top" && (
                 <TopCandidates base={base} write={write} onNavigate={go} />
               )}

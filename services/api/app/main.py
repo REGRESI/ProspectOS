@@ -1365,3 +1365,10 @@ register_today_routes(app, db_session, scope, record, audit)
 from app.email_outreach import register_email_routes  # noqa: E402
 
 register_email_routes(app, db_session, scope, record, audit)
+
+from app.content_plan import register_content_routes  # noqa: E402
+
+register_content_routes(app, db_session, scope, record, audit)
+from app.content_plan import register_content_apply  # noqa: E402
+
+register_content_apply(app, db_session, scope, record, audit)

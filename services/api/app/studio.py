@@ -36,7 +36,7 @@ class VoiceInput(Strict):
     instructions: str = Field(default="keine erfundenen Fakten", max_length=1000)
     no_em_dash: bool = True
     platform: Literal["LinkedIn"] = "LinkedIn"
-    examples: list[VoiceExample] = Field(default_factory=list, max_length=3)
+    examples: list[VoiceExample] = Field(default_factory=list, max_length=5)
 
 
 class VoiceProfile(TenantMixin, Base):

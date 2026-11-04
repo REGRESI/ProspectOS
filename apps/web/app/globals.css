@@ -4995,3 +4995,12 @@ tbody tr:last-child td {
 .email-step .grow { flex: 1 1 240px; }
 .legal-basis-form { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); align-items: end; }
 .legal-basis-form label { display: grid; gap: 4px; }
+
+/* LinkedIn-Strategie */
+.planner-form { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); align-items: end; }
+.planner-form label { display: grid; gap: 4px; min-width: 0; }
+.planner-form .wide { grid-column: 1 / -1; }
+.plan-week h3 { margin: 16px 0 8px; font-size: 1rem; }
+.plan-items { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.plan-card { border: 1px solid var(--line, #e3e6ea); border-radius: 12px; padding: 12px; display: grid; gap: 6px; min-width: 0; align-content: start; }
+.plan-card header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
