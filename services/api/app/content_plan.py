@@ -23,6 +23,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app import credentials
 from app.db import Base, now
 from app.models import Post, TenantMixin
+from app.studio import VoiceProfile  # noqa: F401  (registers voice_profiles for the FK)
 
 DAYS = ("Mo", "Di", "Mi", "Do", "Fr")
 

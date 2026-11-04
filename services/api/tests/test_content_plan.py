@@ -103,3 +103,16 @@ def test_plan_variants_and_manual_publication(context, monkeypatch):
         json={"url": "https://www.linkedin.com/feed/update/urn:li:activity:1/"},
     ).json()
     assert ok["state"] == "published_manually" and ok["provider_post_id"] is None
+
+
+def test_worker_process_can_map_models_without_main():
+    """Regression: the worker never imports app.main; every FK target must be registered."""
+    import subprocess
+    import sys
+
+    code = (
+        "import app.jobs, app.content_plan, app.today, app.email_outreach, app.research_flow;"
+        "from app.db import Base;"
+        "[fk.column for t in Base.metadata.tables.values() for fk in t.foreign_keys]"
+    )
+    assert subprocess.run([sys.executable, "-c", code], capture_output=True).returncode == 0

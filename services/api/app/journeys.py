@@ -43,6 +43,8 @@ from app.platform_models import Campaign, Consent, Enrollment, Note, Suppression
 from app.schemas import Strict
 from app.scoring import score
 
+HOOKS: dict = {}
+
 
 class LeadProfile(TenantMixin, Base):
     __tablename__ = "lead_profiles"
@@ -1582,22 +1584,15 @@ def register_journey_routes(
             "duplicates": sum(1 for r in rows if r["duplicate_of"]),
         }
 
-    @app.post("/v1/workspaces/{ws}/discovery/runs/{entity_id}/import-selected")
-    def import_selected(
-        ws: str,
-        entity_id: str,
-        body: SelectedResults,
-        member=Depends(scope),
-        db=Depends(db_session, scope="function"),
-    ):
-        authoring(member)
+    def import_discovery_results(db, ws, entity_id, keys, member):
+        """Shared by the import route and the job agent (M8)."""
         db.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))"),
             {"key": "discovery-import:" + ws},
         )
         run = record(db, Discovery, ws, entity_id, True)
         rows = normalized_results(db, ws, run)
-        keys = set(body.keys)
+        keys = set(keys)
         available = {r["key"]: r for r in rows}
         if keys - set(available):
             raise HTTPException(422, "Ausgewählte Ergebnisse gehören nicht zu diesem Suchlauf.")
@@ -1714,6 +1709,20 @@ def register_journey_routes(
             "linked_duplicates": linked,
             "facts": facts,
         }
+
+    HOOKS["import_discovery_results"] = import_discovery_results
+    HOOKS["normalized_results"] = normalized_results
+
+    @app.post("/v1/workspaces/{ws}/discovery/runs/{entity_id}/import-selected")
+    def import_selected(
+        ws: str,
+        entity_id: str,
+        body: SelectedResults,
+        member=Depends(scope),
+        db=Depends(db_session, scope="function"),
+    ):
+        authoring(member)
+        return import_discovery_results(db, ws, entity_id, body.keys, member)
 
     def campaign_workspace_data(db, ws, campaign):
         config = db.scalar(select(CampaignConfig).where(CampaignConfig.campaign_id == campaign.id))
