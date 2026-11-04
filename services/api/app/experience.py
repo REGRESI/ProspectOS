@@ -12,6 +12,7 @@ from pydantic import Field, field_validator
 from sqlalchemy import JSON, ForeignKeyConstraint, String, UniqueConstraint, func, select
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app import credentials
 from app.db import Base, now
 from app.jobs import enqueue, reserve_ai, usage_account
 from app.media import private_path, store_image
@@ -161,15 +162,15 @@ class SetupInput(Strict):
 def generation_fingerprint(kind):
     image = kind == "social_image"
     values = {
-        "model": os.getenv("IMAGE_MODEL") if image else os.getenv("LLM_MODEL"),
+        "model": credentials.get("IMAGE_MODEL") if image else credentials.get("LLM_MODEL"),
         "base": (
             (os.getenv("IMAGE_BASE_URL") if image else None)
             or os.getenv("LLM_BASE_URL")
             or "https://api.openai.com/v1"
         ),
         "cap": os.getenv("IMAGE_MAX_COST_USD_CENTS") if image else None,
-        "input_price": None if image else os.getenv("LLM_INPUT_USD_PER_MILLION"),
-        "output_price": None if image else os.getenv("LLM_OUTPUT_USD_PER_MILLION"),
+        "input_price": None if image else credentials.get("LLM_INPUT_USD_PER_MILLION"),
+        "output_price": None if image else credentials.get("LLM_OUTPUT_USD_PER_MILLION"),
         "tokens": None if image else os.getenv("LLM_MAX_OUTPUT_TOKENS", "1500"),
     }
     return hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()
@@ -183,9 +184,9 @@ def validate_generation_config(job):
 
 def image_requirements():
     missing = []
-    if not (os.getenv("IMAGE_API_KEY") or os.getenv("LLM_API_KEY")):
+    if not (os.getenv("IMAGE_API_KEY") or credentials.get("LLM_API_KEY")):
         missing.append("IMAGE_API_KEY oder LLM_API_KEY")
-    if not os.getenv("IMAGE_MODEL"):
+    if not credentials.get("IMAGE_MODEL"):
         missing.append("IMAGE_MODEL")
     try:
         cap = int(os.environ["IMAGE_MAX_COST_USD_CENTS"])
@@ -348,7 +349,7 @@ def finalize_generation(db, job, result):
 
 
 def text_requirements():
-    if not os.getenv("LLM_API_KEY") or not os.getenv("LLM_MODEL"):
+    if not credentials.get("LLM_API_KEY") or not credentials.get("LLM_MODEL"):
         raise HTTPException(503, "LLM_API_KEY und LLM_MODEL für echte KI-Varianten konfigurieren.")
 
 
@@ -672,7 +673,7 @@ def register_experience_routes(
                 "prompt": prompt,
                 "alt_text": body.alt_text,
                 "aspect_ratio": body.aspect_ratio,
-                "model": os.environ["IMAGE_MODEL"],
+                "model": credentials.require("IMAGE_MODEL"),
                 "provider_configuration": generation_fingerprint("social_image"),
                 "reservation_minor": cost,
             },
@@ -879,7 +880,7 @@ def register_experience_routes(
         from app.platform_routes import job_output
 
         item = record(db, Interaction, ws, item_id)
-        if not os.getenv("LLM_API_KEY") or not os.getenv("LLM_MODEL"):
+        if not credentials.get("LLM_API_KEY") or not credentials.get("LLM_MODEL"):
             raise HTTPException(
                 503, "KI-Anbieter fehlt. Antworten können manuell vorbereitet werden."
             )
@@ -943,11 +944,11 @@ def provider_test(provider, db, ws):
     if provider in ("llm", "images"):
         image = provider == "images"
         key = (
-            (os.getenv("IMAGE_API_KEY") or os.getenv("LLM_API_KEY"))
+            (os.getenv("IMAGE_API_KEY") or credentials.get("LLM_API_KEY"))
             if image
-            else os.getenv("LLM_API_KEY")
+            else credentials.get("LLM_API_KEY")
         )
-        model = os.getenv("IMAGE_MODEL") if image else os.getenv("LLM_MODEL")
+        model = credentials.get("IMAGE_MODEL") if image else credentials.get("LLM_MODEL")
         base = (
             (os.getenv("IMAGE_BASE_URL") if image else None)
             or os.getenv("LLM_BASE_URL")

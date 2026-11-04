@@ -231,3 +231,23 @@ class WebhookEvent(Base):
     id: Mapped[str] = mapped_column(String(150), primary_key=True)
     provider: Mapped[str] = mapped_column(String(40))
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class IntegrationCredential(TenantMixin, Base):
+    """Encrypted per-workspace provider settings; the API only ever returns masks."""
+
+    __tablename__ = "integration_credentials"
+    provider: Mapped[str] = mapped_column(String(40))
+    ciphertext: Mapped[str] = mapped_column(String(8000))
+    masked: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="untested")
+    last_error: Mapped[str] = mapped_column(String(200), default="")
+    last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_by: Mapped[str] = mapped_column(String(36))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "provider"),
+        ForeignKeyConstraint(
+            ["workspace_id", "updated_by"], ["memberships.workspace_id", "memberships.user_id"]
+        ),
+    )

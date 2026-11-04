@@ -27,6 +27,7 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import BaseModel, Field
 
+from app import credentials
 from app.providers.ai import ProviderError, request_json
 
 ATTRIBUTION = "© OpenStreetMap contributors"
@@ -175,12 +176,12 @@ class GeoPoint(BaseModel):
 
 def enabled() -> bool:
     return os.getenv("OSM_DISCOVERY_ENABLED", "false").lower() == "true" and bool(
-        os.getenv("OSM_CONTACT", "").strip()
+        credentials.get("OSM_CONTACT", "").strip()
     )
 
 
 def _user_agent() -> str:
-    contact = os.getenv("OSM_CONTACT", "").strip()
+    contact = credentials.get("OSM_CONTACT", "").strip()
     if not contact or any(ord(c) < 32 for c in contact) or len(contact) > 200:
         raise ProviderError("missing_credentials")
     return f"ProspectOS/1.0 (+{contact})"

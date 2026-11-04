@@ -17,6 +17,7 @@ from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app import credentials
 from app.commercial import register_commercial_routes
 from app.db import SessionLocal, now, uid
 from app.entitlements import remaining
@@ -106,6 +107,18 @@ async def validation_error(request, exc):
 @app.exception_handler(IntegrityError)
 async def conflict_error(request, exc):
     return problem(409, "conflict", "Datensatz existiert bereits oder wird noch verwendet.")
+
+
+@app.middleware("http")
+async def workspace_credentials(request, call_next):
+    # Lazy per-request binding; values load only after `scope` authorized the member.
+    parts = request.url.path.split("/")
+    ws = parts[3] if len(parts) > 3 and parts[1:3] == ["v1", "workspaces"] else None
+    token = credentials.bind(ws)
+    try:
+        return await call_next(request)
+    finally:
+        credentials.unbind(token)
 
 
 @app.middleware("http")
@@ -1083,8 +1096,8 @@ def integrations(ws: str, member=Depends(scope), db=Depends(db_session, scope="f
             {
                 "name": "LinkedIn",
                 "connect_available": bool(
-                    os.getenv("LINKEDIN_CLIENT_ID")
-                    and os.getenv("LINKEDIN_CLIENT_SECRET")
+                    credentials.get("LINKEDIN_CLIENT_ID")
+                    and credentials.get("LINKEDIN_CLIENT_SECRET")
                     and os.getenv("LINKEDIN_REDIRECT_URI")
                     and os.getenv("TOKEN_ENCRYPTION_KEY")
                 ),
@@ -1103,10 +1116,10 @@ def integrations(ws: str, member=Depends(scope), db=Depends(db_session, scope="f
             {
                 "name": "KI-Text",
                 "status": "configured"
-                if os.getenv("LLM_API_KEY") and os.getenv("LLM_MODEL")
+                if credentials.get("LLM_API_KEY") and credentials.get("LLM_MODEL")
                 else "not_configured",
                 "reason": "Konfigurierter Anbieter; asynchrone, quellengebundene Vorschläge mit Budgetprüfung."
-                if os.getenv("LLM_API_KEY")
+                if credentials.get("LLM_API_KEY")
                 else "Kein KI-Anbieter verbunden. Offline-Vorschläge sind separat gekennzeichnet.",
             },
             {
@@ -1332,3 +1345,7 @@ register_sales_agent_routes(app, db_session, scope, record, paginate, audit)
 from app.linkedin_channel import register_linkedin_channel_routes  # noqa: E402
 
 register_linkedin_channel_routes(app, db_session, scope, record, paginate, audit)
+
+from app.integrations import register_integration_routes  # noqa: E402
+
+register_integration_routes(app, db_session, scope, audit)

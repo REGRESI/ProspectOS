@@ -12,6 +12,8 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app import credentials
+
 
 class ProviderError(Exception):
     def __init__(self, code: str, *, retryable: bool = False, ambiguous: bool = False):
@@ -22,7 +24,7 @@ class ProviderError(Exception):
 
 
 def configured(name: str) -> str:
-    value = os.getenv(name, "").strip()
+    value = credentials.get(name).strip()
     if not value:
         raise ProviderError("missing_credentials")
     return value

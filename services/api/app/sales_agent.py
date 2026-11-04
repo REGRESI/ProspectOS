@@ -15,6 +15,7 @@ from pydantic import Field, field_validator
 from sqlalchemy import ForeignKeyConstraint, String, select
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app import credentials
 from app.db import Base
 from app.jobs import enqueue, reserve_ai
 from app.journeys import (
@@ -425,7 +426,7 @@ def register_sales_agent_routes(app, db_session, scope, record, paginate, audit)
             raise HTTPException(422, "Kontakte sind dieser Kampagne nicht zugeordnet.")
         if body.mode == "ai":
             for name in ("LLM_API_KEY", "LLM_MODEL"):
-                if not os.getenv(name):
+                if not credentials.get(name):
                     raise HTTPException(
                         503,
                         "KI-Anbieter ist nicht konfiguriert. Evidenzbasierte Vorlage verwenden.",

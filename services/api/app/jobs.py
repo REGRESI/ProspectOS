@@ -7,6 +7,7 @@ from datetime import timedelta
 from fastapi import HTTPException
 from sqlalchemy import select, text
 
+from app import credentials
 from app.db import SessionLocal, now, uid
 from app.models import Audit, Discovery, Membership, Post, Workspace
 from app.platform_models import Job, UsageAccount, UsageEvent
@@ -56,8 +57,8 @@ def usage_account(db, ws):
 def reserve_ai(db, ws, prompt, multiplier=1):
     # UTF-8 byte count is a conservative token bound; completion tokens are capped by the provider.
     try:
-        input_price = float(os.environ["LLM_INPUT_USD_PER_MILLION"])
-        output_price = float(os.environ["LLM_OUTPUT_USD_PER_MILLION"])
+        input_price = float(credentials.require("LLM_INPUT_USD_PER_MILLION"))
+        output_price = float(credentials.require("LLM_OUTPUT_USD_PER_MILLION"))
         if not all(math.isfinite(v) and v >= 0 for v in (input_price, output_price)):
             raise ValueError()
     except (KeyError, ValueError):
@@ -273,6 +274,14 @@ def osm_search(db, ws, payload):
 
 
 def execute_one(ws):
+    token = credentials.bind(ws)
+    try:
+        return _execute_one(ws)
+    finally:
+        credentials.unbind(token)
+
+
+def _execute_one(ws):
     selected = claim(ws)
     if not selected:
         return False

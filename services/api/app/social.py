@@ -9,6 +9,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Depends, HTTPException
 from sqlalchemy import func, select
 
+from app import credentials
 from app.db import now
 from app.jobs import enqueue
 from app.models import Membership, Post
@@ -210,7 +211,8 @@ def register_social_routes(app, db_session, current_auth, scope, record, audit):
         if not member or member.role not in ("owner", "admin"):
             raise HTTPException(403, "Workspace authorization revoked.")
         tenant(db, item.workspace_id)
-        connection = exchange_code(code)
+        with credentials.workspace(db, item.workspace_id):
+            connection = exchange_code(code)
         # Consume state before redirect; no tokens enter logs/browser payloads.
         item.consumed = True
         stored = db.scalar(

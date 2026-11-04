@@ -17,3 +17,8 @@ __pycache__/
 *.tsbuildinfo
 data/private/
 *.log
+
+# Any .env variant (e.g. accidentally saved ".envdocker compose ...") never enters Git.
+.env*
+!.env.example
+!.env.production.example

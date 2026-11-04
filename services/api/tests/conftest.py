@@ -65,3 +65,44 @@ def scoped(db, ws):
     from sqlalchemy import text
 
     db.execute(text("SELECT set_config('app.workspace_id', :ws, true)"), {"ws": ws})
+
+
+PROVIDER_ENV = [
+    "LLM_API_KEY",
+    "LLM_MODEL",
+    "LLM_BASE_URL",
+    "LLM_INPUT_USD_PER_MILLION",
+    "LLM_OUTPUT_USD_PER_MILLION",
+    "LLM_MAX_OUTPUT_TOKENS",
+    "IMAGE_API_KEY",
+    "IMAGE_MODEL",
+    "IMAGE_BASE_URL",
+    "IMAGE_MAX_COST_USD_CENTS",
+    "LINKEDIN_CLIENT_ID",
+    "LINKEDIN_CLIENT_SECRET",
+    "LINKEDIN_REDIRECT_URI",
+    "LINKEDIN_API_VERSION",
+    "LINKEDIN_PUBLISHING_APPROVED",
+    "BRAVE_SEARCH_API_KEY",
+    "OSM_DISCOVERY_ENABLED",
+    "OSM_CONTACT",
+    "NORTHDATA_API_KEY",
+    "NORTHDATA_ENABLED",
+    "NORTHDATA_LICENSE_APPROVED",
+    "PDL_API_KEY",
+    "PDL_LICENSE_APPROVED",
+    "RESEARCH_TERMS_APPROVED",
+    "RESEARCH_NETWORK_GUARD_APPROVED",
+    "EMAIL_SEND_ENABLED",
+    "RESEND_API_KEY",
+    "STRIPE_SECRET_KEY",
+    "TOKEN_ENCRYPTION_KEY",
+    "AUTH_PROVIDER",
+]
+
+
+def pytest_configure(config):
+    # Hermetic tests: never inherit real provider credentials or operator switches from a
+    # developer .env. Runs once (tests import this module again as tests.conftest).
+    for name in PROVIDER_ENV:
+        os.environ.pop(name, None)

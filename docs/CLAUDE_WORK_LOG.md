@@ -82,3 +82,25 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
 2. Scheduled reminders for due sequence steps (still manual send/approval), withdraw stale requests.
 3. Evidence review queue and fuzzy merge UI for probable duplicates.
 4. Map view for OSM results; cross-run OSM result cache with TTL.
+
+## 2026-11-04 — CleanStar round, M0 baseline + M1 backend (branch `claude/cleanstar-sales-v2` from `4f0b2d7`)
+
+### M0 baseline (before changes)
+- Tools: `uv` (pip --user) and `pnpm` 11.25.0 (corepack) installed to `~/.local/bin`; Docker stack (db/api/worker/web) running.
+- Network here is open: Nominatim 200, OpenAI reachable. OpenAI key lists `gpt-4.1-mini` and `gpt-image-2.5-sunburst` (free `/v1/models` call only).
+- Backend `validate_database.py` with only DB URLs: **150 passed**. With the full `.env` loaded: 10 failed (tests inherited real provider env) → fixed by hermetic `pytest_configure` scrub in `tests/conftest.py`.
+- Frontend lint/typecheck clean, unit **22 passed**. E2E against running containers: **12 passed, 3 failed**, all environment-dependent: studio-v2 expects "LLM key missing" text but real keys are set; sales-agent simulator outcome not resolved by container worker in time; journeys click timeout. Not yet fixed.
+- Two untracked files named `.envdocker compose up -d --force-recreate api worker[.save]` (contain env values) were NOT ignored by `.env.*` → `.gitignore` now ignores `.env*` (examples excepted). Not committed.
+
+### M1 (backend part, built, not live confirmed)
+- `app/credentials.py`: provider registry (openai, linkedin, osm, brave, northdata), Fernet-encrypted per-workspace values (TOKEN_ENCRYPTION_KEY), masks only, lazy per-request binding via middleware (path workspace; values load only after `scope` authorized), `bind(ws)` in worker `execute_one`, env fallback. Provider modules read registry fields via `credentials.get`; operator switches (approvals/enable flags/base URLs) stay env-only.
+- Migration `0012` `integration_credentials` (RLS, composite FK to memberships, status check).
+- `app/integrations.py`: `GET/PUT/DELETE /v1/workspaces/{ws}/integrations/credentials[/{provider}]`, `POST …/{provider}/test`; owner/admin only; save runs a connection test. Tests: OpenAI model metadata (text+image), LinkedIn app probe (invalid code → invalid_client vs invalid_request, no token issued), Nominatim `/status`, Brave 1 query, North Data `suggest` (not billed).
+- `app/providers/northdata.py`: power search (address+maxDistanceKm, WZ codes, paging, one concurrent search, censor, blocked dropped, store `register.uniqueKey`), behind `NORTHDATA_ENABLED` + `NORTHDATA_LICENSE_APPROVED`. Docs read: github.com/northdata/api, northdata.github.io/doc/api. No public terms/pricing page retrieved.
+- LinkedIn: `LINKEDIN_API_VERSION=202610` is the latest per Microsoft Learn versioning page (checked 2026-11-04). Microsoft Learn's sample app registers `http://localhost:8080/login`, so local http://localhost redirect works without a tunnel. LINKEDIN_CLIENT_ID/SECRET are not in `.env` → OAuth not live tested.
+- Tests: `tests/test_integrations.py` 7 new (masking, encryption at rest, forged workspace 404, role 403, 503 without key, workspace-over-env in request and worker binding, error without secret leak, probes). Full suite **157 passed**, ruff clean.
+
+### Open (next session continues here)
+1. M1 frontend: extend existing `/settings/integrations` page (workspace-app.tsx ~2418) with credential forms, masked values, test button, status; OAuth callback should redirect to that page instead of returning JSON.
+2. M1 live acceptance: one real text + one GPT-Image job through workspace credentials, verify ledger entries; LinkedIn connect/disconnect once Client ID/Secret are entered.
+3. Fix the 3 environment-dependent E2E tests; then M2 (OSM live count for Offenburg, North Data import path) onward.

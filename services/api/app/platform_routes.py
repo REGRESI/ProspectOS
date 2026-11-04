@@ -8,6 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 
+from app import credentials
 from app.db import now
 from app.jobs import enqueue, reserve_ai, settle_ai, usage_account
 from app.media import MAX_BYTES, private_path, store_image
@@ -489,7 +490,7 @@ def register_platform_routes(app, db_session, scope, record, paginate, audit):
     def generate(
         ws: str, body: Generation, member=Depends(scope), db=Depends(db_session, scope="function")
     ):
-        if not os.getenv("LLM_API_KEY") or not os.getenv("LLM_MODEL"):
+        if not credentials.get("LLM_API_KEY") or not credentials.get("LLM_MODEL"):
             raise HTTPException(
                 503, "Kein LLM-Anbieter konfiguriert. Offline-Vorschläge bleiben separat verfügbar."
             )

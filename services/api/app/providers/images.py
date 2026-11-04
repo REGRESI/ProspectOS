@@ -6,6 +6,7 @@ import os
 from typing import Protocol
 from urllib.parse import urlsplit
 
+from app import credentials
 from app.providers.ai import ProviderError, request_json
 
 
@@ -15,8 +16,8 @@ class ImageProvider(Protocol):
 
 class OpenAIImages:
     def generate(self, prompt: str, *, aspect_ratio="square", client=None) -> bytes:
-        key = os.getenv("IMAGE_API_KEY") or os.getenv("LLM_API_KEY")
-        model = os.getenv("IMAGE_MODEL")
+        key = os.getenv("IMAGE_API_KEY") or credentials.get("LLM_API_KEY")
+        model = credentials.get("IMAGE_MODEL")
         base = (
             os.getenv("IMAGE_BASE_URL") or os.getenv("LLM_BASE_URL") or "https://api.openai.com/v1"
         ).rstrip("/")
