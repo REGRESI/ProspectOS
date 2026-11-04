@@ -29,6 +29,7 @@ import type {
   LeadFilters,
   Company,
   Candidate,
+  DiscoveryProvider,
   SearchDefinition,
   SearchFilters,
   Campaign,
@@ -40,6 +41,15 @@ import {
   initialSearchFilters,
   list,
 } from "./journey-types";
+import { CampaignAgent, CompanyEvidence } from "./sales-agent";
+
+const supportLabels: Record<string, string> = {
+  employee_range: "Mitarbeiterzahl",
+  job_titles: "Zielrollen",
+  seniority: "Seniorität",
+  contacts: "Ansprechpartner",
+  radius_km: "Radius",
+};
 
 function Progress({ value }: { value: Completeness | undefined }) {
   return (
@@ -206,7 +216,25 @@ export function DiscoveryWorkbench(props: JourneyProps) {
   const integrations = useData<{
     items: { name: string; status: string; reason: string }[];
   }>(`${base}/integrations`, revision);
-  const results = useOptionalData<Page<Candidate> & { notice: string }>(
+  const providers = useData<{
+    items: DiscoveryProvider[];
+    osm_categories: { label: string; tags: string[] }[];
+  }>(`${base}/discovery/providers`, revision);
+  const activeProvider = providers.data?.items.find(
+    (p) => p.id === filters.provider,
+  );
+  const results = useOptionalData<
+    Page<Candidate> & {
+      notice: string;
+      duplicates?: number;
+      meta?: {
+        attribution?: string;
+        radius_km?: number;
+        center?: { display_name: string; source_url: string };
+        warnings?: string[];
+      };
+    }
+  >(
     run
       ? `${base}/discovery/runs/${run}/results?page=${page}&limit=25&search=${encodeURIComponent(search)}&sort=${sort}&entity_kind=${kind}`
       : null,
@@ -317,9 +345,15 @@ export function DiscoveryWorkbench(props: JourneyProps) {
         duplicates: number;
         companies: number;
         contacts: number;
+        linked_duplicates?: number;
+        facts?: number;
       }>(`/discovery/runs/${run}/import-selected`, { keys: selected });
       notify(
-        `${r.created} neue Datensätze · ${r.duplicates} bereits vorhanden`,
+        `${r.created} neue Datensätze · ${r.duplicates} bereits vorhanden` +
+          (r.linked_duplicates
+            ? ` · ${r.linked_duplicates} mit bestehenden Firmen verknüpft`
+            : "") +
+          (r.facts ? ` · ${r.facts} belegte Angaben gespeichert` : ""),
       );
       setSelected([]);
       setLocalRevision((v) => v + 1);
@@ -349,10 +383,12 @@ export function DiscoveryWorkbench(props: JourneyProps) {
             <h2>
               <Target size={17} /> Suchprofil
             </h2>
-            <Badge>
+            <Badge tone={filters.provider === "osm" ? "green" : "neutral"}>
               {filters.provider === "synthetic"
                 ? "Entwicklungsbeispiele"
-                : "Lizenzanbieter"}
+                : filters.provider === "osm"
+                  ? "OpenStreetMap"
+                  : "Lizenzanbieter"}
             </Badge>
           </div>
           <div className="modal-body">
@@ -401,6 +437,13 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                   patch("provider", e.target.value as SearchFilters["provider"])
                 }
               >
+                <option value="osm">
+                  OpenStreetMap · Orte & Firmen im Umkreis
+                  {providers.data &&
+                  !providers.data.items.find((p) => p.id === "osm")?.available
+                    ? " (nicht aktiviert)"
+                    : ""}
+                </option>
                 <option value="synthetic">
                   Synthetische Demo · keine Recherche
                 </option>
@@ -409,6 +452,26 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                 </option>
               </select>
             </label>
+            {activeProvider && (
+              <div
+                className={`provider-capability ${activeProvider.available ? "ok" : "off"}`}
+                data-testid="provider-capability"
+              >
+                <strong>
+                  {activeProvider.available ? "Verfügbar" : "Nicht verfügbar"}
+                </strong>{" "}
+                · {activeProvider.license} · {activeProvider.cost}
+                {activeProvider.reason && <p>{activeProvider.reason}</p>}
+                {!!activeProvider.unsupported.length && (
+                  <p className="small muted">
+                    Nicht unterstützt:{" "}
+                    {activeProvider.unsupported
+                      .map((u) => supportLabels[u] || u)
+                      .join(", ")}
+                  </p>
+                )}
+              </div>
+            )}
             {filters.provider === "pdl" &&
               provider?.status !== "configured" && (
                 <div className="info-note">
@@ -472,8 +535,44 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                   )
                 }
                 placeholder="Kommagetrennt"
+                list={
+                  filters.provider === "osm" ? "osm-category-options" : undefined
+                }
               />
             </label>
+            {filters.provider === "osm" && (
+              <>
+                <datalist id="osm-category-options">
+                  {providers.data?.osm_categories.map((c) => (
+                    <option key={c.label} value={c.label} />
+                  ))}
+                </datalist>
+                <div className="chip-row" aria-label="OSM-Kategorien">
+                  {providers.data?.osm_categories.map((c) => {
+                    const active = filters.industries.includes(c.label);
+                    return (
+                      <button
+                        type="button"
+                        key={c.label}
+                        className={`chip ${active ? "active" : ""}`}
+                        title={c.tags.join(", ")}
+                        aria-pressed={active}
+                        onClick={() =>
+                          patch(
+                            "industries",
+                            active
+                              ? filters.industries.filter((i) => i !== c.label)
+                              : [...filters.industries.filter(Boolean), c.label],
+                          )
+                        }
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
             <label>
               Ausgeschlossene Branchen
               <input
@@ -558,7 +657,7 @@ export function DiscoveryWorkbench(props: JourneyProps) {
               <input
                 type="number"
                 min={1}
-                max={25}
+                max={filters.provider === "osm" ? 50 : 25}
                 value={filters.max_results}
                 onChange={(e) => patch("max_results", Number(e.target.value))}
               />
@@ -629,7 +728,9 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                         {item.filters.city || item.filters.country} ·{" "}
                         {item.filters.provider === "synthetic"
                           ? "Demo"
-                          : "Lizenzanbieter"}
+                          : item.filters.provider === "osm"
+                            ? `OSM · ${item.filters.radius_km || 10} km`
+                            : "Lizenzanbieter"}
                       </small>
                     </span>
                   </button>
@@ -714,6 +815,15 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                   </select>
                 </div>
                 <ErrorNote message={results.error} />
+                {results.data?.meta?.center && (
+                  <p className="small muted" data-testid="discovery-center">
+                    Suchzentrum: {results.data.meta.center.display_name} ·
+                    Radius {results.data.meta.radius_km} km
+                    {results.data.duplicates
+                      ? ` · ${results.data.duplicates} wahrscheinliche Dubletten markiert`
+                      : ""}
+                  </p>
+                )}
                 {results.loading ? (
                   <div className="loading-block">
                     <Spinner />
@@ -802,12 +912,25 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                               </td>
                               <td>
                                 {item.location || "Unbekannt"}
+                                {typeof item.distance_km === "number" && (
+                                  <> · {item.distance_km.toLocaleString("de-DE")} km</>
+                                )}
                                 <small className="journey-cell-sub">
                                   {item.industry || "Branche unbekannt"}
                                 </small>
                               </td>
                               <td>
-                                {item.source}
+                                {item.source_url ? (
+                                  <a
+                                    href={item.source_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {item.source}
+                                  </a>
+                                ) : (
+                                  item.source
+                                )}
                                 <small className="journey-cell-sub">
                                   {item.observed_at
                                     ? dateTime(item.observed_at)
@@ -823,11 +946,19 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                                 <Progress value={item.completeness} />
                               </td>
                               <td>
-                                <Badge
-                                  tone={item.imported ? "green" : "neutral"}
-                                >
-                                  {item.imported ? "Übernommen" : "Zur Prüfung"}
-                                </Badge>
+                                {item.duplicate_of && !item.imported ? (
+                                  <Badge tone="amber">
+                                    <span title={item.duplicate_of.explanation}>
+                                      Dublette? {item.duplicate_of.name}
+                                    </span>
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    tone={item.imported ? "green" : "neutral"}
+                                  >
+                                    {item.imported ? "Übernommen" : "Zur Prüfung"}
+                                  </Badge>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -840,6 +971,19 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                       limit={25}
                       onPage={setPage}
                     />
+                    {results.data.meta?.attribution && (
+                      <p className="small muted osm-attribution">
+                        Kartendaten{" "}
+                        <a
+                          href="https://www.openstreetmap.org/copyright"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {results.data.meta.attribution}
+                        </a>{" "}
+                        · ODbL 1.0
+                      </p>
+                    )}
                   </>
                 ) : (
                   <Empty
@@ -880,7 +1024,47 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                 <dt>Rolle</dt>
                 <dd>{detail.job_title || "Nicht verfügbar"}</dd>
               </div>
+              {detail.address && (
+                <div>
+                  <dt>Adresse</dt>
+                  <dd>{detail.address}</dd>
+                </div>
+              )}
+              {typeof detail.distance_km === "number" && (
+                <div>
+                  <dt>Entfernung</dt>
+                  <dd>{detail.distance_km.toLocaleString("de-DE")} km</dd>
+                </div>
+              )}
+              {detail.source_url && (
+                <div>
+                  <dt>Quelle</dt>
+                  <dd>
+                    <a href={detail.source_url} target="_blank" rel="noreferrer">
+                      {detail.source_url}
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {detail.license && (
+                <div>
+                  <dt>Lizenz</dt>
+                  <dd>{detail.license}</dd>
+                </div>
+              )}
             </dl>
+            {detail.duplicate_of && (
+              <div className="info-note warning">
+                <p>
+                  Wahrscheinliche Dublette von „{detail.duplicate_of.name}“:{" "}
+                  {detail.duplicate_of.explanation} Bei Übernahme wird kein neues
+                  Unternehmen angelegt; die Quelle wird als Beleg verknüpft.
+                </p>
+              </div>
+            )}
+            {detail.score.not_applicable?.length ? (
+              <p className="small muted">{detail.score.notice}</p>
+            ) : null}
             <ScoreDetails lead={detail} />
             <h3>Fehlende Felder</h3>
             <p className="muted">
@@ -2287,10 +2471,7 @@ export function CompanyProfile(props: JourneyProps & { companyId: string }) {
                       className="button secondary"
                       onClick={async () => {
                         try {
-                          await write("/research", {
-                            url: company.website,
-                            rights_confirmed: researchConsent === companyId,
-                          });
+                          await write(`/companies/${companyId}/research`);
                           notify(
                             "Recherche angefragt. Geprüfte Domain, Nutzungsrechte und Netzwerkschutz werden serverseitig vorausgesetzt.",
                           );
@@ -2338,6 +2519,11 @@ export function CompanyProfile(props: JourneyProps & { companyId: string }) {
                 </div>
               </section>
             </div>
+            <CompanyEvidence
+              {...props}
+              companyId={companyId}
+              website={company.website ?? null}
+            />
             <section className="panel">
               <div className="panel-head">
                 <h2>Aktivitäten</h2>
@@ -2970,6 +3156,11 @@ export function OutreachWorkbench(
                         setBusy(false);
                       }
                     }}
+                  />
+                  <CampaignAgent
+                    {...props}
+                    campaignId={active}
+                    onRefresh={refresh}
                   />
                   <section className="panel">
                     <div className="panel-head">

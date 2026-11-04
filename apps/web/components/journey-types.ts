@@ -76,7 +76,7 @@ export type SearchFilters = {
   seniority: string[];
   exclude_customers: boolean;
   max_results: number;
-  provider: "synthetic" | "pdl";
+  provider: "synthetic" | "pdl" | "osm";
 };
 export const initialSearchFilters: SearchFilters = {
   country: "germany",
@@ -114,9 +114,36 @@ export type Candidate = {
   source: string;
   observed_at: string;
   confidence: string;
-  score: Score;
+  score: Score & {
+    not_applicable?: { name: string; max_points: number }[];
+    notice?: string;
+  };
   completeness: Completeness;
   imported: boolean;
+  address?: string;
+  website?: string | null;
+  distance_km?: number | null;
+  source_url?: string | null;
+  attribution?: string | null;
+  license?: string | null;
+  company_id?: string | null;
+  duplicate_of?: {
+    company_id: string;
+    name: string;
+    reason: "domain" | "name_location";
+    explanation: string;
+  } | null;
+};
+export type DiscoveryProvider = {
+  id: "osm" | "pdl" | "synthetic";
+  label: string;
+  available: boolean;
+  reason: string | null;
+  supports: string[];
+  unsupported: string[];
+  license: string;
+  attribution?: string;
+  cost: string;
 };
 export type Campaign = {
   id: string;
