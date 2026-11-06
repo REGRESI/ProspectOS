@@ -33,7 +33,8 @@ def upgrade():
             ["workspace_id", "created_by"], ["memberships.workspace_id", "memberships.user_id"]
         ),
         sa.ForeignKeyConstraint(
-            ["workspace_id", "voice_profile_id"], ["voice_profiles.workspace_id", "voice_profiles.id"]
+            ["workspace_id", "voice_profile_id"],
+            ["voice_profiles.workspace_id", "voice_profiles.id"],
         ),
         sa.CheckConstraint(
             "status IN ('generating', 'ready', 'failed')", name="content_plan_status"

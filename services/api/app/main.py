@@ -231,11 +231,15 @@ def auth_payload(db, auth):
         .join(Membership, Workspace.id == Membership.workspace_id)
         .where(Membership.user_id == user.id)
     ).all()
+    # Production first (default after login), then user-created, demo examples last.
+    order = {"production": 0, "standard": 1, "demo": 2}
+    workspaces = sorted(workspaces, key=lambda r: (order.get(r[0].kind, 1), r[0].name))
     return {
         "user": {"id": user.id, "name": user.name, "email": user.email},
         "csrf_token": auth.csrf_token,
         "workspaces": [
-            {"id": w.id, "name": w.name, "slug": w.slug, "role": role} for w, role in workspaces
+            {"id": w.id, "name": w.name, "slug": w.slug, "role": role, "kind": w.kind}
+            for w, role in workspaces
         ],
     }
 
@@ -314,7 +318,13 @@ def new_workspace(
     db.add(workspace)
     db.flush()
     db.add(Membership(workspace_id=workspace.id, user_id=auth.user_id, role="owner"))
-    return {"id": workspace.id, "name": workspace.name, "slug": workspace.slug, "role": "owner"}
+    return {
+        "id": workspace.id,
+        "name": workspace.name,
+        "slug": workspace.slug,
+        "role": "owner",
+        "kind": workspace.kind,
+    }
 
 
 def record(db, model, ws, entity_id, lock=False):

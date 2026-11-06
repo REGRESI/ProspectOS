@@ -174,12 +174,15 @@ ERRORS = {
 def describe(db, ws: str, provider: str, linkedin_connection=None) -> dict:
     spec = credentials.PROVIDERS[provider]
     stored, item = credentials.stored_fields(db, ws, provider)
+    demo = credentials.is_demo(db, ws)
+    if demo:
+        stored = {}
     fields = []
     missing = []
     for field in spec["fields"]:
         value = stored.get(field.env) or ""
         # Computed from this transaction's row + environment (not the lazy request cache).
-        env_value = os.getenv(field.env, "").strip()
+        env_value = "" if demo else os.getenv(field.env, "").strip()
         src = "workspace" if value else ("environment" if env_value else "missing")
         if src == "environment":
             value = env_value
@@ -295,6 +298,7 @@ def register_integration_routes(app, db_session, scope, audit):
     ):
         owner_admin(member)
         known(provider)
+        credentials.refuse_in_demo(db, ws)
         allowed = {f.env: f for f in credentials.PROVIDERS[provider]["fields"]}
         unknown = (set(body.values) | set(body.clear)) - set(allowed)
         if unknown:
@@ -343,6 +347,7 @@ def register_integration_routes(app, db_session, scope, audit):
     ):
         owner_admin(member)
         known(provider)
+        credentials.refuse_in_demo(db, ws)
         with credentials.workspace(db, ws):
             test = run_test(db, ws, provider, member.user_id)
         audit(

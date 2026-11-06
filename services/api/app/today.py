@@ -470,7 +470,9 @@ def brave_candidates(contact: Contact, company: Company | None, client=None) -> 
     key = credentials.get("BRAVE_SEARCH_API_KEY")
     if not key:
         raise HTTPException(503, "Brave Search ist nicht verbunden (Integrationen).")
-    name = PROFESSION.sub("", " ".join(filter(None, [contact.first_name, contact.last_name]))).strip()
+    name = PROFESSION.sub(
+        "", " ".join(filter(None, [contact.first_name, contact.last_name]))
+    ).strip()
     cache_key = hashlib.sha256(f"{contact.workspace_id}:{contact.id}:{name}".encode()).hexdigest()
     hit = _candidate_cache.get(cache_key)
     if hit and time.monotonic() - hit[0] < 600:

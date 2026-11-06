@@ -332,7 +332,7 @@ export default function WorkspaceApp() {
           >
             {session.workspaces.map((w) => (
               <option key={w.id} value={w.id}>
-                {w.name}
+                {w.kind === "demo" ? `${w.name.replace(/\s*·\s*Demo$/, "")} (Demo, nur Beispiel)` : w.name}
               </option>
             ))}
             <option value="__new">+ Workspace erstellen</option>
@@ -462,6 +462,15 @@ export default function WorkspaceApp() {
           </div>
         </header>
         <main className="main-content" key={workspace?.id}>
+          {workspace?.kind === "demo" && (
+            <p className="demo-banner" role="note" data-testid="demo-banner">
+              <strong>Demo-Workspace.</strong> Nur synthetische Beispieldaten, keine echten
+              Zugangsdaten, nichts geht nach außen. Für echte Arbeit oben links
+              {session.workspaces.some((w) => w.kind === "production")
+                ? ` „${session.workspaces.find((w) => w.kind === "production")?.name}“ wählen.`
+                : " einen produktiven Workspace wählen."}
+            </p>
+          )}
           {workspace ? (
             <>
               {route === "/discover" && (

@@ -3,6 +3,10 @@
 Resolution order for every provider setting: the active workspace's stored value
 (set via ``workspace(db, ws)``), then the process environment. Secrets are never
 returned to clients; only a mask (last four characters) leaves the server.
+
+Demo workspaces (``workspaces.kind == 'demo'``) are examples only: they get neither
+stored nor environment provider values, so every provider stays in its demo/missing
+state there and no real account is ever used from a demo workspace.
 """
 
 import os
@@ -83,6 +87,23 @@ def unbind(token):
     _active.reset(token)
 
 
+def is_demo(db, ws: str | None) -> bool:
+    if not ws:
+        return False
+    from app.models import Workspace
+
+    return db.scalar(select(Workspace.kind).where(Workspace.id == ws)) == "demo"
+
+
+def refuse_in_demo(db, ws: str):
+    if is_demo(db, ws):
+        raise HTTPException(
+            409,
+            "Demo-Workspace: nur Beispiel, keine echten Zugangsdaten oder Konten. "
+            "Bitte im Workspace „CleanStar“ arbeiten.",
+        )
+
+
 def _values() -> dict:
     holder = _active.get()
     if not holder:
@@ -99,21 +120,35 @@ def _values() -> dict:
                     text("SELECT set_config('app.workspace_id', :ws, true)"),
                     {"ws": holder["ws"]},
                 )
-                holder["values"] = load(db, holder["ws"])
+                holder["demo"] = is_demo(db, holder["ws"])
+                holder["values"] = {} if holder["demo"] else load(db, holder["ws"])
     return holder["values"]
 
 
+def _demo() -> bool:
+    _values()
+    holder = _active.get()
+    return bool(holder and holder.get("demo"))
+
+
 def get(name: str, default: str = "") -> str:
-    """Workspace value if a workspace is bound and has it, else environment."""
+    """Workspace value if a workspace is bound and has it, else environment.
+
+    In a demo workspace provider settings resolve to the default only.
+    """
     values = _values()
     if values.get(name):
         return values[name]
+    if name in ALL_FIELDS and _demo():
+        return default
     return os.getenv(name, default)
 
 
 def source(name: str) -> str:
     if _values().get(name):
         return "workspace"
+    if _demo():
+        return "missing"
     return "environment" if os.getenv(name, "").strip() else "missing"
 
 
@@ -185,7 +220,8 @@ def encrypt(values: dict) -> str:
 @contextmanager
 def workspace(db, ws: str):
     """Eager scope for workers and routes without a workspace path (OAuth callback)."""
-    token = _active.set({"ws": ws, "values": load(db, ws)})
+    demo = is_demo(db, ws)
+    token = _active.set({"ws": ws, "values": {} if demo else load(db, ws), "demo": demo})
     try:
         yield
     finally:
@@ -198,7 +234,13 @@ def override(values: dict):
     holder = _active.get()
     merged = dict(_values())
     merged.update({k: v for k, v in values.items() if v})
-    token = _active.set({"ws": holder.get("ws") if holder else None, "values": merged})
+    token = _active.set(
+        {
+            "ws": holder.get("ws") if holder else None,
+            "values": merged,
+            "demo": bool(holder and holder.get("demo")),
+        }
+    )
     try:
         yield
     finally:

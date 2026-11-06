@@ -92,3 +92,17 @@
 .panel.pad h2 { margin: 0 0 var(--space-3); }
 @media (max-width: 640px) { .panel.pad { padding: var(--space-4); } }
 .panel.pad > p.muted { font-size: var(--font-sm); margin: 0 0 var(--space-4); }
+
+/* Demo workspace banner: examples only, never real work */
+.demo-banner {
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--amber);
+  background: var(--amber-soft);
+  color: var(--text);
+  font-size: 12px;
+}
+.demo-banner strong {
+  margin-right: 4px;
+}

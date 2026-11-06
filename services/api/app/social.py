@@ -183,6 +183,7 @@ def register_social_routes(app, db_session, current_auth, scope, record, audit):
         from app.providers.linkedin import authorization_url
 
         admin(member)
+        credentials.refuse_in_demo(db, ws)
         cipher()
         raw = secrets.token_urlsafe(40)
         state = OAuthState(
@@ -303,6 +304,7 @@ def register_social_routes(app, db_session, current_auth, scope, record, audit):
         from app.platform_routes import job_output
 
         admin(member)
+        credentials.refuse_in_demo(db, ws)
         post = record(db, Post, ws, entity_id, True)
         publication_context(db, ws, post, member)
         policy = db.scalar(select(ContentPolicy).where(ContentPolicy.workspace_id == ws))

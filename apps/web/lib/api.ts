@@ -3,6 +3,7 @@ export type Workspace = {
   name: string;
   slug: string;
   role: string;
+  kind?: "production" | "standard" | "demo";
 };
 export type Session = {
   user: { id: string; name: string; email: string };

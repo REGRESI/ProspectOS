@@ -46,7 +46,7 @@ def main():
             [sys.executable, "-m", "app.migrate"],
             [sys.executable, "-m", "app.seed"],
             [sys.executable, "-m", "app.seed"],
-            ["pytest", "-q"],
+            ["pytest", "-q", *sys.argv[1:]],
         ]
         for command in commands:
             subprocess.run(command, env=env, cwd=cwd, check=True)

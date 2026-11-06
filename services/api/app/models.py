@@ -38,6 +38,8 @@ class Workspace(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     name: Mapped[str] = mapped_column(String(120))
     slug: Mapped[str] = mapped_column(String(100), unique=True)
+    # production: real work · standard: user-created · demo: synthetic example only
+    kind: Mapped[str] = mapped_column(String(20), default="standard")
 
 
 class Membership(Base):
