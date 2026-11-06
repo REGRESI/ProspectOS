@@ -143,3 +143,23 @@ test("agent shows plan and cost before anything runs", async ({ page }) => {
   const jobs = await (await page.request.get(`${base}/jobs`)).json();
   expect((jobs.items || []).filter((j: { kind: string }) => j.kind === "agent_step")).toHaveLength(0);
 });
+
+test("LinkedIn OAuth return shows a clear message on the Integrations page", async ({ browser }) => {
+  // LinkedIn returns to APP_BASE_URL (http://localhost:3000); the session cookie must live on
+  // that exact host, so this test signs in on localhost instead of 127.0.0.1.
+  const context = await browser.newContext({ baseURL: "http://localhost:3000" });
+  const page = await context.newPage();
+  await page.goto("/");
+  await page.getByRole("button", { name: "Demo-Workspace öffnen" }).click();
+  await expect(page).toHaveURL(/overview/);
+  // The registered redirect URL (no /api prefix) is proxied to the backend and redirects back.
+  await page.goto("/v1/integrations/linkedin/callback?state=abgelaufen&code=x");
+  await expect(page).toHaveURL(/\/settings\/integrations\?linkedin_error=invalid_state/);
+  await expect(page.getByTestId("linkedin-oauth-result")).toContainText("abgelaufen");
+  await page.goto("/settings/integrations?linkedin_connected=1");
+  await expect(page.getByTestId("linkedin-oauth-result")).toHaveText("LinkedIn verbunden.");
+  await expect(page.getByTestId("credential-linkedin")).toContainText(
+    "/v1/integrations/linkedin/callback",
+  );
+  await context.close();
+});

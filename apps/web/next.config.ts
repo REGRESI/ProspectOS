@@ -19,10 +19,17 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
+    const api = process.env.API_URL || "http://127.0.0.1:8000";
     return [
+      // OAuth redirect URL registered at LinkedIn (no /api prefix): the browser lands
+      // here and the request is proxied to the backend callback, cookies included.
+      {
+        source: "/v1/integrations/linkedin/callback",
+        destination: `${api}/v1/integrations/linkedin/callback`,
+      },
       {
         source: "/api/:path*",
-        destination: `${process.env.API_URL || "http://127.0.0.1:8000"}/:path*`,
+        destination: `${api}/:path*`,
       },
     ];
   },

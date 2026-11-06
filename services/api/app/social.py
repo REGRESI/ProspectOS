@@ -6,7 +6,7 @@ import secrets
 from datetime import timedelta
 
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 
@@ -196,21 +196,36 @@ def register_social_routes(app, db_session, current_auth, scope, record, audit):
 
     @app.get("/v1/integrations/linkedin/callback")
     def callback(
-        state: str,
+        request: Request,
+        state: str = "",
         code: str = "",
         error: str = "",
-        auth=Depends(current_auth),
         db=Depends(db_session, scope="function"),
     ):
+        """Browser endpoint: every outcome redirects to the Integrations page, never JSON.
+
+        Reached as http(s)://<web>/v1/integrations/linkedin/callback (Next.js rewrites the
+        path to this API) or directly on the API host.
+        """
         from app.jobs import tenant
+        from app.providers.ai import ProviderError
         from app.providers.linkedin import exchange_code
 
+        def fail(reason: str):
+            safe = "".join(c for c in reason if c.isalnum() or c == "_")[:60] or "unknown"
+            return RedirectResponse(_integrations_url("error=" + safe), status_code=303)
+
         if len(state) > 200 or len(code) > 2000 or len(error) > 100:
-            raise HTTPException(400, "Invalid callback.")
-        if error or not code:
-            # Member cancelled or LinkedIn refused; nothing stored. Back to the UI.
-            reason = "".join(c for c in (error or "missing_code") if c.isalnum() or c == "_")
-            return RedirectResponse(_integrations_url("error=" + reason[:60]), status_code=303)
+            return fail("invalid_callback")
+        if error:
+            # Member cancelled or LinkedIn refused; nothing stored.
+            return fail(error)
+        if not code or not state:
+            return fail("missing_code")
+        try:
+            auth = current_auth(request, db)
+        except HTTPException:
+            return fail("not_signed_in")
         item = db.scalar(
             select(OAuthState)
             .where(
@@ -220,15 +235,19 @@ def register_social_routes(app, db_session, current_auth, scope, record, audit):
             .with_for_update()
         )
         if not item or item.consumed or item.expires_at <= now():
-            raise HTTPException(400, "Invalid or expired OAuth state.")
+            return fail("invalid_state")
         member = db.get(Membership, (item.workspace_id, auth.user_id))
         if not member or member.role not in ("owner", "admin"):
-            raise HTTPException(403, "Workspace authorization revoked.")
+            return fail("permission_revoked")
         tenant(db, item.workspace_id)
-        with credentials.workspace(db, item.workspace_id):
-            connection = exchange_code(code)
-        # Consume state before redirect; no tokens enter logs/browser payloads.
+        # Consume the state first: a code/state pair is never usable twice.
         item.consumed = True
+        try:
+            with credentials.workspace(db, item.workspace_id):
+                connection = exchange_code(code)
+        except ProviderError as exc:
+            db.commit()
+            return fail("token_" + exc.code)
         stored = db.scalar(
             select(Connection)
             .where(Connection.workspace_id == item.workspace_id, Connection.provider == "linkedin")
@@ -237,7 +256,10 @@ def register_social_routes(app, db_session, current_auth, scope, record, audit):
         if not stored:
             stored = Connection(workspace_id=item.workspace_id, provider="linkedin")
             db.add(stored)
-        stored.encrypted_token = cipher().encrypt(connection.access_token.encode()).decode()
+        try:
+            stored.encrypted_token = cipher().encrypt(connection.access_token.encode()).decode()
+        except HTTPException:
+            return fail("encryption_key_missing")
         stored.author_urn = connection.author_urn
         stored.scopes = connection.scopes
         stored.expires_at = now() + timedelta(seconds=connection.expires_in)

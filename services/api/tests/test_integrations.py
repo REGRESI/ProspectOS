@@ -167,9 +167,29 @@ def test_openai_checks_text_and_image_models(monkeypatch):
     assert "gpt-image" in result["detail"]
 
 
+# Responses recorded live from LinkedIn on 2026-11-06 (token introspection, dummy token).
 @pytest.mark.parametrize(
     ("status", "body", "ok"),
-    [(400, {"error": "invalid_request"}, True), (401, {"error": "invalid_client"}, False)],
+    [
+        (
+            400,
+            {"error": "invalid_access_token", "error_description": "Unable to parse access token"},
+            True,
+        ),
+        (
+            401,
+            {"error": "invalid_client", "error_description": "Client authentication failed"},
+            False,
+        ),
+        (
+            400,
+            {
+                "error": "invalid_client_id",
+                "error_description": "The passed in client_id is invalid",
+            },
+            False,
+        ),
+    ],
 )
 def test_linkedin_app_credentials_probe(monkeypatch, status, body, ok):
     monkeypatch.setenv("LINKEDIN_CLIENT_ID", "synthetic-client")
@@ -177,16 +197,36 @@ def test_linkedin_app_credentials_probe(monkeypatch, status, body, ok):
     monkeypatch.setenv(
         "LINKEDIN_REDIRECT_URI", "http://localhost:3000/v1/integrations/linkedin/callback"
     )
-    client = httpx.Client(
-        transport=httpx.MockTransport(lambda r: httpx.Response(status, json=body))
-    )
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(status, json=body)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
     if ok:
-        assert "akzeptiert" in check_linkedin_app(client=client)["detail"]
+        assert "bestätigt" in check_linkedin_app(client=client)["detail"]
     else:
         from app.providers.ai import ProviderError
 
-        with pytest.raises(ProviderError):
+        with pytest.raises(ProviderError, match="invalid_client_credentials"):
             check_linkedin_app(client=client)
+    # Only the introspection endpoint is called: no token issued, nothing posted.
+    assert [r.url.path for r in seen] == ["/oauth/v2/introspectToken"]
+
+
+def test_linkedin_app_check_rejects_wrong_redirect_path(monkeypatch):
+    monkeypatch.setenv("LINKEDIN_CLIENT_ID", "synthetic-client")
+    monkeypatch.setenv("LINKEDIN_CLIENT_SECRET", "synthetic-secret")
+    monkeypatch.setenv(
+        "LINKEDIN_REDIRECT_URI", "http://localhost:3000/api/v1/integrations/linkedin/cb"
+    )
+    from app.providers.ai import ProviderError
+
+    with pytest.raises(ProviderError, match="redirect_uri_path_mismatch"):
+        check_linkedin_app(
+            client=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(500)))
+        )
 
 
 def test_linkedin_callback_cancel_redirects_without_storing(context, admin, monkeypatch):
@@ -203,3 +243,82 @@ def test_linkedin_callback_cancel_redirects_without_storing(context, admin, monk
     from app.platform_models import Connection
 
     assert admin.scalar(select(Connection).where(Connection.workspace_id == ws)) is None
+
+
+def _start_oauth(c, ws, monkeypatch):
+    monkeypatch.setenv("LINKEDIN_CLIENT_ID", "synthetic-client")
+    monkeypatch.setenv("LINKEDIN_CLIENT_SECRET", "synthetic-secret")
+    monkeypatch.setenv(
+        "LINKEDIN_REDIRECT_URI", "http://localhost:3000/v1/integrations/linkedin/callback"
+    )
+    monkeypatch.setenv("APP_BASE_URL", "http://localhost:3000")
+    r = c.post(f"/v1/workspaces/{ws}/integrations/linkedin/start")
+    assert r.status_code == 200, r.text
+    from urllib.parse import parse_qs, urlsplit
+
+    query = parse_qs(urlsplit(r.json()["authorization_url"]).query)
+    assert query["redirect_uri"] == ["http://localhost:3000/v1/integrations/linkedin/callback"]
+    return query["state"][0]
+
+
+def test_linkedin_callback_success_stores_connection_and_redirects(
+    context, admin, fernet, monkeypatch
+):
+    c, (ws, *_), _ = context
+    state = _start_oauth(c, ws, monkeypatch)
+    from app.providers.linkedin import OAuthConnection
+
+    monkeypatch.setattr(
+        "app.providers.linkedin.exchange_code",
+        lambda code, client=None: OAuthConnection(
+            access_token="synthetic-token-never-shown",
+            expires_in=3600,
+            scopes=["openid", "profile", "w_member_social"],
+            author_urn="urn:li:person:synthetic",
+            display_name="Synthetic Person",
+        ),
+    )
+    r = c.get(f"/v1/integrations/linkedin/callback?state={state}&code=ok", follow_redirects=False)
+    assert r.status_code == 303
+    assert (
+        r.headers["location"] == "http://localhost:3000/settings/integrations?linkedin_connected=1"
+    )
+    assert "synthetic-token" not in r.text
+    from app.platform_models import Connection
+
+    stored = admin.scalar(select(Connection).where(Connection.workspace_id == ws))
+    assert stored.author_urn == "urn:li:person:synthetic"
+    assert "synthetic-token" not in stored.encrypted_token
+    # The state is single-use.
+    again = c.get(
+        f"/v1/integrations/linkedin/callback?state={state}&code=ok", follow_redirects=False
+    )
+    assert again.headers["location"].endswith("linkedin_error=invalid_state")
+
+
+def test_linkedin_callback_token_error_and_signed_out_redirect(context, fernet, monkeypatch):
+    c, (ws, *_), _ = context
+    state = _start_oauth(c, ws, monkeypatch)
+    from app.providers.ai import ProviderError
+
+    def reject(code, client=None):
+        raise ProviderError("provider_rejected")
+
+    monkeypatch.setattr("app.providers.linkedin.exchange_code", reject)
+    r = c.get(f"/v1/integrations/linkedin/callback?state={state}&code=bad", follow_redirects=False)
+    assert r.headers["location"].endswith("linkedin_error=token_provider_rejected")
+    c.cookies.clear()
+    r = c.get("/v1/integrations/linkedin/callback?state=x&code=y", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].endswith("linkedin_error=not_signed_in")
+
+
+def test_web_rewrites_linkedin_callback_to_api():
+    """The registered redirect URL has no /api prefix; Next.js must proxy exactly that path."""
+    import pathlib
+    import re
+
+    config = (pathlib.Path(__file__).resolve().parents[3] / "apps/web/next.config.ts").read_text()
+    assert re.search(
+        r'source:\s*"/v1/integrations/linkedin/callback",\s*destination:\s*`\$\{api\}/v1/integrations/linkedin/callback`',
+        config,
+    )

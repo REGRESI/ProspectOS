@@ -383,9 +383,19 @@ def test_signed_billing_webhook_is_idempotent(context, monkeypatch, admin):
     admin.commit()
 
 
-def test_oauth_invalid_state_rejected_before_provider_call(context):
+def test_oauth_invalid_state_rejected_before_provider_call(context, monkeypatch):
     c, *_ = context
-    assert c.get("/v1/integrations/linkedin/callback?state=invalid&code=invalid").status_code == 400
+
+    def no_call(*a, **k):
+        raise AssertionError("provider must not be called for an invalid state")
+
+    monkeypatch.setattr("app.providers.linkedin.exchange_code", no_call)
+    r = c.get(
+        "/v1/integrations/linkedin/callback?state=invalid&code=invalid", follow_redirects=False
+    )
+    # Browser endpoint: rejected, but as a redirect to the Integrations page, not JSON.
+    assert r.status_code == 303
+    assert r.headers["location"].endswith("/settings/integrations?linkedin_error=invalid_state")
 
 
 def test_privacy_deletion_removes_derived_records_and_queued_payloads(context):

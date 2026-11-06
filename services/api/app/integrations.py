@@ -49,9 +49,20 @@ def check_openai(client=None) -> dict:
     return {"detail": "Key gültig, Modelle verfügbar: " + ", ".join(checked)}
 
 
+CALLBACK_PATH = "/v1/integrations/linkedin/callback"
+
+
 def check_linkedin_app(client=None) -> dict:
-    """Exchange an invalid code: LinkedIn answers invalid_client for wrong app credentials
-    and invalid_request/invalid_grant when the client is accepted. No token is issued."""
+    """Verify the app credentials without issuing a token or touching any profile.
+
+    Live check 2026-11-06: the authorization-code endpoint answers wrong and correct
+    credentials identically (401 invalid_request "authorization code not found"), so it
+    cannot validate anything. Token introspection with a dummy token does distinguish:
+    valid client -> 400 invalid_access_token; wrong secret -> 401 invalid_client;
+    wrong client id -> 400 invalid_client_id.
+    """
+    from urllib.parse import urlsplit
+
     client_id, secret = (
         credentials.get("LINKEDIN_CLIENT_ID"),
         credentials.get("LINKEDIN_CLIENT_SECRET"),
@@ -59,15 +70,15 @@ def check_linkedin_app(client=None) -> dict:
     redirect = credentials.get("LINKEDIN_REDIRECT_URI")
     if not client_id or not secret or not redirect:
         raise ProviderError("missing_credentials")
+    if urlsplit(redirect).path != CALLBACK_PATH:
+        raise ProviderError("redirect_uri_path_mismatch")
     own = client is None
     client = client or _client()
     try:
         response = client.post(
-            "https://www.linkedin.com/oauth/v2/accessToken",
+            "https://www.linkedin.com/oauth/v2/introspectToken",
             data={
-                "grant_type": "authorization_code",
-                "code": "prospectos-connection-test",
-                "redirect_uri": redirect,
+                "token": "prospectos-connection-test",
                 "client_id": client_id,
                 "client_secret": secret,
             },
@@ -78,15 +89,20 @@ def check_linkedin_app(client=None) -> dict:
         if own:
             client.close()
     try:
-        error = response.json().get("error", "")
+        body = response.json()
     except ValueError:
-        error = ""
-    if error == "invalid_client" or response.status_code == 401:
+        body = {}
+    error = body.get("error", "") if isinstance(body, dict) else ""
+    if error in ("invalid_client", "invalid_client_id"):
         raise ProviderError("invalid_client_credentials")
-    if error in ("invalid_request", "invalid_grant"):
+    if error == "invalid_access_token" or (response.is_success and "active" in body):
         return {
-            "detail": "Client ID/Secret von LinkedIn akzeptiert. Konto über „Mit LinkedIn verbinden“ koppeln."
+            "detail": "Client ID und Secret von LinkedIn bestätigt. Redirect-URL: "
+            + redirect
+            + " (muss exakt so unter „Authorized redirect URLs“ stehen)."
         }
+    if response.status_code >= 500:
+        raise ProviderError("provider_unavailable")
     raise ProviderError("provider_rejected")
 
 
@@ -144,7 +160,8 @@ TESTS = {
 ERRORS = {
     "missing_credentials": "Pflichtangaben fehlen.",
     "provider_forbidden": "Zugang abgelehnt (Key ungültig oder ohne Berechtigung).",
-    "invalid_client_credentials": "Client ID oder Secret ungültig.",
+    "invalid_client_credentials": "Client ID oder Secret ungültig (von LinkedIn abgelehnt).",
+    "redirect_uri_path_mismatch": "LINKEDIN_REDIRECT_URI muss auf /v1/integrations/linkedin/callback enden.",
     "model_not_verified": "Modell für diesen Key nicht verfügbar.",
     "not_found": "Modell oder Endpunkt nicht gefunden.",
     "rate_limited": "Rate-Limit erreicht, später erneut testen.",
