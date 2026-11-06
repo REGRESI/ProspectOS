@@ -55,6 +55,7 @@ export const navigation: {
   {
     section: "EINSTELLUNGEN",
     items: [
+      { path: "/settings/setup", label: "Setup-Check", icon: ShieldCheck },
       { path: "/settings/workspace", label: "Workspace-Einrichtung", icon: Building2 },
       { path: "/settings/integrations", label: "Integrationen", icon: Link2 },
       { path: "/settings/team", label: "Team & Rollen", icon: Users },
@@ -65,6 +66,7 @@ export const navigation: {
 ];
 
 export const titles: Record<string, string> = {
+  "/settings/setup": "Setup-Check",
   "/settings/workspace": "Workspace-Einrichtung",
   "/settings/team": "Team & Rollen",
   "/settings/billing": "Abo & Ressourcen",

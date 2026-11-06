@@ -1,6 +1,7 @@
 "use client";
 import { TopCandidates } from "./top-candidates";
 import { TodayView } from "./today-view";
+import { SetupCheck } from "./setup-check";
 import { AgentConsole } from "./agent-console";
 import { ContentPlanner } from "./content-planner";
 import { ICPBuilder } from "./icp-builder";
@@ -670,6 +671,7 @@ export default function WorkspaceApp() {
               {route === "/settings/integrations" && (
                 <Integrations base={base} write={write} />
               )}
+              {route === "/settings/setup" && <SetupCheck base={base} onNavigate={go} />}
               {route === "/audit" && <Audit base={base} />}
               {route === "/outreach/legacy" && (
                 <OutreachDrafts

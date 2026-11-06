@@ -207,3 +207,54 @@
 .probe-checks li.bad svg {
   color: var(--red, #b3261e);
 }
+
+/* Setup-Check traffic lights */
+.setup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.setup-item {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.setup-light {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-top: 3px;
+  background: var(--line);
+}
+.setup-light.green { background: var(--green); }
+.setup-light.yellow { background: var(--amber); }
+.setup-light.red { background: var(--red); }
+.setup-light.off { background: transparent; border: 2px solid var(--secondary); }
+.setup-detail { display: block; margin-top: 2px; }
+.setup-next { margin: 6px 0 0; font-size: 12px; }
+.setup-next span { font-weight: 600; }
+.setup-summary { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; }
+.setup-dot::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 5px;
+  background: var(--line);
+}
+.setup-dot.green::before { background: var(--green); }
+.setup-dot.yellow::before { background: var(--amber); }
+.setup-dot.red::before { background: var(--red); }
+.setup-dot.off::before { background: transparent; border: 1.5px solid var(--secondary); }
+@media (max-width: 640px) {
+  .setup-item { grid-template-columns: 16px 1fr; }
+  .setup-item > button { grid-column: 2; justify-self: start; }
+}

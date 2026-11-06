@@ -426,14 +426,32 @@ def _run_step(db, job) -> dict:
             companies = db.scalars(
                 select(Company).where(Company.workspace_id == ws, Company.website.is_not(None))
             ).all()
-            todo = [c for c in companies if not (c.provenance or {}).get("website_research")]
+            # Websites that failed recently (robots.txt, DNS, guard) are not retried for
+            # 30 days; hidden companies (Autohaus, Konzernfiliale …) are not researched.
+            failed_recently = {
+                (j.payload or {}).get("company_id")
+                for j in db.scalars(
+                    select(Job).where(
+                        Job.workspace_id == ws,
+                        Job.kind == "research",
+                        Job.status.in_(["failed", "dead"]),
+                        Job.created_at >= now() - timedelta(days=30),
+                    )
+                )
+            }
+            todo = [
+                c
+                for c in companies
+                if not (c.provenance or {}).get("website_research") and c.id not in failed_recently
+            ]
             if icp:
                 facts: dict = {}
                 for f in db.scalars(select(CompanyFact).where(CompanyFact.workspace_id == ws)):
                     facts.setdefault(f.company_id, []).append(f)
-                todo.sort(
-                    key=lambda c: -rank_company(c, facts.get(c.id, []), icp.profile)["priority"]
-                )
+                ranks = {c.id: rank_company(c, facts.get(c.id, []), icp.profile) for c in todo}
+                todo = [c for c in todo if not ranks[c.id]["excluded"]]
+                todo.sort(key=lambda c: -ranks[c.id]["priority"])
+            state["research_skipped_failed"] = len(failed_recently)
             ids = []
             for c in todo[: plan["research"]]:
                 sub = enqueue(

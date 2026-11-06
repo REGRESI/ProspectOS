@@ -1380,6 +1380,10 @@ from app.style import register_style_routes  # noqa: E402
 
 register_style_routes(app, db_session, scope, audit)
 
+from app.setup_check import register_setup_routes  # noqa: E402
+
+register_setup_routes(app, db_session, scope)
+
 from app.email_outreach import register_email_routes  # noqa: E402
 
 register_email_routes(app, db_session, scope, record, audit)
