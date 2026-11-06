@@ -715,6 +715,15 @@ def register_linkedin_channel_routes(app, db_session, scope, record, paginate, a
             _crm_on_accept(db, contact)
         if body.outcome == "replied":
             _crm_on_reply(db, ws, contact, False)
+        from app.today import set_stage
+
+        stage = {
+            ("connection_request", "sent"): "sent",
+            ("connection_request", "accepted"): "connected",
+            ("message", "replied"): "replied",
+        }.get((item.action, body.outcome))
+        if stage:
+            set_stage(contact, stage)
         if body.outcome == "not_sent" and item.draft_id:
             draft = db.get(Draft, item.draft_id)
             if draft and draft.state == "handed_off":

@@ -85,6 +85,11 @@ class Contact(TenantMixin, Base):
     status: Mapped[str] = mapped_column(String(30), default="new")
     source: Mapped[str] = mapped_column(String(100), default="user_entry")
     version: Mapped[int] = mapped_column(default=1)
+    # LinkedIn routine: new, sent, connected, replied, meeting, not_interested
+    outreach_stage: Mapped[str] = mapped_column(String(20), default="new")
+    outreach_stage_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     __table_args__ = (
         UniqueConstraint("workspace_id", "id"),
         UniqueConstraint("workspace_id", "linkedin_url"),

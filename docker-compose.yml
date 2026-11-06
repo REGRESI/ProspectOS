@@ -41,6 +41,8 @@ x-runtime-environment: &runtime-environment
   OSM_OVERPASS_URL: ${OSM_OVERPASS_URL:-}
   # Local OSM extract (.osm.pbf) mounted read-only from ./data/private/osm
   OSM_EXTRACT_PATH: ${OSM_EXTRACT_PATH_CONTAINER:-}
+  # Own writing samples (gitignored), mounted read-only from ./data/private
+  STYLE_SAMPLES_PATH: /data/private/meine-texte.md
   BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
   NORTHDATA_API_KEY: ${NORTHDATA_API_KEY:-}
   NORTHDATA_ENABLED: ${NORTHDATA_ENABLED:-false}
@@ -98,6 +100,7 @@ services:
     volumes:
       - asset_data:/var/lib/prospectos/assets
       - ./data/private/osm:/data/osm:ro
+      - ./data/private:/data/private:ro
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -116,6 +119,7 @@ services:
     volumes:
       - asset_data:/var/lib/prospectos/assets
       - ./data/private/osm:/data/osm:ro
+      - ./data/private:/data/private:ro
     restart: unless-stopped
   web:
     build:

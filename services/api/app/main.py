@@ -1376,6 +1376,10 @@ from app.today import register_today_routes  # noqa: E402
 
 register_today_routes(app, db_session, scope, record, audit)
 
+from app.style import register_style_routes  # noqa: E402
+
+register_style_routes(app, db_session, scope, audit)
+
 from app.email_outreach import register_email_routes  # noqa: E402
 
 register_email_routes(app, db_session, scope, record, audit)

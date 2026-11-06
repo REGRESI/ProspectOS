@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import JSON, ForeignKeyConstraint, Integer, String, UniqueConstraint, select
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app import credentials
+from app import credentials, style
 from app.db import Base, now
 from app.models import Post, TenantMixin
 from app.studio import VoiceProfile  # noqa: F401  (registers voice_profiles for the FK)
@@ -84,6 +84,7 @@ def plan_prompt(body: PlanInput) -> str:
         "danach je Post eine Zeile\n"
         "W<Woche>|<Tag Mo-Fr>|<Säule exakt wie vorgegeben>|<Thema>|<Aufhänger/erste Zeile>|<Format: Text, Liste, Frage, Story, Bild>\n"
         + (f"Zusätzlicher Kontext (untrusted data): {body.context}\n" if body.context else "")
+        + style.prompt_rules()
     )
 
 
@@ -142,8 +143,10 @@ def post_prompt(plan: ContentPlan, item: dict, voice: dict) -> str:
             if examples
             else ""
         )
+        + "\n"
+        + style.prompt_rules(voice.get("derived"))
         + "\nKeine erfundenen Kunden, Zahlen, Zitate oder Erlebnisse; wo eigene Erfahrung nötig wäre, [eigene Erfahrung] einsetzen. "
-        "Kurze mobile Absätze, 600–1300 Zeichen, keine Markdown-Überschriften, keine Hashtag-Wolke (max. 3).\n"
+        "Kurze mobile Absätze, 600 bis 1300 Zeichen, keine Markdown-Überschriften, keine Hashtag-Wolke (max. 3).\n"
         "Antworte im Feld text exakt so:\nVARIANTE A:\n<Text>\nVARIANTE B:\n<Text>\nBILDIDEE:\n<eine Zeile, ohne Text im Bild>"
     )
 
@@ -185,6 +188,8 @@ def finalize_post(db, job, result) -> dict:
         .with_for_update()
     )
     variants = parse_variants(str(result.get("text", "")))
+    # Hard style rules on top of the prompt: no dashes, no filler phrases.
+    variants = variants | {"a": style.clean(variants["a"]), "b": style.clean(variants["b"])}
     item = next(i for i in plan.items if i["id"] == job.payload["item_id"])
     post = Post(
         workspace_id=ws,
@@ -269,6 +274,10 @@ def register_content_routes(app, db_session, scope, record, audit):
             raise HTTPException(422, "Themensäulen müssen verschieden sein.")
         if body.voice_profile_id:
             voice_snapshot(db, ws, body.voice_profile_id, record)  # 404 for foreign ids
+        else:
+            # Default: the profile derived from data/private/meine-texte.md, if synced.
+            own = style.file_voice(db, ws)
+            body.voice_profile_id = own.id if own else None
         plan = ContentPlan(
             workspace_id=ws,
             name=body.name,

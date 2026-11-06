@@ -12,12 +12,13 @@ import { request } from "@/lib/api";
 import { useData } from "@/lib/use-data";
 import { Badge, Empty, ErrorNote, Heading, Modal, Spinner } from "./ui";
 import type { Write } from "./growth-modules";
+import { StyleNotice } from "./style-notice";
 
 type Item = {
   id: string;
-  kind: "connect" | "message" | "followup";
+  kind: "connect" | "message" | "followup" | "followup2";
   state: "pending" | "approved" | "sent" | "skipped";
-  contact: { id: string; name: string; job_title: string; linkedin_url: string | null };
+  contact: { id: string; name: string; job_title: string; linkedin_url: string | null; stage: Stage; stage_label: string };
   company: { id: string; name: string; location: string } | null;
   profile_url: string;
   profile_confirmed: boolean;
@@ -38,8 +39,20 @@ type Check = {
   profile_url: string | null;
   days_open: number;
 };
+type Stage = "new" | "sent" | "connected" | "replied" | "meeting" | "not_interested";
+type Settings = {
+  daily_limit: number;
+  address_form: "sie" | "du";
+  sender_name: string;
+  sender_company: string;
+  offer: string;
+  region: string;
+};
 type Today = {
   day: string;
+  daily: { limit: number; sent_last_24h: number; queued: number; remaining: number };
+  settings: Settings;
+  stages: Record<Stage, string>;
   items: Item[];
   checks: Check[];
   limits: { connection_requests_per_day: number; messages_per_day: number };
@@ -48,29 +61,62 @@ type Today = {
   notice: string;
 };
 
-const kindLabel = { connect: "Kontaktanfrage", message: "Nachricht nach Annahme", followup: "Follow-up" };
-const SENDER_KEY = "prospectos.today.sender";
+const kindLabel = {
+  connect: "Kontaktanfrage",
+  message: "Nachricht nach Annahme",
+  followup: "Follow-up (Tag 3)",
+  followup2: "Letztes Follow-up (Tag 7)",
+};
+const STAGE_LABELS: Record<Stage, string> = {
+  new: "neu",
+  sent: "gesendet",
+  connected: "verbunden",
+  replied: "geantwortet",
+  meeting: "Termin",
+  not_interested: "kein Interesse",
+};
+const STAGE_TONE: Record<Stage, string> = {
+  new: "neutral",
+  sent: "amber",
+  connected: "green",
+  replied: "green",
+  meeting: "green",
+  not_interested: "red",
+};
 
-function loadSender() {
-  try {
-    return JSON.parse(localStorage.getItem(SENDER_KEY) || "{}");
-  } catch {
-    return {};
-  }
+function StageSelect({ value, onChange, disabled }: { value: Stage; onChange: (s: Stage) => void; disabled?: boolean }) {
+  return (
+    <select
+      className="stage-select"
+      aria-label="Status"
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value as Stage)}
+    >
+      {(Object.keys(STAGE_LABELS) as Stage[]).map((k) => (
+        <option key={k} value={k}>
+          {STAGE_LABELS[k]}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 export function TodayView({ base, write }: { base: string; write: Write }) {
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
-  const [sender, setSender] = useState<{ sender_name?: string; sender_company?: string }>(() =>
-    typeof window === "undefined" ? {} : loadSender(),
-  );
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [profileFor, setProfileFor] = useState<Item | null>(null);
   const [replyFor, setReplyFor] = useState<Check | null>(null);
   const started = useRef<Record<string, number>>({});
   const data = useData<Today>(`${base}/today`, revision);
+  const pipeline = useData<{ counts: Record<Stage, number>; items: { id: string; name: string; company: string; linkedin_url: string | null; stage: Stage; stage_label: string }[] }>(
+    `${base}/today/pipeline`,
+    revision,
+  );
   const refresh = () => setRevision((v) => v + 1);
+  const form = settings || data.data?.settings || null;
 
   const open = data.data?.items.filter((i) => i.state === "pending" || i.state === "approved") || [];
   const active = open.find((i) => i.state === "approved");
@@ -91,9 +137,13 @@ export function TodayView({ base, write }: { base: string; write: Write }) {
     [],
   );
 
+  const setStage = (contactId: string, stage: Stage) =>
+    act("stage-" + contactId, () => write(`/contacts/${contactId}/outreach-stage`, { stage }, "PUT"));
+
   const copyAndOpen = useCallback(async (item: Item) => {
     started.current[item.id] = started.current[item.id] || Date.now();
     const text = item.kind === "connect" ? item.note : item.kind === "message" ? item.message : item.followup;
+    // Copy first, then open the profile (or the people search if no profile is confirmed).
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -138,36 +188,72 @@ export function TodayView({ base, write }: { base: string; write: Write }) {
         description="Vorbereitete LinkedIn-Schritte: prüfen, freigeben, in LinkedIn selbst senden, hier abhaken."
       />
       <ErrorNote message={error || data.error} />
+      <StyleNotice base={base} write={write} compact />
       <section className="panel pad today-toolbar">
-        <label>
-          Absender
-          <input
-            value={sender.sender_name || ""}
-            placeholder="Dein Name"
-            onChange={(e) => setSender((s) => ({ ...s, sender_name: e.target.value }))}
-          />
-        </label>
-        <label>
-          Firma
-          <input
-            value={sender.sender_company || ""}
-            placeholder="z. B. CleanStar Dienstleistungen"
-            onChange={(e) => setSender((s) => ({ ...s, sender_company: e.target.value }))}
-          />
-        </label>
+        {form && (
+          <>
+            <label>
+              Absender
+              <input
+                value={form.sender_name}
+                placeholder="Dein Name"
+                onChange={(e) => setSettings({ ...form, sender_name: e.target.value })}
+              />
+            </label>
+            <label>
+              Firma
+              <input
+                value={form.sender_company}
+                placeholder="z. B. CleanStar"
+                onChange={(e) => setSettings({ ...form, sender_company: e.target.value })}
+              />
+            </label>
+            <label>
+              Tageslimit
+              <select
+                aria-label="Tageslimit"
+                value={form.daily_limit}
+                onChange={(e) => setSettings({ ...form, daily_limit: Number(e.target.value) })}
+              >
+                {[5, 6, 7, 8, 9, 10].map((n) => (
+                  <option key={n} value={n}>
+                    {n} Anfragen/Tag
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Anrede
+              <select
+                aria-label="Anrede"
+                value={form.address_form}
+                onChange={(e) => setSettings({ ...form, address_form: e.target.value as "sie" | "du" })}
+              >
+                <option value="sie">Sie</option>
+                <option value="du">Du</option>
+              </select>
+            </label>
+            {settings && (
+              <button
+                className="button secondary"
+                disabled={!!busy}
+                onClick={() =>
+                  act("settings", async () => {
+                    await write("/today/settings", settings, "PUT");
+                    setSettings(null);
+                  })
+                }
+              >
+                Einstellungen speichern
+              </button>
+            )}
+          </>
+        )}
         <button
           className="button primary"
-          disabled={!!busy}
-          onClick={() =>
-            act("build", async () => {
-              try {
-                localStorage.setItem(SENDER_KEY, JSON.stringify(sender));
-              } catch {
-                /* per-browser convenience only */
-              }
-              await write("/today/build", sender);
-            })
-          }
+          disabled={!!busy || !!settings}
+          title={settings ? "Erst Einstellungen speichern" : undefined}
+          onClick={() => act("build", () => write("/today/build", {}))}
         >
           {busy === "build" ? <Spinner /> : <><RefreshCw size={15} /> Tagesliste erstellen</>}
         </button>
@@ -176,13 +262,21 @@ export function TodayView({ base, write }: { base: string; write: Write }) {
             <Badge>{d.stats.pending} zu prüfen</Badge>
             <Badge tone="amber">{d.stats.approved} freigegeben</Badge>
             <Badge tone="green">{d.stats.sent} gesendet</Badge>
-            <small className="muted">
-              Anfragen {d.usage.connection_requests_last_24h}/{d.limits.connection_requests_per_day} (24 h)
-              {d.stats.avg_seconds_per_contact !== null && ` · Ø ${d.stats.avg_seconds_per_contact} s pro Kontakt`}
-            </small>
+            {d.stats.avg_seconds_per_contact !== null && (
+              <small className="muted">Ø {d.stats.avg_seconds_per_contact} s pro Kontakt</small>
+            )}
           </span>
         )}
       </section>
+      {d && (
+        <p className="today-daily" data-testid="daily-limit">
+          <strong>Tageslimit:</strong> {d.daily.sent_last_24h} von {d.daily.limit} Anfragen gesendet (24 h)
+          <meter min={0} max={d.daily.limit} value={d.daily.sent_last_24h} />
+          <span className="muted">
+            {d.daily.remaining > 0 ? `noch ${d.daily.remaining} möglich, ${d.daily.queued} vorbereitet` : "Limit erreicht, morgen geht es weiter"}
+          </span>
+        </p>
+      )}
       {d && d.stats.pending > 0 && (
         <div className="today-approve">
           <button
@@ -216,6 +310,7 @@ export function TodayView({ base, write }: { base: string; write: Write }) {
               onApprove={() => act("ap-" + item.id, () => write("/today/approve", { item_ids: [item.id] }))}
               onEdit={(patch) => act("edit-" + item.id, () => write(`/today/items/${item.id}`, patch, "PATCH"))}
               onProfile={() => setProfileFor(item)}
+              onStage={(stage) => setStage(item.contact.id, stage)}
             />
           ))}
         </ol>
@@ -251,6 +346,32 @@ export function TodayView({ base, write }: { base: string; write: Write }) {
                     </button>
                   </span>
                 )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {pipeline.data && pipeline.data.items.length > 0 && (
+        <section className="panel pad" data-testid="pipeline">
+          <h2>Kontakte im Ablauf</h2>
+          <div className="pipeline-counts">
+            {(Object.keys(STAGE_LABELS) as Stage[]).map((k) => (
+              <Badge key={k} tone={STAGE_TONE[k]}>
+                {STAGE_LABELS[k]}: {pipeline.data?.counts[k] ?? 0}
+              </Badge>
+            ))}
+          </div>
+          <ul className="pipeline-list">
+            {pipeline.data.items.map((c) => (
+              <li key={c.id}>
+                <strong>{c.name}</strong>
+                <span className="muted">{c.company}</span>
+                {c.linkedin_url && (
+                  <a href={c.linkedin_url} target="_blank" rel="noreferrer noopener">
+                    Profil <ExternalLink size={11} />
+                  </a>
+                )}
+                <StageSelect value={c.stage} disabled={!!busy} onChange={(stage) => setStage(c.id, stage)} />
               </li>
             ))}
           </ul>
@@ -293,6 +414,7 @@ function TodayCard({
   onApprove,
   onEdit,
   onProfile,
+  onStage,
 }: {
   item: Item;
   active: boolean;
@@ -303,6 +425,7 @@ function TodayCard({
   onApprove: () => void;
   onEdit: (patch: Partial<Pick<Item, "note" | "message" | "followup">>) => void;
   onProfile: () => void;
+  onStage: (stage: Stage) => void;
 }) {
   const field = item.kind === "connect" ? "note" : item.kind === "message" ? "message" : "followup";
   const [text, setText] = useState(item[field]);
@@ -312,15 +435,22 @@ function TodayCard({
     <li className={`today-card ${active ? "active" : ""}`} data-testid={`today-item-${item.kind}`}>
       <header>
         <Badge tone={item.kind === "connect" ? "neutral" : "amber"}>{kindLabel[item.kind]}</Badge>
-        <strong>{item.contact.name}</strong>
+        <strong>{item.company ? item.company.name : item.contact.name}</strong>
         <span className="muted">
-          {item.contact.job_title}
-          {item.company ? ` · ${item.company.name}, ${item.company.location}` : ""}
+          {item.company ? `Ansprechperson: ${item.contact.name}` : ""}
+          {item.contact.job_title ? ` · ${item.contact.job_title}` : ""}
+          {item.company?.location ? ` · ${item.company.location}` : ""}
         </span>
         <Badge tone={item.state === "approved" ? "green" : "neutral"}>
           {item.state === "approved" ? "freigegeben" : "zu prüfen"}
         </Badge>
+        <StageSelect value={item.contact.stage} disabled={!!busy} onChange={onStage} />
       </header>
+      <p className="today-profile">
+        <a href={item.profile_url} target="_blank" rel="noreferrer noopener" data-testid="profile-link">
+          {item.profile_confirmed ? "LinkedIn-Profil" : "LinkedIn-Suche (Profil noch nicht bestätigt)"} <ExternalLink size={11} />
+        </a>
+      </p>
       <p className="today-reason">
         {item.reason}{" "}
         {item.sources.map((s, i) => (
@@ -331,7 +461,7 @@ function TodayCard({
       </p>
       <label className="today-text">
         <span>
-          {field === "note" ? "Kontaktnotiz" : field === "message" ? "Nachricht" : "Follow-up"}
+          {field === "note" ? "Verbindungsnotiz" : field === "message" ? "Nachricht" : kindLabel[item.kind]}
           <small className={text.length > limit ? "over" : "muted"}>
             {" "}
             {text.length}/{limit}
@@ -341,7 +471,7 @@ function TodayCard({
       </label>
       {item.kind === "connect" && (
         <details>
-          <summary>Nachricht nach Annahme und Follow-up nach {item.followup_days} Tagen</summary>
+          <summary>Nachricht nach Annahme und Follow-up an Tag 3 (Tag 7 folgt automatisch)</summary>
           <pre className="today-preview">{item.message}</pre>
           <pre className="today-preview">{item.followup}</pre>
         </details>
@@ -364,7 +494,7 @@ function TodayCard({
         ) : (
           <>
             <button className="button primary small" disabled={changed} onClick={onCopy}>
-              <Copy size={14} /> Kopieren & {item.profile_confirmed ? "Profil" : "Suche"} öffnen <ExternalLink size={12} />
+              <Copy size={14} /> Kopieren & LinkedIn öffnen <ExternalLink size={12} />
             </button>
             <button className="button secondary small" disabled={!!busy || changed} onClick={onSent}>
               {busy === "sent-" + item.id ? <Spinner /> : <><CheckCircle2 size={14} /> Gesendet</>}

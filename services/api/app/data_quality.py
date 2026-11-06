@@ -72,11 +72,12 @@ SEGMENTS = [
     ("clinic", "Klinik / MVZ", "C", ("amenity=clinic", "amenity=hospital"), (), ("klinik", "klinikum", "mvz", "krankenhaus")),
     ("bank", "Bank / Finanzinstitut", "C", ("office=financial", "amenity=bank"), (), ("bank",)),
     ("repair", "Reparatur / Werkstatt", "C", ("craft=electronics_repair",), (), ()),
-    ("car", "Autohaus / Kfz", "X", ("shop=car", "shop=car_repair"), ("Kfz",), ("autohaus", "kfz", "karosserie", "autoglas", "reifen", "automobile")),
-    ("industry", "Industrie / Produktion", "X", ("man_made=works", "industrial=*"), ("Industrie & Produktion",), ("werk ", "fabrik", "maschinenbau", "metallbau")),
+    ("car", "Autohaus / Kfz", "X", ("shop=car", "shop=car_repair"), ("Kfz",), ("autohaus", "kfz", "karosserie", "autoglas", "reifen", "automobile", "fahrzeugbau", "autoservice")),
+    ("industry", "Industrie / Produktion", "X", ("man_made=works", "industrial=*"), ("Industrie & Produktion",), ("werk ", "fabrik", "maschinenbau", "metallbau", "antriebstechnik", "windpark", "stahlbau", "kunststofftechnik")),
     ("logistics", "Logistik", "X", ("office=logistics", "industrial=warehouse"), ("Logistik",), ("spedition", "logistik", "zusteller")),
     ("competitor", "Reinigung (Wettbewerb)", "X", ("craft=cleaning", "shop=dry_cleaning"), ("Reinigung / Facility",), ("reinigung", "gebaeudeservice", "facility")),
 ]  # fmt: skip
+PUBLIC_HEAD = re.compile(r"\b(Landrat|Landrätin|(Ober)?[Bb]ürgermeister(in)?)\b")
 GENERIC_CATEGORIES = {"", "office=company", "office=consulting", "office=yes"}
 TIER_SCORE = {"A": 100, "B": 70, "C": 35, "?": 45, "X": 0}
 TIER_LABEL = {"A": "sehr gut", "B": "gut", "C": "schwach", "?": "unbekannt", "X": "ausgeblendet"}
@@ -209,7 +210,7 @@ def segment(company: Company, chain: dict | None = None) -> dict:
             # decides, e.g. "Hausverwaltung Beispiel" or "Werbeagentur Muster".
             generic = category in GENERIC_CATEGORIES
             score = (
-                (2 if word_hit else 0) + (1 if cat_hit else 0) + (1 if industry_hit else 0)
+                (3 if word_hit else 0) + (1 if cat_hit else 0) + (1 if industry_hit else 0)
                 if generic
                 else (3 if cat_hit else 0) + (1 if word_hit else 0) + (1 if industry_hit else 0)
             )
@@ -239,6 +240,16 @@ def assess(company: Company, facts: list) -> dict:
     check = website_check(company, values)
     chain = chain_signal(company, values.get("Adresse (Impressum)", ""))
     seg = segment(company, chain)
+    managers = " ".join(
+        values.get(k, "") for k in ("Geschäftsführung / Inhaber", "Vertretung (Registerangabe)")
+    )
+    if seg["tier"] in ("A", "B", "?") and PUBLIC_HEAD.search(managers):
+        seg = {
+            "key": "public",
+            "label": "Öffentliche Verwaltung",
+            "tier": "C",
+            "reason": "Impressum nennt Landrat/Bürgermeister",
+        }
     return {"check": check, "segment": seg | {"score": TIER_SCORE[seg["tier"]]}}
 
 

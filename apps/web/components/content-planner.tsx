@@ -5,6 +5,7 @@ import { request } from "@/lib/api";
 import { useData } from "@/lib/use-data";
 import { Badge, Empty, ErrorNote, Heading, Spinner } from "./ui";
 import type { Write } from "./growth-modules";
+import { StyleNotice } from "./style-notice";
 
 type PlanItem = {
   id: string;
@@ -88,6 +89,7 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
         description="Ziel, Zielgruppe und Themensäulen festlegen. Daraus entsteht ein Plan mit rotem Faden, pro Post zwei Varianten im eigenen Stil."
       />
       <ErrorNote message={error || plans.error} />
+      <StyleNotice base={base} write={write} />
       <section className="panel pad">
         <h2>
           <CalendarRange size={17} /> Neuer Plan
@@ -131,7 +133,7 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
           <label>
             Schreibprofil
             <select value={form.voice_profile_id} onChange={(e) => setForm({ ...form, voice_profile_id: e.target.value })}>
-              <option value="">ohne (neutral)</option>
+              <option value="">Standard: meine-texte.md (sonst neutral)</option>
               {voices.data?.items.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}
@@ -139,7 +141,7 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
               ))}
             </select>
           </label>
-          <p className="muted small wide">Schreibprofil mit 3–5 eigenen Beispieltexten unter Social Studio → Schreibprofile anlegen.</p>
+          <p className="muted small wide">Eigene Texte (3 bis 5) in data/private/meine-texte.md ablegen und oben übernehmen, oder unter Social Studio → Schreibprofile.</p>
           <div className="form-actions wide">
             <button className="button primary" disabled={busy}>
               {busy ? <Spinner /> : <><Sparkles size={15} /> Plan erstellen</>}
