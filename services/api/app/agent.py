@@ -58,6 +58,7 @@ ROTATION = [
     "Hausach", "Appenweier", "Neuried", "Schutterwald", "Rheinau",
 ]  # fmt: skip
 AREA_NAMES = ("ortenaukreis", "ortenau")
+TRANSIENT_RESEARCH_ERRORS = {"research_unavailable", "provider_unavailable", "timeout"}
 WAIT_SECONDS = 15
 MAX_WAIT_MINUTES = 90
 
@@ -428,6 +429,7 @@ def _run_step(db, job) -> dict:
             ).all()
             # Websites that failed recently (robots.txt, DNS, guard) are not retried for
             # 30 days; hidden companies (Autohaus, Konzernfiliale …) are not researched.
+            # Permanent reasons wait 30 days; transient ones (timeouts, 5xx) only 3 days.
             failed_recently = {
                 (j.payload or {}).get("company_id")
                 for j in db.scalars(
@@ -438,6 +440,8 @@ def _run_step(db, job) -> dict:
                         Job.created_at >= now() - timedelta(days=30),
                     )
                 )
+                if j.last_error not in TRANSIENT_RESEARCH_ERRORS
+                or j.created_at >= now() - timedelta(days=3)
             }
             todo = [
                 c

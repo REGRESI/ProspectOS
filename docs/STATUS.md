@@ -157,3 +157,20 @@ Legend: **live** = verified with real provider data in this round · **built** =
 - The app must be opened under the same host as the redirect URL (`localhost:3000`, not `127.0.0.1:3000`), because the session cookie is host-bound; the Integrations page warns when the hosts differ.
 - App-credential check: the old probe (exchange of an invalid authorization code) was meaningless — live, LinkedIn answers correct and wrong Client ID/Secret identically with `401 invalid_request "authorization code not found"`, and the check treated every 401 as invalid credentials. It now uses token introspection with a dummy token (no token issued, nothing posted): valid → `invalid_access_token` (= client authenticated), wrong secret → `invalid_client`, wrong client id → `invalid_client_id` (all verified live). It also checks that the redirect URL ends with `/v1/integrations/linkedin/callback`.
 - Tests: callback success/state reuse/token error/signed out/cancel, rewrite present in `next.config.ts`, probe responses as recorded live, E2E "LinkedIn OAuth return shows a clear message".
+
+## LinkedIn pilot round — 2026-11-06 (branch `claude/cleanstar-sales-v2`)
+
+E-mail excluded. Handover: docs/HANDOVER_2026-11-06.md.
+
+| Item | State | Evidence |
+|---|---|---|
+| Production workspace | **live** | Migration 0017 `workspaces.kind`; former working workspace promoted to "CleanStar" (production, login default), synthetic rows removed; fresh synthetic demo labelled and banner-marked; demo never resolves stored/env provider credentials, credential save/test, LinkedIn OAuth and publishing refused there |
+| Data quality | **live** | `app/data_quality.py`: name ↔ domain ↔ Impressum check stored as fact "Website-Abgleich"; mismatch → Impressum facts "unbestätigt" (no contacts, no completeness). Segments A/B/C/X for office cleaning; ranking 0.5 × Zielgruppe + 0.3 × ICP-Fit + 0.2 × Datenlage (−15 mismatch); X hidden with reason. Live: 116 passt / 6 unstimmig / 9 unklar / 103 ohne Website |
+| Heute routine | **live** | Migration 0018: `contacts.outreach_stage`, `outreach_settings` (daily limit 5–10, Du/Sie, sender), queue kind `followup2`. Follow-ups day 3 and day 7; rebuild re-checks unapproved items (hidden companies/closed contacts skipped, texts recomposed, overflow skipped) |
+| Writing style | built (no samples yet) | `app/style.py`: samples from `data/private/meine-texte.md` (read-only mount), derived profile synced into a voice profile; hard rules in prompts and enforced on Heute texts, post variants, reply drafts; hint box when empty |
+| Content | **live** | 2-week plan, 3 posts/week, 6 posts with 2 variants and a real image, all `needs_review`. Probe-Post + publish readiness (all 6 checks green live). Official API publish not exercised |
+| Autopilot Ortenaukreis | **live** | Town rotation (12 km), per-run budget + workspace budget cap paid steps, ledger costs per run; live run Lahr: 30 hits, 8 new companies (7 Kitas). Research skips sites failed in the last 30 days (3 days for transient errors) and hidden companies |
+| Setup-Check | **live** | `/settings/setup`: LinkedIn, KI-Text, KI-Bilder, OSM, Brave, Mailbox ("noch nicht verbunden"), Schreibstil, each with one next step |
+| Tests | — | Backend 210 passed; frontend lint/typecheck/unit 22; `cleanstar.spec.ts` 6/6 |
+
+Disabled/deferred: mailbox and e-mail sending (Google account pending); North Data (no key); API publishing waits for the user's first probe post.

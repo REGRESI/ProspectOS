@@ -55,6 +55,8 @@ test("flow navigation and main pages render on desktop and mobile without overfl
     ["/content/plan", "LinkedIn-Strategie", "content"],
     ["/pipeline", "CRM / Pipeline", "crm"],
     ["/settings/integrations", "Integrationen", "integrations"],
+    ["/settings/setup", "Setup-Check", "setup"],
+    ["/social/studio", "Social Studio", "studio"],
   ];
   for (const [path, title, slug] of pages) {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -113,6 +115,9 @@ test("ICP template → ranking, Heute queue from Impressum contacts, approve all
   await expect(page.getByTestId("top-candidates")).toContainText("Synthetische Kanzlei E2E GmbH");
   await page.goto("/today");
   await page.getByLabel("Absender").fill("E2E Absender");
+  await page.getByLabel("Tageslimit").selectOption("5");
+  await page.getByRole("button", { name: "Einstellungen speichern" }).click();
+  await expect(page.getByTestId("daily-limit")).toContainText("0 von 5 Anfragen gesendet");
   await page.getByRole("button", { name: /Tagesliste erstellen/ }).click();
   const list = page.getByTestId("today-list");
   await expect(list).toBeVisible();
@@ -122,8 +127,10 @@ test("ICP template → ranking, Heute queue from Impressum contacts, approve all
   expect(note.length).toBeLessThanOrEqual(200);
   await page.getByRole("button", { name: /Alle \d+ von heute freigeben/ }).click();
   await expect(card).toContainText("freigegeben");
+  await expect(card).not.toContainText("–");
   await card.getByRole("button", { name: /Gesendet/ }).click();
-  await expect(page.getByText(/gesendet/).first()).toBeVisible();
+  await expect(page.getByTestId("daily-limit")).toContainText("1 von 5 Anfragen gesendet");
+  await expect(page.getByTestId("pipeline")).toContainText("gesendet: 1");
   await expect(page.getByText("Rückmeldungen abfragen")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await noOverflow(page);
@@ -162,4 +169,26 @@ test("LinkedIn OAuth return shows a clear message on the Integrations page", asy
     "/v1/integrations/linkedin/callback",
   );
   await context.close();
+});
+
+test("setup check shows one light per integration; demo workspace is labelled; probe post card", async ({ page }) => {
+  const { ws } = await setup(page);
+  await page.goto("/settings/setup");
+  const check = page.getByTestId("setup-check");
+  for (const key of ["linkedin", "llm", "image", "osm", "brave", "mailbox", "style"]) {
+    await expect(check.getByTestId(`setup-${key}`)).toBeVisible();
+  }
+  await expect(check.getByTestId("setup-mailbox")).toContainText("noch nicht verbunden");
+  await expect(check).toContainText("Nächster Schritt:");
+  await page.goto("/social/studio");
+  await expect(page.getByTestId("probe-post")).toContainText("LINKEDIN_PUBLISHING_APPROVED=true");
+  // Demo workspace: labelled in the picker and with a banner.
+  const me = await (await page.request.get("/api/v1/me")).json();
+  const demo = me.workspaces.find((w: { kind?: string }) => w.kind === "demo");
+  expect(me.workspaces[0].kind).toBe("production");
+  expect(ws.kind).toBe("standard");
+  if (demo) {
+    await page.getByLabel("Workspace", { exact: true }).selectOption(demo.id);
+    await expect(page.getByTestId("demo-banner")).toContainText("Demo-Workspace");
+  }
 });
