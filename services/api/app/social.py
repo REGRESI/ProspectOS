@@ -143,6 +143,63 @@ def send_publication(context):
     )
 
 
+PROBE_CAPTION = (
+    "Kurzer Test: Ich verbinde gerade mein Werkzeug für die Wochenplanung mit LinkedIn. "
+    "Dieser Beitrag ist nur ein Probe-Post und verschwindet gleich wieder."
+)
+
+
+def publish_readiness(db, ws, member) -> dict:
+    """Every condition for an official LinkedIn post, each with a clear next step."""
+    connection = db.scalar(
+        select(Connection).where(Connection.workspace_id == ws, Connection.provider == "linkedin")
+    )
+    checks = [
+        {
+            "key": "flag",
+            "label": "LINKEDIN_PUBLISHING_APPROVED=true",
+            "ok": os.getenv("LINKEDIN_PUBLISHING_APPROVED") == "true",
+            "next": "In .env LINKEDIN_PUBLISHING_APPROVED=true setzen und API neu starten.",
+        },
+        {
+            "key": "api_version",
+            "label": "LinkedIn-API-Version gesetzt",
+            "ok": bool(os.getenv("LINKEDIN_API_VERSION")),
+            "next": "LINKEDIN_API_VERSION (z. B. 202610) in .env eintragen.",
+        },
+        {
+            "key": "connected",
+            "label": "LinkedIn-Konto verbunden",
+            "ok": bool(connection and connection.expires_at > now()),
+            "next": "Einstellungen → Integrationen → „Offiziell mit LinkedIn verbinden“.",
+        },
+        {
+            "key": "scope",
+            "label": "Posting-Berechtigung w_member_social",
+            "ok": bool(connection and "w_member_social" in (connection.scopes or [])),
+            "next": "In der LinkedIn-App das Produkt „Share on LinkedIn“ aktivieren und neu verbinden.",
+        },
+        {
+            "key": "role",
+            "label": "Rolle Owner/Admin",
+            "ok": member.role in ("owner", "admin"),
+            "next": "Ein Owner/Admin muss veröffentlichen.",
+        },
+        {
+            "key": "workspace",
+            "label": "Produktiver Workspace (kein Demo)",
+            "ok": not credentials.is_demo(db, ws),
+            "next": "Im Workspace „CleanStar“ arbeiten.",
+        },
+    ]
+    return {
+        "ready": all(c["ok"] for c in checks),
+        "checks": checks,
+        "rule": "Veröffentlicht wird nur ein freigegebener Beitrag, nur auf deinen Klick, "
+        "nur über die offizielle LinkedIn-API.",
+    }
+
+
 def register_social_routes(app, db_session, current_auth, scope, record, audit):
     def admin(member):
         if member.role not in ("owner", "admin"):
@@ -177,6 +234,47 @@ def register_social_routes(app, db_session, current_auth, scope, record, audit):
             "Publication policy changed; only explicitly approved revisions may publish",
         )
         return body
+
+    @app.get("/v1/workspaces/{ws}/social/publish-readiness")
+    def readiness(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
+        return publish_readiness(db, ws, member)
+
+    @app.post("/v1/workspaces/{ws}/social/probe-post", status_code=201)
+    def probe_post(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
+        """Prepare (never publish) a short test post. It still needs review, approval and
+        an explicit "Auf LinkedIn veröffentlichen" click by an owner/admin."""
+        from app.main import post_output
+
+        admin(member)
+        credentials.refuse_in_demo(db, ws)
+        for post in db.scalars(
+            select(Post)
+            .where(
+                Post.workspace_id == ws,
+                Post.state.in_(["draft", "needs_review", "approved", "scheduled"]),
+            )
+            .order_by(Post.created_at.desc())
+            .limit(200)
+        ):
+            if (post.studio_context or {}).get("probe"):
+                return post_output(post) | {"existing": True}
+        post = Post(
+            workspace_id=ws,
+            author_id=member.user_id,
+            caption=PROBE_CAPTION,
+            alt_text="",
+            studio_context={"image_mode": "none", "probe": True},
+        )
+        db.add(post)
+        db.flush()
+        audit(
+            db,
+            ws,
+            member.user_id,
+            "probe_post_prepared",
+            "Probe-Post vorbereitet (nicht veröffentlicht)",
+        )
+        return post_output(post) | {"existing": False}
 
     @app.post("/v1/workspaces/{ws}/integrations/linkedin/start")
     def start(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):

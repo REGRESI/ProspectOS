@@ -32,7 +32,7 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, object_session
 
 from app import credentials
 from app.db import Base, SessionLocal, now
@@ -50,6 +50,14 @@ STEP_LABELS = {
     "campaign": "Kampagne vorbereiten",
     "today": "Tagesliste „Heute“ füllen",
 }
+# "Ortenaukreis" as autopilot area: one town per day with a small radius, so the whole
+# district is covered over the weeks without repeating the same OSM search.
+ROTATION = [
+    "Offenburg", "Lahr", "Kehl", "Achern", "Oberkirch", "Gengenbach", "Haslach im Kinzigtal",
+    "Ettenheim", "Wolfach", "Zell am Harmersbach", "Renchen", "Willstätt", "Friesenheim",
+    "Hausach", "Appenweier", "Neuried", "Schutterwald", "Rheinau",
+]  # fmt: skip
+AREA_NAMES = ("ortenaukreis", "ortenau")
 WAIT_SECONDS = 15
 MAX_WAIT_MINUTES = 90
 
@@ -102,6 +110,8 @@ class AutopilotInput(BaseModel):
     research: int = Field(default=20, ge=0, le=100)
     profiles: int = Field(default=0, ge=0, le=50)
     hour: int = Field(default=6, ge=0, le=23)
+    # Upper bound for paid AI steps per run, in USD cents (free steps are not limited).
+    budget_minor: int = Field(default=50, ge=0, le=5000)
 
 
 # ---- planning --------------------------------------------------------------------------
@@ -204,6 +214,60 @@ def estimate(plan: dict) -> dict:
         total += cost
         lines.append({"step": step, "label": STEP_LABELS[step], "cost_minor": cost, "note": note})
     return {"lines": lines, "total_minor": total}
+
+
+def budgeted(plan: dict, budget_minor: int, remaining_minor: int | None) -> dict:
+    """Fit paid steps into the per-run budget and the workspace AI budget."""
+    plan = dict(plan)
+    limit = budget_minor if remaining_minor is None else min(budget_minor, remaining_minor)
+    est = estimate(plan)
+    if est["total_minor"] <= limit:
+        return plan | {"budget_note": ""}
+    line = next((x for x in est["lines"] if x["step"] == "profile"), None)
+    per = (line["cost_minor"] / max(1, plan.get("profiles") or 1)) if line else 0
+    fit = int(limit // per) if per else 0
+    plan["profiles"] = max(0, min(plan.get("profiles", 0), fit))
+    if plan["profiles"] == 0:
+        plan["steps"] = [s for s in plan["steps"] if s != "profile"]
+    plan["budget_note"] = (
+        f"Budget {limit / 100:.2f} USD: KI-Profile auf {plan['profiles']} begrenzt"
+        if plan["profiles"]
+        else f"Budget {limit / 100:.2f} USD reicht nicht für KI-Profile; nur kostenlose Schritte"
+    )
+    return plan
+
+
+def todays_area(plan: dict, cursor: int) -> dict:
+    if (plan.get("place") or "").strip().casefold() not in AREA_NAMES:
+        return dict(plan)
+    town = ROTATION[cursor % len(ROTATION)]
+    return dict(plan) | {
+        "place": town,
+        "radius_km": min(plan.get("radius_km", 12), 12),
+        "area": plan["place"],
+    }
+
+
+def ledger(db, ws, run) -> dict:
+    """Actual AI cost of the run from the usage ledger (UsageEvent per job)."""
+    from app.platform_models import UsageEvent
+
+    ids = [j for p in (run.progress or []) for j in p.get("jobs", [])]
+    actual = 0
+    if ids:
+        actual = sum(
+            db.scalars(
+                select(UsageEvent.cost_minor).where(
+                    UsageEvent.workspace_id == ws, UsageEvent.job_id.in_(ids)
+                )
+            )
+        )
+    return {
+        "estimate_minor": run.estimate_minor,
+        "actual_minor": actual,
+        "budget_minor": (run.plan or {}).get("budget_minor"),
+        "note": (run.plan or {}).get("budget_note", ""),
+    }
 
 
 def _progress(plan: dict) -> list:
@@ -577,12 +641,15 @@ def _run_step(db, job) -> dict:
                 f"Kampagne „{campaign.name}“ mit {len(contacts)} Kontakten und 3 Schritten (LinkedIn manuell, 2 E-Mails – Versand nur mit Rechtsgrundlage und Freigabe)"
             )
         elif kind == "today":
-            from app.today import Sender, build_queue
+            from app.today import build_queue, sender_for
 
-            result = build_queue(db, ws, actor, Sender())
+            result = build_queue(db, ws, actor, sender_for(db, ws))
             state["today"] = result["created"]
+            c = result["created"]
             finish(
-                f"Tagesliste: {result['created']['connect']} Anfragen, {result['created']['message']} Nachrichten, {result['created']['followup']} Follow-ups"
+                f"Tagesliste (Limit {result['daily_limit']}): {c['connect']} Anfragen, "
+                f"{c['message']} Nachrichten, {c['followup'] + c.get('followup2', 0)} Follow-ups "
+                "vorbereitet. Bitte in „Heute“ prüfen und freigeben."
             )
     run.progress = progress
     # New dict objects so SQLAlchemy detects the JSON change (in-place edits are invisible).
@@ -632,6 +699,9 @@ def run_output(run: AgentRun) -> dict:
             "campaign_id": state.get("campaign_id"),
             "today": state.get("today"),
         },
+        "ledger": ledger(object_session(run), run.workspace_id, run)
+        if object_session(run)
+        else None,
         "created_at": run.created_at,
         "confirmed_at": run.confirmed_at,
         "finished_at": run.finished_at,
@@ -663,7 +733,17 @@ def autopilot_tick() -> int:
             if not member or member.role not in ("owner", "admin"):
                 settings.enabled = False  # authorization revoked
                 continue
-            plan = dict(settings.plan)
+            from app.jobs import usage_account
+
+            cursor = int((settings.plan or {}).get("_cursor", 0))
+            plan = todays_area({k: v for k, v in settings.plan.items() if k != "_cursor"}, cursor)
+            account = usage_account(db, ws)
+            plan = budgeted(
+                plan,
+                int(plan.get("budget_minor", 50)),
+                account.ai_budget_minor - account.ai_spent_minor - account.ai_reserved_minor,
+            )
+            settings.plan = {**settings.plan, "_cursor": cursor + 1}
             run = AgentRun(
                 workspace_id=ws,
                 created_by=settings.updated_by,
@@ -767,10 +847,50 @@ def register_agent_routes(app, db_session, scope, record, audit):
 
     @app.get("/v1/workspaces/{ws}/agent/autopilot")
     def get_autopilot(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
+        from app.jobs import usage_account
+
         s = db.scalar(select(AutopilotSettings).where(AutopilotSettings.workspace_id == ws))
+        account = usage_account(db, ws)
+        budget = {
+            "workspace_budget_minor": account.ai_budget_minor,
+            "spent_minor": account.ai_spent_minor,
+            "reserved_minor": account.ai_reserved_minor,
+            "period": account.period,
+        }
         if not s:
-            return {"enabled": False, "plan": None, "hour": 6, "last_run_on": None}
-        return {"enabled": s.enabled, "plan": s.plan, "hour": s.hour, "last_run_on": s.last_run_on}
+            return {
+                "enabled": False,
+                "plan": None,
+                "hour": 6,
+                "last_run_on": None,
+                "budget": budget,
+                "rotation": ROTATION,
+            }
+        recent = db.scalars(
+            select(AgentRun)
+            .where(AgentRun.workspace_id == ws, AgentRun.kind == "autopilot")
+            .order_by(AgentRun.created_at.desc())
+            .limit(7)
+        ).all()
+        return {
+            "enabled": s.enabled,
+            "plan": {k: v for k, v in (s.plan or {}).items() if k != "_cursor"},
+            "hour": s.hour,
+            "last_run_on": s.last_run_on,
+            "next_area": todays_area(s.plan or {}, int((s.plan or {}).get("_cursor", 0)))["place"],
+            "budget": budget,
+            "rotation": ROTATION,
+            "recent": [
+                {
+                    "id": r.id,
+                    "status": r.status,
+                    "place": (r.plan or {}).get("place"),
+                    "created_at": r.created_at,
+                    "ledger": ledger(db, ws, r),
+                }
+                for r in recent
+            ],
+        }
 
     @app.put("/v1/workspaces/{ws}/agent/autopilot")
     def put_autopilot(
@@ -799,10 +919,13 @@ def register_agent_routes(app, db_session, scope, record, audit):
             "profiles": body.profiles,
             "steps": steps,
             "provider": "osm",
+            "budget_minor": body.budget_minor,
         }
         s = db.scalar(
             select(AutopilotSettings).where(AutopilotSettings.workspace_id == ws).with_for_update()
         )
+        if s and (s.plan or {}).get("_cursor") is not None:
+            plan["_cursor"] = s.plan["_cursor"]
         if not s:
             s = AutopilotSettings(workspace_id=ws, updated_by=member.user_id, plan=plan)
             db.add(s)
@@ -820,6 +943,7 @@ def register_agent_routes(app, db_session, scope, record, audit):
             "hour": s.hour,
             "last_run_on": s.last_run_on,
             "estimate": estimate(plan),
+            "next_area": todays_area(plan, int(plan.get("_cursor", 0)))["place"],
         }
 
 

@@ -1,4 +1,5 @@
 "use client";
+import { ProbePost } from "./probe-post";
 import { useState, useCallback } from "react";
 import Image from "next/image";
 import {
@@ -214,6 +215,7 @@ export function Social({
       </div>
       <ErrorNote message={error || localError} />
       <PublishingRules base={base} write={write} />
+      {!calendar && <ProbePost base={base} write={write} onChange={onChange} />}
       {calendar ? (
         <ContentCalendar posts={posts} onOpen={setInspected} />
       ) : (

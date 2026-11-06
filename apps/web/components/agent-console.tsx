@@ -22,6 +22,7 @@ type Run = {
     campaign_id: string | null;
     today: { connect: number; message: number; followup: number } | null;
   };
+  ledger?: { estimate_minor: number; actual_minor: number; budget_minor: number | null; note: string } | null;
   created_at: string;
 };
 
@@ -139,6 +140,13 @@ function RunView({ run, write, onUpdate, onNavigate }: { run: Run; write: Write;
         ))}
       </ol>
       {run.estimate && <p><strong>Geschätzte Kosten: {euros(run.estimate.total_minor)}</strong> <small className="muted">(nur KI-Profile sind kostenpflichtig)</small></p>}
+      {run.ledger && (
+        <p className="muted small" data-testid="run-ledger">
+          Ledger: tatsächlich {euros(run.ledger.actual_minor)}
+          {run.ledger.budget_minor !== null && run.ledger.budget_minor !== undefined ? ` · Budget pro Lauf ${euros(run.ledger.budget_minor)}` : ""}
+          {run.ledger.note ? ` · ${run.ledger.note}` : ""}
+        </p>
+      )}
       <div className="form-actions">
         {run.status === "planned" && (
           <button
@@ -199,45 +207,90 @@ function RunView({ run, write, onUpdate, onNavigate }: { run: Run; write: Write;
   );
 }
 
+type Ledger = { estimate_minor: number; actual_minor: number; budget_minor: number | null; note: string };
+type Autopilot = {
+  enabled: boolean;
+  hour: number;
+  last_run_on: string | null;
+  next_area?: string;
+  plan: { place: string; radius_km: number; companies: number; research: number; profiles?: number; budget_minor?: number } | null;
+  budget: { workspace_budget_minor: number; spent_minor: number; reserved_minor: number; period: string };
+  rotation: string[];
+  recent?: { id: string; status: string; place: string; created_at: string; ledger: Ledger }[];
+};
+
 function AutopilotCard({ base, write }: { base: string; write: Write }) {
-  const current = useData<{ enabled: boolean; hour: number; last_run_on: string | null; plan: { place: string; radius_km: number; companies: number; research: number } | null }>(`${base}/agent/autopilot`);
-  const [form, setForm] = useState<{ place: string; radius_km: number; new_companies: number; research: number; hour: number } | null>(null);
+  const [revision, setRevision] = useState(0);
+  const current = useData<Autopilot>(`${base}/agent/autopilot`, revision);
+  const [form, setForm] = useState<{ place: string; radius_km: number; new_companies: number; research: number; profiles: number; budget: number; hour: number } | null>(null);
   const [msg, setMsg] = useState("");
   const data = current.data;
+  const usd = (minor: number) => (minor / 100).toLocaleString("de-DE", { style: "currency", currency: "USD" });
   const f = form || {
-    place: data?.plan?.place || "",
+    place: data?.plan?.place || "Ortenaukreis",
     radius_km: data?.plan?.radius_km || 30,
     new_companies: data?.plan?.companies || 30,
     research: data?.plan?.research ?? 20,
+    profiles: data?.plan?.profiles ?? 0,
+    budget: (data?.plan?.budget_minor ?? 50) / 100,
     hour: data?.hour ?? 6,
   };
   async function save(enabled: boolean) {
     try {
-      await write("/agent/autopilot", { enabled, ...f, profiles: 0 }, "PUT");
+      const { budget, ...rest } = f;
+      await write("/agent/autopilot", { enabled, ...rest, budget_minor: Math.round(budget * 100) }, "PUT");
       setMsg(enabled ? "Autopilot aktiv." : "Autopilot ausgeschaltet.");
+      setForm(null);
+      setRevision((v) => v + 1);
     } catch (e) {
       setMsg((e as Error).message);
     }
   }
+  const area = f.place.trim().toLowerCase();
+  const rotating = area === "ortenaukreis" || area === "ortenau";
   return (
-    <section className="panel pad">
+    <section className="panel pad" data-testid="autopilot">
       <h2>Morgen-Autopilot</h2>
       <p className="muted">
-        Lädt täglich neue Firmen nach, recherchiert, bewertet und füllt „Heute“. Nur interne Schritte – Anfragen, E-Mails und Posts bleiben freigabepflichtig.
+        Findet täglich neue Firmen, prüft Website und Impressum, bewertet und bereitet die Texte in „Heute“ vor. Du bestätigst nur noch: Anfragen, E-Mails und Posts bleiben freigabepflichtig.
         {data?.last_run_on && ` Letzter Lauf: ${data.last_run_on}.`}
       </p>
       <div className="planner-form">
-        <label>Ort<input value={f.place} onChange={(e) => setForm({ ...f, place: e.target.value })} /></label>
+        <label>Gebiet<input value={f.place} onChange={(e) => setForm({ ...f, place: e.target.value })} /></label>
         <label>Radius km<input type="number" min={1} max={50} value={f.radius_km} onChange={(e) => setForm({ ...f, radius_km: Number(e.target.value) })} /></label>
         <label>Neue Firmen/Tag<input type="number" min={5} max={200} value={f.new_companies} onChange={(e) => setForm({ ...f, new_companies: Number(e.target.value) })} /></label>
         <label>Recherchen/Tag<input type="number" min={0} max={100} value={f.research} onChange={(e) => setForm({ ...f, research: Number(e.target.value) })} /></label>
+        <label>KI-Profile/Tag<input type="number" min={0} max={50} value={f.profiles} onChange={(e) => setForm({ ...f, profiles: Number(e.target.value) })} /></label>
+        <label>Budget pro Lauf (USD)<input type="number" min={0} max={50} step={0.1} value={f.budget} onChange={(e) => setForm({ ...f, budget: Number(e.target.value) })} /></label>
         <label>Uhrzeit (ab)<input type="number" min={0} max={23} value={f.hour} onChange={(e) => setForm({ ...f, hour: Number(e.target.value) })} /></label>
       </div>
+      {rotating && (
+        <p className="muted small">
+          Ortenaukreis: jeden Tag ein anderer Ort mit 12 km Radius ({data?.rotation.slice(0, 6).join(", ")} …).
+          {data?.next_area ? ` Nächster Lauf: ${data.next_area}.` : ""}
+        </p>
+      )}
+      {data && (
+        <p className="muted small" data-testid="autopilot-budget">
+          KI-Budget {data.budget.period}: {usd(data.budget.spent_minor)} von {usd(data.budget.workspace_budget_minor)} verbraucht
+          {data.budget.reserved_minor ? `, ${usd(data.budget.reserved_minor)} reserviert` : ""}. Reicht das Budget nicht, lässt der Autopilot die KI-Profile weg; kostenlose Schritte laufen weiter.
+        </p>
+      )}
       <div className="form-actions">
         <button className="button primary small" onClick={() => save(true)}>{data?.enabled ? "Speichern" : "Aktivieren"}</button>
         {data?.enabled && <button className="button ghost small" onClick={() => save(false)}>Ausschalten</button>}
         {msg && <small role="status">{msg}</small>}
       </div>
+      {data?.recent && data.recent.length > 0 && (
+        <ul className="agent-history">
+          {data.recent.map((r) => (
+            <li key={r.id}>
+              {new Date(r.created_at).toLocaleDateString("de-DE")} · {r.place} · <Badge tone={r.status === "done" ? "green" : r.status === "failed" ? "red" : "neutral"}>{r.status}</Badge>{" "}
+              <small className="muted">Kosten {usd(r.ledger.actual_minor)}{r.ledger.note ? ` · ${r.ledger.note}` : ""}</small>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
