@@ -65,13 +65,14 @@ def test_template_ranking_explains_and_excludes(context, admin):
     ranking = client.get(f"/v1/workspaces/{ws}/ranking/companies").json()
     names = [i["name"] for i in ranking["items"]]
     assert names[0] == "Synthetische Steuerkanzlei"
-    assert names[1] == "Synthetisches Autohaus"
+    assert "Synthetisches Autohaus" not in names  # Autohäuser are hidden for office cleaning
     assert "Synthetische Konkurrenz Reinigung" not in names  # competitor excluded
     assert "Synthetischer Bestandskunde" not in names  # existing customer excluded
     assert "Fremde Firma" not in names  # tenant isolation
     top = ranking["items"][0]
     assert top["rank"] == 1 and top["fit"] == 100
-    assert "Offenburg" in top["reason"] and "Steuerberatung" in top["reason"]
+    assert top["segment"]["tier"] == "A"
+    assert "Offenburg" in top["reason"] and "Steuerberatung (sehr gut)" in top["reason"]
     assert top["sources"] == ["https://a.example/impressum"]
     assert "KI-Profil" in top["missing_facts"] and "Ansprechpartner" in top["missing_facts"]
     baker = next(i for i in ranking["items"] if i["name"] == "Synthetische Bäckerei")
@@ -81,6 +82,8 @@ def test_template_ranking_explains_and_excludes(context, admin):
     ).json()
     competitor = next(i for i in with_excluded["items"] if "Konkurrenz" in i["name"])
     assert competitor["excluded"] and competitor["priority"] == 0
+    car = next(i for i in with_excluded["items"] if "Autohaus" in i["name"])
+    assert car["excluded"] and car["reason"].startswith("Ausgeblendet: Autohaus / Kfz")
     # Forged profile id from another workspace.
     other_profile = client.post(
         f"/v1/workspaces/{other}/icp-profiles/from-template",

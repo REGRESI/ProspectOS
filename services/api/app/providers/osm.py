@@ -67,8 +67,8 @@ CATEGORIES: dict[str, dict] = {
         "tags": [("office", "lawyer"), ("office", "notary")],
     },
     "Immobilien": {
-        "aliases": ["immobilien", "makler", "real estate", "estate agent", "hausverwaltung"],
-        "tags": [("office", "estate_agent"), ("office", "property_management")],
+        "aliases": ["immobilien", "makler", "real estate", "estate agent"],
+        "tags": [("office", "estate_agent")],
     },
     "Versicherung & Finanzen": {
         "aliases": ["versicherung", "insurance", "finanz", "finance", "finanzberatung"],
@@ -136,6 +136,14 @@ CATEGORIES: dict[str, dict] = {
         "aliases": ["agentur", "werbeagentur", "marketing", "werbung", "design", "agenturen"],
         "tags": [("office", "advertising_agency"), ("office", "graphic_design")],
     },
+    "Kita / Kinderbetreuung": {
+        "aliases": ["kita", "kitas", "kindergarten", "kindertagesstätte", "kinderbetreuung"],
+        "tags": [("amenity", "kindergarten"), ("amenity", "childcare")],
+    },
+    "Hausverwaltung": {
+        "aliases": ["hausverwaltung", "hausverwaltungen", "wohnungsverwaltung", "weg-verwaltung"],
+        "tags": [("office", "property_management")],
+    },
     "Öffentliche Verwaltung": {
         "aliases": ["verwaltung", "verwaltungen", "behörde", "rathaus", "amt", "stadtverwaltung"],
         "tags": [("office", "government"), ("amenity", "townhall")],
@@ -160,6 +168,9 @@ class OsmCandidate(BaseModel):
     postcode: str = ""
     industry: str = ""
     osm_category: str = ""
+    # Chain/branch signals (OSM brand/operator tags); used to flag Konzernfilialen.
+    brand: str = ""
+    operator: str = ""
     website: str | None = None
     latitude: float
     longitude: float
@@ -376,6 +387,8 @@ def parse_elements(payload: dict, center: tuple[float, float], categories: list[
             postcode=postcode[:20],
             industry=(label or raw_category)[:120],
             osm_category=raw_category[:120],
+            brand=tags.get("brand", "")[:120],
+            operator=tags.get("operator", "")[:120],
             website=_normalize_website(tags),
             latitude=float(lat),
             longitude=float(lon),

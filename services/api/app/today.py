@@ -165,7 +165,9 @@ def _facts(db, ws, company_id) -> dict[str, CompanyFact]:
     out = {}
     for f in db.scalars(
         select(CompanyFact).where(
-            CompanyFact.workspace_id == ws, CompanyFact.company_id == company_id
+            CompanyFact.workspace_id == ws,
+            CompanyFact.company_id == company_id,
+            CompanyFact.confidence != "unbestätigt",
         )
     ):
         out.setdefault(f.field, f)
@@ -548,6 +550,8 @@ def contacts_from_impressum(db, ws, company_ids=(), limit=50) -> int:
     stmt = select(CompanyFact).where(
         CompanyFact.workspace_id == ws,
         CompanyFact.field.in_(["Geschäftsführung / Inhaber", "Vertretung (Registerangabe)"]),
+        # Website does not plausibly belong to the company: never derive contacts from it.
+        CompanyFact.confidence != "unbestätigt",
     )
     if company_ids:
         stmt = stmt.where(CompanyFact.company_id.in_(company_ids))

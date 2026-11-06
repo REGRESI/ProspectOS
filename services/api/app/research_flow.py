@@ -14,6 +14,7 @@ from fastapi import Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
+from app import data_quality
 from app.db import now
 from app.jobs import enqueue, reserve_ai
 from app.journeys import CompanyFact
@@ -106,10 +107,20 @@ def finalize_site_research(db, job, result: dict) -> dict:
             "fields": sorted(result.get("impressum", {})),
         }
     }
+    db.flush()
+    # Name ↔ domain ↔ Impressum plausibility; a mismatch marks the Impressum facts
+    # "unbestätigt" instead of adopting them silently.
+    facts = db.scalars(
+        select(CompanyFact).where(
+            CompanyFact.workspace_id == ws, CompanyFact.company_id == company_id
+        )
+    ).all()
+    quality = data_quality.store_check(db, ws, company, list(facts), job.actor_id)
     # Backwards compatible shape for verbatim excerpt facts (sales_agent.add_fact).
     text = "\n".join(p["text"] for p in result.get("pages", []))[:16000]
     return result | {
         "facts": created,
+        "website_check": quality["check"],
         "url": result.get("website"),
         "text": text,
         "source_id": hashlib.sha256(str(result.get("website")).encode()).hexdigest()[:32],
@@ -184,6 +195,21 @@ def register_research_routes(app, db_session, scope, record, audit):
             {"mode": "site", "url": company.website, "company_id": company.id},
             key=f"site-research:{company.id}:{now().date().isoformat()}",
         )
+
+    @app.post("/v1/workspaces/{ws}/data-quality/recheck")
+    def recheck(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
+        """Re-run name ↔ domain ↔ Impressum checks and segments over stored facts."""
+        if member.role not in ("owner", "admin", "editor"):
+            raise HTTPException(403, "Keine Berechtigung.")
+        result = data_quality.recheck_workspace(db, ws, member.user_id)
+        audit(
+            db,
+            ws,
+            member.user_id,
+            "data_quality_rechecked",
+            f"Website-Abgleich für {result['companies']} Firmen neu berechnet",
+        )
+        return result
 
     @app.post("/v1/workspaces/{ws}/companies/research-batch", status_code=202)
     def research_batch(

@@ -213,7 +213,9 @@ def test_batch_research_facts_and_cited_profile(context, admin, research_on, mon
     assert facts["Handelsregister"].value == "HRB 712345"
     assert facts["Geschäftsführung / Inhaber"].value == "Erika Musterfrau, Max Beispiel"
     assert facts["Handelsregister"].source_url.endswith("/rechtliches/impressum")
-    assert {f.source_kind for f in facts.values()} == {"website_impressum"}
+    assert {f.source_kind for f in facts.values()} == {"website_impressum", "data_quality"}
+    # Name ↔ domain ↔ Impressum plausibility is recorded alongside the Impressum facts.
+    assert facts["Website-Abgleich"].value.split(":")[0] in ("passt", "unklar", "unstimmig")
     # Second batch skips already researched companies.
     assert (
         client.post(f"/v1/workspaces/{ws}/companies/research-batch", json={}).json()["queued"] == 0

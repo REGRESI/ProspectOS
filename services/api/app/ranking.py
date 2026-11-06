@@ -1,15 +1,21 @@
 """M4: ICP templates and an explained "Top-Kandidaten" ranking for companies.
 
-Priority = 0.8 × ICP fit (existing deterministic company_fit_score: region, industry,
-size/needs when weighted; unknown = 0 points) + 0.2 × data completeness (cited facts
-needed to approach the company). Every factor and every missing fact is returned.
-No purchase probability is implied.
+Generic profiles: Priority = 0.8 × ICP fit (deterministic company_fit_score: region,
+industry, size/needs when weighted; unknown = 0 points) + 0.2 × data completeness.
+
+Office-cleaning profiles (the CleanStar template) additionally use the target segments
+from ``app.data_quality``: Priority = 0.5 × Zielgruppe + 0.3 × ICP fit + 0.2 × Datenlage,
+minus 15 when the website does not plausibly belong to the company. Segment tier X
+(Autohaus, Industrie, Logistik, Konzernfiliale, Wettbewerb) is hidden with its reason.
+Unconfirmed Impressum facts (website mismatch) do not count as data. Every factor and
+every missing fact is returned. No purchase probability is implied.
 """
 
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
+from app import data_quality
 from app.journeys import CompanyFact, CompanyProfile, ICPProfile
 from app.models import Company
 from app.prospecting import company_fit_score
@@ -29,7 +35,7 @@ ORTENAU = [
 TEMPLATES = {
     "office_cleaning_ortenau": {
         "name": "Büro-Unterhaltsreinigung Ortenaukreis",
-        "description": "Büros, Kanzleien, Steuerberater, Praxen, Agenturen, Autohäuser, Verwaltungen im Ortenaukreis",
+        "description": "Praxen, Kanzleien, Steuerberater, Agenturen, Büros, Hausverwaltungen und Kitas im Ortenaukreis; Autohäuser, Industrie und Konzernfilialen ausgeblendet",
         "profile": {
             "locations": ORTENAU,
             "roles": [
@@ -45,15 +51,15 @@ TEMPLATES = {
                 "Steuerberatung",
                 "Gesundheit / Praxis",
                 "Agentur / Marketing",
-                "Kfz",
-                "Öffentliche Verwaltung",
+                "Hausverwaltung",
+                "Kita / Kinderbetreuung",
                 "Immobilien",
                 "Versicherung & Finanzen",
                 "Architektur & Ingenieurwesen",
                 "IT & Software",
             ],
             # Competitors are never prospects.
-            "excluded_industries": ["Reinigung / Facility"],
+            "excluded_industries": ["Reinigung / Facility", "Kfz", "Industrie & Produktion"],
             "min_employees": None,
             "max_employees": None,
             "needs": ["Regelmäßige Büroreinigung"],
@@ -79,9 +85,24 @@ class TemplateInput(BaseModel):
     template: str
 
 
+def uses_segments(profile: dict) -> bool:
+    """Office-cleaning ICPs (template or own profile with a cleaning need) use segments."""
+    needs = " ".join(profile.get("needs") or []).casefold()
+    excluded = " ".join(profile.get("excluded_industries") or []).casefold()
+    return "reinigung" in needs or "reinigung" in excluded
+
+
 def rank_company(company: Company, facts: list, profile: dict) -> dict:
+    segments = uses_segments(profile)
+    assessed = data_quality.assess(company, facts)
+    check, seg = assessed["check"], assessed["segment"]
+    confirmed = [
+        f
+        for f in facts
+        if f.confidence != data_quality.UNCONFIRMED and f.source_kind != data_quality.CHECK_KIND
+    ]
     by_field: dict[str, list] = {}
-    for fact in facts:
+    for fact in confirmed:
         by_field.setdefault(fact.field, []).append(fact)
     prov = company.provenance or {}
     location = company.location or ""
@@ -103,17 +124,52 @@ def rank_company(company: Company, facts: list, profile: dict) -> dict:
         (have if present else missing).append(label)
     completeness = round(100 * len(have) / len(COMPLETENESS))
     excluded = any(f["name"] == "Branchenausschluss" for f in fit["factors"])
-    priority = 0 if excluded else round(0.8 * fit["value"] + 0.2 * completeness)
     reasons = [f["reason"] for f in fit["factors"] if f["points"] > 0]
     gaps = [f["reason"] for f in fit["factors"] if f["points"] == 0 and f["max_points"] > 0]
-    summary = (
-        (
-            "Ausgeschlossen: "
-            + "; ".join(f["reason"] for f in fit["factors"] if f["name"] == "Branchenausschluss")
+    if check["status"] == "unstimmig":
+        gaps.append("Website/Impressum passt nicht zur Firma: " + check["reason"])
+    if segments:
+        hidden = seg["tier"] == "X"
+        excluded = excluded or hidden
+        penalty = 15 if check["status"] == "unstimmig" else 0
+        priority = (
+            0
+            if excluded
+            else max(
+                0, round(0.5 * seg["score"] + 0.3 * fit["value"] + 0.2 * completeness) - penalty
+            )
         )
-        if excluded
-        else "; ".join(reasons) or "Keine ICP-Übereinstimmung belegt"
-    )
+        tier = data_quality.TIER_LABEL[seg["tier"]]
+        parts = [f"{seg['label']} ({tier})"]
+        if seg["reason"]:
+            parts.append(seg["reason"])
+        if location and any(f["name"] == "Region" and f["points"] > 0 for f in fit["factors"]):
+            place = location.split(",")[-1].strip()
+            parts.append("Region " + (place.split(" ", 1)[-1] if place[:5].isdigit() else place))
+        parts.append(
+            {
+                "passt": "Website passt",
+                "unstimmig": "Website unstimmig, bitte prüfen",
+                "unklar": "Website-Bezug unklar",
+                "keine_website": "keine Website",
+            }[check["status"]]
+        )
+        parts.append(f"Datenlage {completeness} %")
+        summary = ("Ausgeblendet: " if excluded else "") + " · ".join(parts)
+        formula = "Priorität = 0,5 × Zielgruppe + 0,3 × ICP-Fit + 0,2 × Datenlage (−15 bei unstimmiger Website)"
+    else:
+        priority = 0 if excluded else round(0.8 * fit["value"] + 0.2 * completeness)
+        summary = (
+            (
+                "Ausgeschlossen: "
+                + "; ".join(
+                    f["reason"] for f in fit["factors"] if f["name"] == "Branchenausschluss"
+                )
+            )
+            if excluded
+            else "; ".join(reasons) or "Keine ICP-Übereinstimmung belegt"
+        )
+        formula = "Priorität = 0,8 × ICP-Fit + 0,2 × Datenlage"
     sources = sorted({f.source_url for f in facts if f.source_url})[:6]
     return {
         "company_id": company.id,
@@ -132,7 +188,9 @@ def rank_company(company: Company, facts: list, profile: dict) -> dict:
         "missing_facts": missing
         + [m for m in fit["missing_data"] if m not in missing and m != "Website"],
         "sources": sources,
-        "formula": "Priorität = 0,8 × ICP-Fit + 0,2 × Datenlage",
+        "segment": seg,
+        "website_check": check,
+        "formula": formula,
     }
 
 

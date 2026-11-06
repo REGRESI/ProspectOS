@@ -1658,6 +1658,8 @@ def register_journey_routes(
                             "latitude",
                             "longitude",
                             "osm_category",
+                            "brand",
+                            "operator",
                         )
                     },
                 )

@@ -106,3 +106,14 @@
 .demo-banner strong {
   margin-right: 4px;
 }
+
+.inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--secondary);
+}
+.candidate-hidden {
+  opacity: 0.6;
+}
