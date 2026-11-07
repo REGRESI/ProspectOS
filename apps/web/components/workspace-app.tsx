@@ -10,7 +10,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen, CheckCircle2, ChevronRight, ChevronsUpDown, LogOut, Menu, Plus, X, Sun, Moon } from "lucide-react";
 import { Empty, Modal, Spinner, ErrorNote } from "./ui";
 import { Social } from "./social-studio";
-import { WorkspaceOnboarding, TeamSettings, BillingSettings } from "./workspace-settings";
+import { WorkspaceOnboarding, BillingSettings } from "./workspace-settings";
 import { DiscoveryWorkbench, LeadDatabase, CompanyDirectory, CompanyProfile, ImportHistory, OutreachWorkbench } from "./journey-workspaces";
 import { EngagementWorkspace } from "./social-tools";
 import { IntelligenceConsole } from "./intelligence-console";
@@ -20,6 +20,11 @@ import type { Session, Workspace } from "@/lib/api";
 import { DEV_ONLY, Logo, demoSection, sectionFor, sections, titleFor } from "./workspace-nav";
 import { WorkspacesAdmin } from "./workspaces-admin";
 import { ContactsTable } from "./contacts-table";
+import { DataQualityPage, EmailCampaignPage } from "./profile-quality";
+import { InvitePage, TeamPage } from "./team-page";
+import { WritingProfilePage } from "./writing-profile";
+import { CampaignsPage, ResultsPage } from "./content-strategy";
+import { TemplatesPage } from "./brand-templates";
 import { Audiences, Companies, Contacts, ImportModal, Overview } from "./workspace-contacts";
 import { Audit, Discovery, Integrations, Pipeline } from "./workspace-modules";
 
@@ -188,6 +193,19 @@ export default function WorkspaceApp() {
         <Spinner />
         <p>Dein Workspace wird geladen …</p>
       </div>
+    );
+  if (route === "/einladung")
+    return (
+      <InvitePage
+        csrf={session?.csrf_token}
+        onJoined={async (id) => {
+          try {
+            sessionStorage.setItem("prospectos.workspace", id);
+          } catch {}
+          await reloadSession();
+          router.push("/today");
+        }}
+      />
     );
   if (!session)
     return (
@@ -497,7 +515,7 @@ export default function WorkspaceApp() {
                 <AgentConsole base={base} write={write} onNavigate={go} />
               )}
               {route === "/content/plan" && (
-                <ContentPlanner base={base} write={write} />
+                <ContentPlanner base={base} write={write} onNavigate={go} />
               )}
               {route === "/leads/top" && (
                 <TopCandidates base={base} write={write} onNavigate={go} />
@@ -579,15 +597,17 @@ export default function WorkspaceApp() {
                 />
               )}
               {route === "/settings/team" && (
-                <TeamSettings
-                  role={workspace.role}
-                  base={base}
-                  write={write}
-                  csrf={session.csrf_token}
-                  notify={notify}
-                  revision={revision}
-                  onChange={refresh}
-                />
+                <TeamPage base={base} write={write} notify={notify} myRole={workspace.role} />
+              )}
+              {route === "/contacts/quality" && <DataQualityPage base={base} write={write} notify={notify} />}
+              {route === "/contacts/email" && <EmailCampaignPage base={base} />}
+              {route === "/content/campaigns" && (
+                <CampaignsPage base={base} write={write} notify={notify} onNavigate={go} />
+              )}
+              {route === "/content/results" && <ResultsPage base={base} write={write} notify={notify} />}
+              {route === "/content/voice" && <WritingProfilePage base={base} write={write} notify={notify} />}
+              {route === "/content/templates" && (
+                <TemplatesPage base={base} csrf={session.csrf_token} notify={notify} />
               )}
               {route === "/settings/billing" && (
                 <BillingSettings

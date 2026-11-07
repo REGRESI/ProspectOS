@@ -15,9 +15,13 @@ import type { Page, Post } from "@/lib/api";
 import { useData } from "@/lib/use-data";
 import type { Asset, Brand, ModuleProps, Write } from "./growth-modules";
 import { Badge, Empty, ErrorNote, Heading, Modal, Spinner } from "./ui";
+import { StrategyFields, type Strategy } from "./content-strategy";
 
-type Variant = {
+export type Variant = {
   text: string;
+  approach?: string | null;
+  angle?: string;
+  why?: string;
   hook?: string;
   cta?: string;
   citations?: string[];
@@ -104,7 +108,7 @@ export function GenerationTools({
   brands: Brand[];
   brandId: string;
   topic: string;
-  onVariants: (variants: Variant[]) => void;
+  onVariants: (variants: Variant[], strategy?: { goal: string; audience: string; pillar: string; topic: string }) => void;
   onAsset: (asset: Asset) => void;
   onChange: () => void;
 }) {
@@ -118,11 +122,13 @@ export function GenerationTools({
     requirements: string[];
     max_cost_minor?: number;
   }>(`${base}/social/images/requirements`);
+  const strategy = useData<Strategy>(`${base}/content/strategy`).data;
+  const chosen = useRef<{ goal: string; audience: string; pillar: string; topic: string } | undefined>(undefined);
   const { job, setJob, pollError, setPollError } = useGenerationJob(
     base,
     (completed) => {
       if (completed.result.variants?.length) {
-        onVariants(completed.result.variants);
+        onVariants(completed.result.variants, chosen.current);
         onJob?.(completed.id);
         onChange();
       }
@@ -144,14 +150,21 @@ export function GenerationTools({
     setImageResult(null);
     const form = new FormData(event.currentTarget);
     try {
+      if (tool === "text")
+        chosen.current = ({
+          goal: String(form.get("goal") || ""),
+          audience: String(form.get("audience_key") || ""),
+          pillar: String(form.get("pillar") || ""),
+          topic: String(form.get("topic") || ""),
+        });
       const body =
         tool === "text"
           ? {
               topic: form.get("topic"),
-              audience: form.get("audience"),
+              goal: form.get("goal"),
+              audience_key: form.get("audience_key"),
+              pillar: form.get("pillar") || "",
               tone: form.get("tone"),
-              objective: form.get("objective"),
-              post_type: form.get("post_type"),
               instructions: form.get("instructions"),
               brand_id: brandId || null,
               variants: 3,
@@ -227,14 +240,7 @@ export function GenerationTools({
               />
             </label>
             <div className="form-grid">
-              <label>
-                Zielpublikum
-                <input
-                  name="audience"
-                  defaultValue={selectedBrand?.audience || ""}
-                  maxLength={500}
-                />
-              </label>
+              <StrategyFields strategy={strategy} />
               <label>
                 Tonalität
                 <input
@@ -246,44 +252,10 @@ export function GenerationTools({
                 />
               </label>
             </div>
-            <div className="form-grid">
-              <label>
-                Ziel des Beitrags
-                <select name="objective">
-                  {[
-                    "Reichweite",
-                    "Vertrauen",
-                    "Kommentar",
-                    "Leads",
-                    "Markenaufbau",
-                  ].map((goal) => (
-                    <option key={goal}>{goal}</option>
-                  ))}
-                  <option value="education">Wissen vermitteln</option>
-                  <option value="brand_awareness">
-                    Positionierung stärken
-                  </option>
-                </select>
-              </label>
-              <label>
-                Beitragsart
-                <select name="post_type">
-                  {[
-                    "persönlich",
-                    "fachlich",
-                    "provokant",
-                    "story",
-                    "praxisnah",
-                    "educational",
-                  ].map((style) => (
-                    <option key={style}>{style}</option>
-                  ))}
-                  <option value="question">Frage an das Netzwerk</option>
-                  <option value="how_to">Praktischer Leitfaden</option>
-                  <option value="story">Eigene Erfahrung</option>
-                </select>
-              </label>
-            </div>
+            <p className="small muted">
+              Du bekommst drei Versionen mit verschiedenem Ansatz: A provokante These, B persönliche Geschichte,
+              C nützlicher Tipp mit Zahlen. Jede sagt, warum sie zum Ziel passt.
+            </p>
             <label>
               Unternehmens- / Markenkontext
               <textarea name="business_context" rows={2} maxLength={800} />

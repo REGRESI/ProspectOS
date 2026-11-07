@@ -11,6 +11,8 @@ import { request } from "@/lib/api";
 import { useData } from "@/lib/use-data";
 import { Badge, Empty, ErrorNote, Heading, Modal, Spinner } from "./ui";
 import type { Write } from "./growth-modules";
+import { MetricsForm, day as shortDay, type Due } from "./content-strategy";
+import { useProfileCheck } from "./profile-quality";
 import { StyleNotice } from "./style-notice";
 
 type Item = {
@@ -19,8 +21,10 @@ type Item = {
   state: "pending" | "approved" | "sent" | "skipped";
   contact: { id: string; name: string; job_title: string; linkedin_url: string | null; stage: Stage; stage_label: string };
   company: { id: string; name: string; location: string } | null;
-  profile_url: string;
+  profile_url: string | null;
   profile_confirmed: boolean;
+  profile_status: string;
+  profile_reason: string;
   reason: string;
   sources: string[];
   note: string;
@@ -57,6 +61,8 @@ type Today = {
   limits: { connection_requests_per_day: number; messages_per_day: number };
   usage: { connection_requests_last_24h: number; messages_last_24h: number };
   stats: { pending: number; approved: number; sent: number; avg_seconds_per_contact: number | null };
+  profile_check: { unchecked: number; available: boolean };
+  metrics_due: Due[];
   notice: string;
 };
 
@@ -153,6 +159,8 @@ export function TodayView({
   );
   const cost = useMonthCost(base, revision);
   const refresh = () => setRevision((v) => v + 1);
+  const [info, setInfo] = useState("");
+  const check = useProfileCheck(base, write, setInfo, refresh);
 
   const open = data.data?.items.filter((i) => i.state === "pending" || i.state === "approved") || [];
   const requests = open.filter((i) => i.kind === "connect" || i.kind === "message");
@@ -178,7 +186,11 @@ export function TodayView({
   const copyAndOpen = useCallback(async (item: Item) => {
     started.current[item.id] = started.current[item.id] || Date.now();
     const text = item.kind === "connect" ? item.note : item.kind === "message" ? item.message : item.followup;
-    // Copy first, then open the profile (or the people search if no profile is confirmed).
+    // Copy first, then open the verified profile directly. Without one, assign it first.
+    if (!item.profile_url) {
+      setProfileFor(item);
+      return;
+    }
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -279,6 +291,32 @@ export function TodayView({
 
       <StyleNotice base={base} write={write} compact />
 
+      {d && d.profile_check.unchecked > 0 && (
+        <p className="notice-line" data-testid="profile-check-notice">
+          {d.profile_check.unchecked} Ansprechpartner haben noch kein geprüftes LinkedIn-Profil. In der Liste stehen nur
+          Kontakte mit geprüftem Profil.{" "}
+          {d.profile_check.available ? (
+            <button className="link-button" disabled={check.busy} onClick={() => check.start({ limit: 200 })}>
+              {check.busy ? "Prüfe Profile …" : "Jetzt prüfen"}
+            </button>
+          ) : (
+            <button className="link-button" onClick={() => onNavigate?.("/settings/integrations")}>
+              Brave Search verbinden
+            </button>
+          )}{" "}
+          ·{" "}
+          <button className="link-button" onClick={() => onNavigate?.("/contacts/email")}>
+            Ohne LinkedIn: E-Mail-Kampagne
+          </button>
+        </p>
+      )}
+      <ErrorNote message={check.error} />
+      {info && (
+        <p className="muted small-print" role="status">
+          {info}
+        </p>
+      )}
+
       {data.loading && !d ? (
         <SkeletonRows />
       ) : requests.length === 0 && followups.length === 0 ? (
@@ -340,6 +378,24 @@ export function TodayView({
         <p className="muted small today-keys">
           Tastatur: <kbd>C</kbd> kopieren und Profil öffnen · <kbd>G</kbd> als gesendet markieren
         </p>
+      )}
+
+      {d && d.metrics_due.length > 0 && (
+        <section className="today-section" data-testid="metrics-due">
+          <h2>Zahlen zu deinen Beiträgen</h2>
+          <p className="muted small-print">48 Stunden nach dem Posten. Die Zahlen stehen in LinkedIn unter „Statistik anzeigen“.</p>
+          <ul className="row-list">
+            {d.metrics_due.map((p) => (
+              <li key={p.id} className="stack">
+                <span className="row-main">
+                  <span className="clamp-1">{p.caption}</span>
+                  <small className="muted block">Veröffentlicht {shortDay(p.published_at)}</small>
+                </span>
+                <MetricsForm write={write} postId={p.id} onSaved={refresh} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {d && d.checks.length > 0 && (
@@ -545,8 +601,8 @@ function TodayCard({
               </button>
             ) : (
               <>
-                <button className="button primary small" disabled={changed} onClick={onCopy}>
-                  <Copy size={13} /> Kopieren & LinkedIn öffnen
+                <button className="button primary small" disabled={changed} onClick={onCopy} data-testid="copy-open">
+                  <Copy size={13} /> {item.kind === "connect" ? "Notiz kopieren & Profil öffnen" : "Text kopieren & Profil öffnen"}
                 </button>
                 <button className="button secondary small" disabled={!!busy || changed} onClick={onSent}>
                   {busy === "sent-" + item.id ? <Spinner /> : "Gesendet"}
@@ -581,9 +637,16 @@ function TodayCard({
             </details>
           )}
           <div className="today-detail-actions">
-            <a href={item.profile_url} target="_blank" rel="noreferrer noopener" data-testid="profile-link" className="link-button">
-              {item.profile_confirmed ? "LinkedIn-Profil" : "In LinkedIn suchen"} <ExternalLink size={11} />
-            </a>
+            {item.profile_url ? (
+              <span className="profile-proof">
+                <a href={item.profile_url} target="_blank" rel="noreferrer noopener" data-testid="profile-link" className="link-button">
+                  LinkedIn-Profil <ExternalLink size={11} />
+                </a>
+                {item.profile_reason && <small className="muted"> {item.profile_reason}</small>}
+              </span>
+            ) : (
+              <span className="muted">Kein geprüftes Profil</span>
+            )}
             {!item.profile_confirmed && (
               <button className="button ghost small" onClick={onProfile}>
                 <UserSearch size={13} /> Profil zuordnen
@@ -650,7 +713,7 @@ function ProfileMatch({ item, base, write, onClose }: { item: Item; base: string
         )}
         <p className="small">
           Alternativ in LinkedIn suchen:{" "}
-          <a href={candidates.data?.fallback_search_url || item.profile_url} target="_blank" rel="noreferrer noopener">
+          <a href={candidates.data?.fallback_search_url || item.profile_url || undefined} target="_blank" rel="noreferrer noopener">
             vorbefüllte Suche öffnen
           </a>{" "}
           und die Profiladresse hier einfügen.

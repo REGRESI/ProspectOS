@@ -104,6 +104,8 @@ test("ICP template → ranking, Heute queue from Impressum contacts, approve all
         company: "Synthetische Kanzlei E2E GmbH",
         location: "Offenburg",
         job_title: "Geschäftsführerin",
+        // Fictional profile address: only contacts with a profile reach "Heute".
+        linkedin_url: "https://www.linkedin.com/in/fiktiv-e2e-erika",
       },
     })
   ).json();
@@ -133,6 +135,12 @@ test("ICP template → ranking, Heute queue from Impressum contacts, approve all
   await page.getByRole("button", { name: /Alle \d+ von heute freigeben/ }).click();
   await expect(card).toContainText("freigegeben");
   await expect(card).not.toContainText("–");
+  // The button copies the note and opens exactly this profile (no people search).
+  await expect(card.getByTestId("copy-open")).toHaveText(/Notiz kopieren & Profil öffnen/);
+  await expect(card.getByTestId("profile-link")).toHaveAttribute(
+    "href",
+    /^https:\/\/www\.linkedin\.com\/in\/fiktiv-e2e-erika\/?$/,
+  );
   await card.getByRole("button", { name: /Gesendet/ }).click();
   await expect(page.getByTestId("daily-limit")).toContainText("1 von 5 Anfragen gesendet");
   await expect(page.getByTestId("pipeline")).toContainText("gesendet: 1");

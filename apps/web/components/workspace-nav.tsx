@@ -36,6 +36,8 @@ export const sections: Section[] = [
     icon: Users,
     tabs: [
       { path: "/contacts", label: "Alle Kontakte" },
+      { path: "/contacts/quality", label: "Datenqualität" },
+      { path: "/contacts/email", label: "E-Mail-Kampagne" },
       { path: "/contacts/advanced", label: "Auswahl und Listen" },
       { path: "/imports", label: "Importe" },
     ],
@@ -46,9 +48,13 @@ export const sections: Section[] = [
     icon: PenLine,
     tabs: [
       { path: "/content/plan", label: "Plan" },
+      { path: "/content/campaigns", label: "Kampagnen" },
       { path: "/social/studio", label: "Beitrag schreiben" },
+      { path: "/content/templates", label: "Vorlagen" },
+      { path: "/social/library", label: "Mediathek" },
+      { path: "/content/results", label: "Ergebnisse" },
+      { path: "/content/voice", label: "Schreibprofil" },
       { path: "/social/calendar", label: "Kalender" },
-      { path: "/social/library", label: "Bilder" },
     ],
   },
   {

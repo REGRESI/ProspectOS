@@ -23,6 +23,7 @@ import {
 } from "./social-tools";
 import { VoiceProfiles } from "./voice-profiles";
 import { StudioRefinements } from "./studio-refinements";
+import { VoiceFeedback } from "./writing-profile";
 import { StudioMedia, imageModeLabels, type ImageMode } from "./studio-media";
 
 export function Social({
@@ -74,8 +75,13 @@ export function Social({
     : undefined;
 
   const [variants, setVariants] = useState<string[]>([]);
+  const [variantIndex, setVariantIndex] = useState(0);
+  const [strategy, setStrategy] = useState<{ goal: string; audience: string; pillar: string; topic: string } | null>(null);
   const [variantNotes, setVariantNotes] = useState<
     {
+      approach?: string | null;
+      angle?: string;
+      why?: string;
       hook?: string;
       cta?: string;
       citations?: string[];
@@ -143,6 +149,15 @@ export function Social({
           alt_text: altText,
           brand_id: brandId || null,
           asset_ids: assetId ? [assetId] : [],
+          ...(strategy && variantOrigin === "provider"
+            ? {
+                goal: strategy.goal || null,
+                audience: strategy.audience || null,
+                pillar: strategy.pillar || null,
+                topic: strategy.topic.slice(0, 300) || null,
+                approach: variantNotes[variantIndex]?.approach || null,
+              }
+            : {}),
           ...(editing ? { version: editing.version } : {}),
         },
         editing ? "PATCH" : "POST",
@@ -284,12 +299,14 @@ export function Social({
                   brandId={brandId}
                   topic={topic}
                   onChange={onChange}
-                  onVariants={(items) => {
+                  onVariants={(items, chosen) => {
                     const texts = items
                       .map((item) => item.text)
                       .filter(Boolean);
                     setVariants(texts);
                     setVariantNotes(items);
+                    setStrategy(chosen || null);
+                    setVariantIndex(0);
                     setVariantOrigin("provider");
                     notify(
                       "Echte Modellvarianten geladen. Variante auswählen und Aussagen prüfen.",
@@ -403,9 +420,14 @@ export function Social({
                     <button
                       className={`button ${caption === variant ? "primary" : "secondary"}`}
                       key={i}
-                      onClick={() => setCaption(variant)}
+                      onClick={() => {
+                        setCaption(variant);
+                        setVariantIndex(i);
+                      }}
                     >
-                      Variante {i + 1}
+                      {variantOrigin === "provider" && variantNotes[i]?.approach
+                        ? `${variantNotes[i].approach} · ${variantNotes[i].angle}`
+                        : `Variante ${i + 1}`}
                     </button>
                   ))}
                 </div>
@@ -413,6 +435,11 @@ export function Social({
               {variantOrigin === "provider" &&
                 variantNotes[variants.indexOf(caption)] && (
                   <div className="variant-evidence">
+                    {variantNotes[variants.indexOf(caption)].why && (
+                      <p data-testid="variant-why">
+                        <strong>Warum dieser Ansatz:</strong> {variantNotes[variants.indexOf(caption)].why}
+                      </p>
+                    )}
                     <strong>Modellvorschlag · Prüfung erforderlich</strong>
                     {variantNotes[variants.indexOf(caption)].hook && (
                       <p>
@@ -452,6 +479,9 @@ export function Social({
                   placeholder="Was möchtest du mit deinem Netzwerk teilen? Gute Beiträge beginnen mit einer eigenen Perspektive."
                 />
               </label>
+              {variantOrigin === "provider" && caption.trim() && (
+                <VoiceFeedback write={write} notify={notify} text={caption} key={caption.slice(0, 40)} />
+              )}
               <div className="editor-footer">
                 <span>
                   <FileText size={14} /> Textbeitrag

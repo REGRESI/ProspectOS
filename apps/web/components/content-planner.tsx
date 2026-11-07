@@ -7,6 +7,8 @@ import { Badge, Empty, ErrorNote, Heading, Spinner } from "./ui";
 import type { Write } from "./growth-modules";
 import { StyleNotice } from "./style-notice";
 import { SkeletonTable } from "./table";
+import { AUDIENCES, GOALS, type Strategy } from "./content-strategy";
+import { VoiceFeedback } from "./writing-profile";
 
 type PlanItem = {
   id: string;
@@ -18,7 +20,20 @@ type PlanItem = {
   format: string;
   status: string;
   post_id: string | null;
-  post?: { state: string; caption: string; variants: string[]; image_idea: string };
+  goal?: string | null;
+  post?: {
+    state: string;
+    caption: string;
+    variants: string[];
+    variant_approaches?: string[];
+    variant_why?: string[];
+    image_idea: string;
+  };
+};
+const APPROACH_LABEL: Record<string, string> = {
+  A: "A · Provokante These",
+  B: "B · Persönliche Geschichte",
+  C: "C · Nützlicher Tipp mit Zahlen",
 };
 type Plan = {
   id: string;
@@ -54,7 +69,15 @@ async function waitForJob(base: string, id: string) {
   throw new Error("Zeitüberschreitung");
 }
 
-export function ContentPlanner({ base, write }: { base: string; write: Write }) {
+export function ContentPlanner({
+  base,
+  write,
+  onNavigate,
+}: {
+  base: string;
+  write: Write;
+  onNavigate?: (path: string) => void;
+}) {
   const [revision, setRevision] = useState(0);
   const [active, setActive] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -62,11 +85,20 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
   const [showForm, setShowForm] = useState(false);
   const plans = useData<{ items: Plan[] }>(`${base}/content/plans`, revision);
   const voices = useData<{ items: { id: string; name: string }[] }>(`${base}/social/voices`);
+  const strategy = useData<Strategy>(`${base}/content/strategy`).data;
+  const campaigns = useData<{ items: { id: string; name: string }[] }>(`${base}/content/campaigns`).data;
   const [form, setForm] = useState({
     name: "LinkedIn-Plan",
-    goal: "",
-    audience: "",
-    pillars: ["", "", ""],
+    goal_key: "trust",
+    goals: ["trust", "reach", "leads"] as string[],
+    audience_key: "ortenau_ceo",
+    campaign_id: "",
+    pillars: [
+      "Transparenz in der Reinigungsbranche",
+      "Bauen mit KI",
+      "Unternehmeralltag",
+      "CleanStar-Einblicke",
+    ],
     cadence: 2,
     weeks: 6,
     voice_profile_id: "",
@@ -77,8 +109,18 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
     setBusy(true);
     setError("");
     try {
+      const label = (list: { key: string; label: string }[] | undefined, key: string) =>
+        (list || [...GOALS, ...AUDIENCES]).find((o) => o.key === key)?.label || key;
       const r = await write<{ id: string; job: { id: string } }>("/content/plans", {
-        ...form,
+        name: form.name,
+        goal: label(strategy?.goals, form.goal_key),
+        audience: label(strategy?.audiences, form.audience_key),
+        goal_key: form.goal_key,
+        goals: form.goals.length ? form.goals : [form.goal_key],
+        audience_key: form.audience_key,
+        campaign_id: form.campaign_id || null,
+        cadence: form.cadence,
+        weeks: form.weeks,
         pillars: form.pillars.map((p) => p.trim()).filter(Boolean),
         voice_profile_id: form.voice_profile_id || null,
       });
@@ -99,7 +141,7 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
     <>
       <Heading
         title="LinkedIn-Plan"
-        description="Was du wann auf LinkedIn postest. Jeder Beitrag kommt in zwei Varianten, du wählst und gibst frei."
+        description="Was du wann auf LinkedIn postest. Jeder Beitrag hat ein Ziel und kommt in drei Ansätzen, du wählst und gibst frei."
       >
         {plans.data && plans.data.items.length > 1 && (
           <select aria-label="Plan auswählen" value={current || ""} onChange={(e) => setActive(e.target.value)}>
@@ -124,17 +166,58 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
             Name
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </label>
-          <label className="wide">
-            Ziel
-            <input required minLength={5} placeholder="z. B. Sichtbarkeit bei Büroleitungen in der Ortenau" value={form.goal} onChange={(e) => setForm({ ...form, goal: e.target.value })} />
+          <label>
+            Hauptziel
+            <select value={form.goal_key} onChange={(e) => setForm({ ...form, goal_key: e.target.value })}>
+              {(strategy?.goals || GOALS).map((g) => (
+                <option key={g.key} value={g.key}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
           </label>
-          <label className="wide">
+          <label>
             Zielgruppe
-            <input required minLength={3} value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })} />
+            <select value={form.audience_key} onChange={(e) => setForm({ ...form, audience_key: e.target.value })}>
+              {(strategy?.audiences || AUDIENCES).map((a) => (
+                <option key={a.key} value={a.key}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <fieldset className="wide goal-mix">
+            <legend>Mischung pro Woche (die Ziele wechseln sich ab)</legend>
+            {(strategy?.goals || GOALS).map((g) => (
+              <label key={g.key} className="inline-toggle">
+                <input
+                  type="checkbox"
+                  checked={form.goals.includes(g.key)}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      goals: e.target.checked ? [...form.goals, g.key] : form.goals.filter((x) => x !== g.key),
+                    })
+                  }
+                />
+                {g.label}
+              </label>
+            ))}
+          </fieldset>
+          <label>
+            Kampagne (optional)
+            <select value={form.campaign_id} onChange={(e) => setForm({ ...form, campaign_id: e.target.value })}>
+              <option value="">Keine</option>
+              {campaigns?.items.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           </label>
           {form.pillars.map((p, i) => (
             <label key={i}>
-              Thema {i + 1}
+              Säule {i + 1}
               <input
                 required={i < 3}
                 value={p}
@@ -144,7 +227,7 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
           ))}
           {form.pillars.length < 4 && (
             <button type="button" className="button ghost small" onClick={() => setForm({ ...form, pillars: [...form.pillars, ""] })}>
-              + 4. Thema
+              + 4. Säule
             </button>
           )}
           <label>
@@ -176,7 +259,7 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
       </section>
       )}
       {current ? (
-        <PlanView key={current + revision} base={base} write={write} planId={current} />
+        <PlanView key={current + revision} base={base} write={write} planId={current} onNavigate={onNavigate} />
       ) : (
         !plans.loading && !formOpen && <Empty title="Noch kein Plan" description="Lege mit „Neuer Plan“ Ziel, Zielgruppe und Themen fest." />
       )}
@@ -184,7 +267,18 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
   );
 }
 
-function PlanView({ base, write, planId }: { base: string; write: Write; planId: string }) {
+function PlanView({
+  base,
+  write,
+  planId,
+  onNavigate,
+}: {
+  base: string;
+  write: Write;
+  planId: string;
+  onNavigate?: (path: string) => void;
+}) {
+  const strategy = useData<Strategy>(`${base}/content/strategy`).data;
   const [revision, setRevision] = useState(0);
   const plan = useData<Plan>(`${base}/content/plans/${planId}`, revision);
   if (plan.loading && !plan.data) return <SkeletonTable rows={6} cols={4} />;
@@ -212,7 +306,16 @@ function PlanView({ base, write, planId }: { base: string; write: Write; planId:
             {p.items
               .filter((i) => i.week === w)
               .map((item) => (
-                <PlanCard key={item.id + (item.post?.state || "")} base={base} write={write} plan={p} item={item} onChange={() => setRevision((v) => v + 1)} />
+                <PlanCard
+                  key={item.id + (item.post?.state || "")}
+                  base={base}
+                  write={write}
+                  plan={p}
+                  item={item}
+                  goalLabel={(strategy?.goals || GOALS).find((g) => g.key === item.goal)?.label || ""}
+                  onNavigate={onNavigate}
+                  onChange={() => setRevision((v) => v + 1)}
+                />
               ))}
           </div>
         </div>
@@ -221,7 +324,23 @@ function PlanView({ base, write, planId }: { base: string; write: Write; planId:
   );
 }
 
-function PlanCard({ base, write, plan, item, onChange }: { base: string; write: Write; plan: Plan; item: PlanItem; onChange: () => void }) {
+function PlanCard({
+  base,
+  write,
+  plan,
+  item,
+  goalLabel,
+  onNavigate,
+  onChange,
+}: {
+  base: string;
+  write: Write;
+  plan: Plan;
+  item: PlanItem;
+  goalLabel: string;
+  onNavigate?: (path: string) => void;
+  onChange: () => void;
+}) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [imageNote, setImageNote] = useState("");
@@ -245,6 +364,7 @@ function PlanCard({ base, write, plan, item, onChange }: { base: string; write: 
         <span className="plan-topic">
           <strong>{item.topic}</strong>
           <small className="muted">
+            {goalLabel ? `Ziel: ${goalLabel} · ` : ""}
             {item.pillar}
             {item.hook ? ` · ${item.hook}` : ""}
           </small>
@@ -265,7 +385,7 @@ function PlanCard({ base, write, plan, item, onChange }: { base: string; write: 
             })
           }
         >
-          {busy === "draft" ? <Spinner /> : "2 Varianten schreiben"}
+          {busy === "draft" ? <Spinner /> : "3 Versionen schreiben"}
         </button>
       ) : (
         post && (
@@ -273,9 +393,12 @@ function PlanCard({ base, write, plan, item, onChange }: { base: string; write: 
             {post.variants.map((v, i) => (
               <details key={i} open={i === 0}>
                 <summary>
-                  Variante {i === 0 ? "A" : "B"} {post.caption === v ? "· gewählt" : ""}
+                  {APPROACH_LABEL[post.variant_approaches?.[i] || "AB"[i]] || `Version ${i + 1}`}{" "}
+                  {post.caption === v ? "· gewählt" : ""}
                 </summary>
+                {post.variant_why?.[i] && <p className="muted small-print">Warum: {post.variant_why[i]}</p>}
                 <pre className="today-preview">{v}</pre>
+                <VoiceFeedback write={write} notify={() => undefined} postId={item.post_id || undefined} text={v} />
                 {post.caption !== v && (
                   <button className="button ghost small" disabled={!!busy} onClick={() => run("v", () => write(`/content/posts/${item.post_id}/apply`, { variant: i }))}>
                     Diese Variante übernehmen
@@ -301,11 +424,14 @@ function PlanCard({ base, write, plan, item, onChange }: { base: string; write: 
                     await waitForJob(base, job.id);
                     const asset = await write<{ id: string }>(`/social/images/${job.id}/save`, { rights_confirmed: true });
                     await write(`/content/posts/${item.post_id}/apply`, { asset_id: asset.id, alt_text: (post.image_idea || item.topic).slice(0, 200) });
-                    setImageNote("Bild erzeugt und angehängt. Du findest es auch unter Content → Bilder.");
+                    setImageNote("KI-Bild erzeugt und angehängt. Du findest es auch unter Content → Mediathek.");
                   })
                 }
               >
-                {busy === "img" ? <Spinner /> : "Bild erzeugen"}
+                {busy === "img" ? <Spinner /> : "KI-Bild erzeugen"}
+              </button>
+              <button className="button secondary small" onClick={() => onNavigate?.("/content/templates")}>
+                Markenvorlage öffnen
               </button>
               {post.state === "draft" && (
                 <button className="button secondary small" disabled={!!busy} onClick={() => run("rv", () => write(`/social/posts/${item.post_id}/submit-review`))}>
