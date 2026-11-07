@@ -73,6 +73,9 @@ async def lifespan(app):
 app = FastAPI(title="ProspectOS local pilot", version="0.1.0", lifespan=lifespan)
 app.add_middleware(BodyLimitMiddleware)
 request_logger = logging.getLogger("prospectos.requests")
+# Never log outgoing request URLs (search queries contain contact names).
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 request_logger.setLevel(logging.INFO)
 if not request_logger.handlers:
     request_logger.addHandler(logging.StreamHandler())

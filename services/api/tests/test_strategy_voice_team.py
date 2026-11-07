@@ -133,7 +133,9 @@ def test_campaign_slots_metrics_and_insights(context, admin):
     due = client.get(f"{w}/content/insights").json()["due"]
     assert len(due) == 3
     numbers = [(900, 6, 10, 1), (1100, 4, 8, 1), (3000, 1, 2, 0)]
-    for item, (imp, com, vis, inq) in zip(sorted(due, key=lambda d: d["caption"]), numbers):
+    for item, (imp, com, vis, inq) in zip(
+        sorted(due, key=lambda d: d["caption"]), numbers, strict=True
+    ):
         r = client.put(
             f"{w}/social/posts/{item['id']}/metrics",
             json={"impressions": imp, "comments": com, "profile_visits": vis, "inquiries": inq},
@@ -176,7 +178,7 @@ def test_edits_and_feedback_become_editable_rules():
 def test_writing_profile_learns_from_post_edits(context, monkeypatch):
     client, (ws, other, *_), _ = context
     w = f"/v1/workspaces/{ws}"
-    for i, (old, new) in enumerate(
+    for _i, (old, new) in enumerate(
         [
             (
                 "Ganz ehrlich, wir revolutionieren die Reinigung! 🚀 Mega spannend!",

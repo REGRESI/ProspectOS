@@ -21,6 +21,9 @@ def main():
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
     logging.basicConfig(level=logging.INFO)
+    # httpx logs full request URLs at INFO; search queries contain contact names.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     from app.agent import autopilot_tick
 
     last_tick = 0.0

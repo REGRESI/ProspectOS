@@ -159,3 +159,20 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
   - Settings PUT carried an extra field.
   - Template button overflowed on mobile.
 - **Tests:** backend 220 passed; frontend lint/typecheck, unit 22 passed; E2E 22/22 on the isolated stack.
+
+## 2026-11-07 — Profiles, content strategy, writing profile, team (`824d709` … this commit)
+
+- **Before building:** inventory, then one question to the user.
+  - Inventory: Brave candidates existed (transient, manual confirm), as did invites (backend only, link), voice profiles and content plans (two variants, free-text goals).
+  - Question on Brave storage. The user chose: store only the URL and an own-words reason.
+- **Live:**
+  - DB dump `data/private/backups/prospectos-2026-11-07-before-profiles-content.dump`, then migration 0021.
+  - Campaign "Die neue CleanStar-Website" created.
+  - Brave profile check on 38 CleanStar contacts: 12 verified, 16 unsure, 10 not found. The role search on 30 companies found no new contact. Two rule fixes came out of a transient diagnosis (slugs masked, nothing stored):
+    - A company match beats a place-only match.
+    - The surname inside a company name ("Autohaus Wild") no longer counts as a company match.
+  - httpx URL logging is switched off: search queries with contact names had appeared in the container logs.
+- **Tests:**
+  - Backend: 232 (12 new).
+  - E2E: 27 on the isolated stack (5 new).
+  - Screenshots: `docs/design/neue-seiten/`.

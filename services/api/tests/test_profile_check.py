@@ -45,6 +45,14 @@ def test_judge_requires_name_and_company_or_place():
         hit("https://www.linkedin.com/in/erika-f2", "Erika Fiktiv – Beraterin", "Hamburg"),
     )
     assert name_only["status"] == "unsure"
+    # The surname inside the company name is no company match.
+    family = pc.judge(
+        pc.name_tokens("Max", "Wild"),
+        pc.firm_tokens("Autohaus Wild"),
+        "Offenburg",
+        hit("https://www.linkedin.com/in/max-wild-7", "Max Wild – Wild Logistik", "Berlin"),
+    )
+    assert family["status"] == "unsure"
     assert (
         pc.judge(
             names,
@@ -85,7 +93,20 @@ def test_check_person_unsure_when_several_profiles_match():
         hit("https://www.linkedin.com/in/erika-1", "Erika Fiktiv – Sonnenschein", ""),
         hit("https://www.linkedin.com/in/erika-2", "Erika Fiktiv – Offenburg", ""),
     ]
-    assert pc.check_person(person, two)["status"] == "unsure"
+    assert pc.check_person(person, two)["url"] == "https://www.linkedin.com/in/erika-1/"
+    # A company match wins over a profile that only shares the town.
+    firm_and_place = lambda q: [  # noqa: E731
+        hit("https://www.linkedin.com/in/erika-1", "Erika Fiktiv – Sonnenschein", ""),
+        hit("https://www.linkedin.com/in/erika-2", "Erika Fiktiv – Offenburg", ""),
+    ]
+    person_offenburg = {**person, "company": "Kanzlei Sonnenschein"}
+    two_firms = lambda q: [  # noqa: E731
+        hit("https://www.linkedin.com/in/erika-1", "Erika Fiktiv – Sonnenschein", ""),
+        hit("https://www.linkedin.com/in/erika-3", "Erika Fiktiv – Kanzlei Sonnenschein", "Lahr"),
+    ]
+    picked = pc.check_person(person_offenburg, firm_and_place)
+    assert picked["status"] == "verified" and picked["url"].endswith("/erika-1/")
+    assert pc.check_person(person_offenburg, two_firms)["status"] == "unsure"
     assert pc.check_person(person, lambda q: [])["status"] == "not_found"
 
 

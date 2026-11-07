@@ -60,7 +60,9 @@ def upgrade():
     )
     op.add_column("contacts", sa.Column("linkedin_checked_at", sa.DateTime(timezone=True)))
     op.add_column("contacts", sa.Column("owner_id", sa.String(36)))
-    op.create_check_constraint("contact_linkedin_status", "contacts", f"linkedin_status IN {STATUS}")
+    op.create_check_constraint(
+        "contact_linkedin_status", "contacts", f"linkedin_status IN {STATUS}"
+    )
     # Removing a member keeps their contacts and clears only the owner (PostgreSQL 15+).
     op.execute(
         "ALTER TABLE contacts ADD CONSTRAINT contact_owner_member FOREIGN KEY "

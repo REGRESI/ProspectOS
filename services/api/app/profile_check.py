@@ -136,6 +136,8 @@ def judge(names: list[str], firm: list[str], city: str, hit: dict) -> dict | Non
     name_ok = all(f" {t} " in text or t in slug for t in names)
     if not name_ok:
         return None
+    # "Autohaus Wild" and Mr Wild: the surname alone is no company match.
+    firm = [t for t in firm if t not in names]
     firm_ok = bool(firm) and any(f" {t} " in text for t in firm)
     place = " ".join(words(city))
     place_ok = bool(place) and f" {place} " in text
@@ -162,8 +164,7 @@ def check_person(person: dict, search: Search) -> dict:
         f'linkedin "{display}" {keyword} {city}'.strip(),
         f'linkedin "{display}" {city}'.strip(),
     ]
-    best: dict | None = None
-    seen_verified: set[str] = set()
+    verified: dict[str, dict] = {}
     unsure: dict | None = None
     for query in dict.fromkeys(queries):
         for hit in search(query):
@@ -171,17 +172,21 @@ def check_person(person: dict, search: Search) -> dict:
             if not verdict:
                 continue
             if verdict["status"] == "verified":
-                seen_verified.add(verdict["url"])
-                if not best or verdict["rank"] > best["rank"]:
-                    best = verdict
+                old = verified.get(verdict["url"])
+                if not old or verdict["rank"] > old["rank"]:
+                    verified[verdict["url"]] = verdict
             elif not unsure:
                 unsure = verdict
-        if best:
+        if verified:
             break
-    if best and len(seen_verified) > 1:
+    # A company match outweighs place-only matches (many people share a town). Several
+    # company matches, or several place-only matches, stay unsure.
+    with_firm = [v for v in verified.values() if v["rank"] >= 2]
+    candidates = with_firm or list(verified.values())
+    if len(candidates) > 1:
         return {"status": "unsure", "url": None, "reason": "Mehrere passende Profile gefunden"}
-    if best:
-        return {k: best[k] for k in ("status", "url", "reason")}
+    if candidates:
+        return {k: candidates[0][k] for k in ("status", "url", "reason")}
     if unsure:
         return {"status": "unsure", "url": None, "reason": unsure["reason"]}
     return {"status": "not_found", "url": None, "reason": "Kein LinkedIn-Profil gefunden"}

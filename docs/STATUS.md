@@ -202,3 +202,45 @@ Implemented:
 
 Demo-only: synthetic discovery, raw-data views, legacy modules (menu "Mehr (Demo)").
 Not reworked yet: studio editor, Zielgruppe and Mein Angebot forms, campaign and company detail layouts (they inherit the design tokens only).
+
+## Profiles, content strategy, writing profile, team — 2026-11-07 (branch `claude/cleanstar-linkedin-content`)
+
+Implemented:
+- **Verified LinkedIn profiles** (`app/profile_check.py`, migration 0021):
+  - Search through the official Brave Search API only; linkedin.com is never called.
+  - A hit counts when every name token matches AND the company or the place appears in the hit.
+  - Several matching profiles, or a name-only match, count as "unsicher" and are not used.
+  - Role search (Facility/Office Manager, Praxismanager, Leitung Verwaltung, Büroleitung) runs for companies without a verified contact. A hit becomes a contact only when the company AND the role appear.
+  - Stored are only the profile URL and a reason in ProspectOS' own words. Brave titles and snippets are never stored (decision 2026-11-07; Brave terms §3(b)(i)).
+  - Heute takes only contacts with a verified, user-confirmed or user-imported profile. The button copies the note and opens that profile.
+  - LinkedIn limits count per user.
+- **Email list and data quality:**
+  - The email list holds companies without a verified profile that have an address. Each row shows the source (Impressum link or contact) and whether the address is personal or general.
+  - Sending stays locked: there is no send button.
+  - The data quality page shows counts and a random sample of 20 companies.
+- **Content strategy** (`app/content_strategy.py`):
+  - Goal, audience and pillar are chosen per post and per plan.
+  - Versions A (thesis), B (story) and C (tip with numbers), each with a why sentence.
+  - Campaigns have dated slots.
+  - Metrics are entered by hand 48 h after posting. Averages per pillar, approach and goal feed into new prompts.
+  - Campaign "Die neue CleanStar-Website" exists in CleanStar: 7 slots from 10.11.2026, texts pending.
+- **Brand templates** (web only):
+  - Number card, quote card, carousel, website in a device frame, before/after.
+  - Built from CleanStar fonts, colours and logo (copied from `cleanstar-rebrand`, OFL fonts).
+  - Rendered as HTML through SVG foreignObject; export as PNG, or as PDF for the carousel. Templates can be saved to the media library.
+  - AI images only on an explicit button.
+- **Writing profile per user** (`app/voice_learning.py`):
+  - Every draft edit (posts and Heute texts) is stored as original vs. user version.
+  - Feedback buttons: "Klingt nach mir" and "Klingt nicht nach mir".
+  - Rules are derived deterministically. They are editable, can be switched off, and dismissed rules stay dismissed.
+  - Style references are other people's posts, used for rhythm only.
+  - Rules and references go into every new prompt of that user.
+- **Team** (`app/team.py`):
+  - Invite as Inhaber or Mitglied via a one-time link (7 days). There is no system mailing yet, so the link is copied by hand.
+  - New users register on `/einladung` (local demo auth only).
+  - One LinkedIn connection per user. Contacts get the owner who sent the first request; posts belong to their author.
+
+Not built / deferred:
+- Sending invitation emails: no system mailer exists.
+- Separate "Heute" lists per user: the queue is shared, and the limits are counted per user.
+- Website screenshots are uploaded by hand; ProspectOS does not capture them.
