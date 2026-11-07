@@ -1,3 +1,4 @@
+import { ROUTES } from "./routes";
 import { test, expect, Page } from "@playwright/test";
 async function login(page: Page) {
   await page.goto("/");
@@ -13,15 +14,21 @@ async function workspace(page: Page) {
   const me = await (await page.request.get("/api/v1/me")).json();
   const response = await page.request.post("/api/v1/workspaces", {
     headers: { "X-CSRF-Token": me.csrf_token },
-    data: { name: `E2E Demo ${Date.now()}` },
+    data: { name: `E2E Demo ${Date.now()}`, kind: "demo" },
   });
   expect(response.ok()).toBeTruthy();
   const ws = await response.json();
+  // Synthetic examples live in demo workspaces, which open without the picker.
+  await page.evaluate((id) => sessionStorage.setItem("prospectos.workspace", id), ws.id);
   await page.reload();
-  await page.getByLabel("Workspace", { exact: true }).selectOption(ws.id);
+  await expect(page.getByTestId("demo-banner")).toBeVisible();
   return ws;
 }
 async function nav(page: Page, label: string) {
+  if (ROUTES[label]) {
+    await page.goto(ROUTES[label]);
+    return;
+  }
   if (
     await page
       .getByRole("button", { name: "Navigation öffnen", exact: true })
@@ -40,7 +47,8 @@ test("CSV 773 rows → preview → idempotent import → search → score detail
 }) => {
   await login(page);
   await workspace(page);
-  await nav(page, "Kontakte");
+  // Bulk import, paging and the score dialog live in the extended contact view.
+  await page.goto("/contacts/advanced");
   const headers = [
     "First Name",
     "Last Name",
@@ -97,20 +105,27 @@ test("CSV 773 rows → preview → idempotent import → search → score detail
   await page
     .getByRole("button", { name: "Gültige Kontakte importieren" })
     .click();
-  await expect(page.getByText("773 Kontakte · Seite 1 von 31")).toBeVisible();
+  await expect(page.getByText("773 Kontakte · Seite 1 von 16")).toBeVisible();
+  await page.goto("/contacts/advanced");
   await preview();
   await expect(page.locator(".import-totals>div").nth(2)).toContainText("773");
   await page
     .getByRole("button", { name: "Gültige Kontakte importieren" })
     .click();
-  await expect(page.getByText("773 Kontakte · Seite 1 von 31")).toBeVisible();
+  await expect(page.getByText("773 Kontakte · Seite 1 von 16")).toBeVisible();
   await page
-    .getByRole("textbox", { name: "Kontakte suchen" })
+    .getByLabel("Kontakte suchen")
+    .fill("Synthetisch773");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  // Score details and bulk status live in the extended view.
+  await page.goto("/contacts/advanced");
+  await page
+    .getByLabel("Kontakte suchen")
     .fill("Synthetisch773");
   await expect(page.locator("tbody tr")).toHaveCount(1);
   await page.getByRole("button", { name: /Synthetisch773 Demo/ }).click();
   await expect(
-    page.getByRole("heading", { name: "ICP-Fit verstehen" }),
+    page.getByRole("heading", { name: "Passung verstehen" }),
   ).toBeVisible();
   await expect(page.getByRole("dialog")).toContainText("Kaufabsicht");
   await page

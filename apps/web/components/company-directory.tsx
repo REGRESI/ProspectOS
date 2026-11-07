@@ -1,14 +1,16 @@
 "use client";
 import { useState } from "react";
-import { ArrowRight, Building2, Check, ChevronLeft, ExternalLink, FileText, Plus, Search, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Building2, Check, ChevronLeft, ExternalLink, FileText, Plus, ShieldCheck, Sparkles } from "lucide-react";
 import { dateTime, money, stageLabels } from "@/lib/api";
 import type { Page } from "@/lib/api";
 import { useData } from "@/lib/use-data";
 import { Badge, Empty, ErrorNote, Heading, Modal, Spinner } from "./ui";
 import type { JourneyProps, Lead, Company } from "./journey-types";
 import { CompanyEvidence } from "./sales-agent";
-import { Pager, Progress, safeDomain, useOptionalData } from "./journey-shared";
+import { Pager, safeDomain, useOptionalData } from "./journey-shared";
 import { LeadProfile } from "./lead-database";
+import { SearchInput, SkeletonTable } from "./table";
+import { ServerSort } from "./contacts-table";
 
 export function ResearchBatchButton({ write }: { write: JourneyProps["write"] }) {
   const [state, setState] = useState("");
@@ -16,9 +18,9 @@ export function ResearchBatchButton({ write }: { write: JourneyProps["write"] })
   return (
     <span className="research-batch">
       <button
-        className="button secondary small"
+        className="button secondary"
         disabled={busy}
-        title="Recherchiert Website und Impressum aller Unternehmen mit Website, die noch nicht recherchiert wurden"
+        title="Liest Website und Impressum der Firmen, die noch nicht geprüft wurden (bis zu 50)"
         onClick={async () => {
           setBusy(true);
           try {
@@ -39,7 +41,7 @@ export function ResearchBatchButton({ write }: { write: JourneyProps["write"] })
           }
         }}
       >
-        {busy ? <Spinner /> : "Websites recherchieren (50)"}
+        {busy ? <Spinner /> : "Websites prüfen"}
       </button>
       {state && (
         <small className="muted" role="status">
@@ -50,123 +52,99 @@ export function ResearchBatchButton({ write }: { write: JourneyProps["write"] })
   );
 }
 
+const SOURCE_LABEL: Record<string, string> = {
+  osm: "OpenStreetMap",
+  northdata: "Handelsregister",
+  user_entry: "Eigene Eingabe",
+  csv_import: "Import",
+  synthetic_demo: "Beispiel",
+};
+
 export function CompanyDirectory(props: JourneyProps) {
   const { base, revision, onNavigate } = props;
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("name");
   const [page, setPage] = useState(1);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const companies = useData<Page<Company>>(
-    `${base}/companies/summary?page=${page}&limit=25&search=${encodeURIComponent(search)}`,
+    `${base}/companies/summary?page=${page}&limit=50&sort=${sort}&search=${encodeURIComponent(search)}`,
     revision,
   );
+  const open = (id: string) => (onNavigate ? onNavigate(`/companies/${id}`) : setCompanyId(id));
   return (
     <>
-      <Heading
-        title="Unternehmen"
-        description="Unternehmenswissen, zugehörige Kontakte und Verkaufschancen an einem Ort."
-      />
-      <section className="panel">
-        <div className="table-toolbar">
-          <div className="search-box">
-            <Search size={16} />
-            <input
-              aria-label="Unternehmen suchen"
-              placeholder="Name oder Standort"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <Badge>{companies.data?.total || 0} Unternehmen</Badge>
-          <ResearchBatchButton write={props.write} />
-        </div>
-        <ErrorNote message={companies.error} />
-        {companies.loading ? (
-          <div className="loading-block">
-            <Spinner />
-          </div>
-        ) : companies.data?.items.length ? (
-          <>
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Unternehmen</th>
-                    <th>Standort</th>
-                    <th>Branche</th>
-                    <th>Kontakte</th>
-                    <th>Deals</th>
-                    <th>Quelle</th>
-                    <th>Bekannte Angaben</th>
+      <Heading title="Alle Firmen" description="Jede Firma, die du gefunden oder importiert hast.">
+        <ResearchBatchButton write={props.write} />
+        <button className="button primary" onClick={() => onNavigate?.("/discover")}>
+          Firmen finden
+        </button>
+      </Heading>
+      <ErrorNote message={companies.error} />
+      <div className="table-toolbar">
+        <SearchInput
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          label="Unternehmen suchen"
+          placeholder="Name, Ort oder Branche"
+        />
+        <span className="count">{companies.data ? `${companies.data.total} Firmen` : ""}</span>
+      </div>
+      {companies.loading && !companies.data ? (
+        <SkeletonTable cols={4} />
+      ) : companies.data?.items.length ? (
+        <>
+          <div className="table-wrap">
+            <table data-testid="companies-table">
+              <thead>
+                <tr>
+                  <ServerSort label="Firma" column="name" sort={sort} onSort={setSort} />
+                  <ServerSort label="Ort" column="location" sort={sort} onSort={setSort} />
+                  <ServerSort label="Kontakte" column="contacts" sort={sort} onSort={setSort} descFirst className="hide-sm" />
+                  <th scope="col" className="hide-sm">Quelle</th>
+                  <th scope="col" className="num hide-sm">Angaben</th>
+                  <ServerSort label="Hinzugefügt" column="created" sort={sort} onSort={setSort} descFirst className="hide-sm" />
+                </tr>
+              </thead>
+              <tbody>
+                {companies.data.items.map((company) => (
+                  <tr key={company.id} className="clickable" onClick={() => open(company.id)}>
+                    <td className="cell-main">
+                      <strong>{company.name}</strong>
+                      <small>{company.website ? safeDomain(company.website) : "Keine Website"}</small>
+                    </td>
+                    <td>{company.location || <span className="muted">–</span>}</td>
+                    <td className="num hide-sm">{company.contact_count || <span className="muted">0</span>}</td>
+                    <td className="muted hide-sm">{SOURCE_LABEL[company.source] || company.source}</td>
+                    <td className="num muted hide-sm" title="Anteil der bekannten Angaben">
+                      {company.completeness?.percent ?? 0} %
+                    </td>
+                    <td className="muted hide-sm">
+                      {company.created_at ? new Date(company.created_at).toLocaleDateString("de-DE") : "–"}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {companies.data.items.map((company) => (
-                    <tr key={company.id}>
-                      <td>
-                        <button
-                          className="person-cell"
-                          onClick={() =>
-                            onNavigate
-                              ? onNavigate(`/companies/${company.id}`)
-                              : setCompanyId(company.id)
-                          }
-                        >
-                          <span className="contact-avatar">
-                            <Building2 size={17} />
-                          </span>
-                          <span>
-                            <strong>{company.name}</strong>
-                            <small>
-                              {company.website
-                                ? safeDomain(company.website)
-                                : "Keine Website hinterlegt"}
-                            </small>
-                          </span>
-                          <ArrowRight size={14} />
-                        </button>
-                      </td>
-                      <td>{company.location || "Unbekannt"}</td>
-                      <td>{company.industry || "Unbekannt"}</td>
-                      <td>
-                        <strong>{company.contact_count}</strong>
-                      </td>
-                      <td>{company.deal_count}</td>
-                      <td>
-                        <Badge>{company.source}</Badge>
-                      </td>
-                      <td>
-                        <Progress value={company.completeness} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <Pager
-              page={page}
-              total={companies.data.total}
-              limit={25}
-              onPage={setPage}
-              label="Unternehmen"
-            />
-          </>
-        ) : (
-          <Empty
-            icon={Building2}
-            title="Noch keine Unternehmen"
-            description="Importiere Kontakte oder wähle Unternehmen aus einer Discovery-Suche."
-          />
-        )}
-      </section>
-      {companyId && (
-        <Modal
-          title="Unternehmensprofil"
-          onClose={() => setCompanyId(null)}
-          wide
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Pager page={page} total={companies.data.total} limit={50} onPage={setPage} label="Firmen" />
+        </>
+      ) : (
+        <Empty
+          title={search ? "Keine Treffer" : "Noch keine Firmen"}
+          description={search ? "Ändere den Suchbegriff." : "Suche Firmen in deiner Umgebung oder importiere eine Liste."}
         >
+          {!search && (
+            <button className="button primary" onClick={() => onNavigate?.("/discover")}>
+              Firmen finden
+            </button>
+          )}
+        </Empty>
+      )}
+      {companyId && (
+        <Modal title="Firmenprofil" onClose={() => setCompanyId(null)} wide>
           <div className="modal-body">
             <CompanyProfile {...props} companyId={companyId} />
           </div>
@@ -213,8 +191,8 @@ export function CompanyProfile(props: JourneyProps & { companyId: string }) {
   return (
     <>
       <Heading
-        title={company?.name || "Unternehmensprofil"}
-        description="Kontakte, Geschäftschancen und Herkunft im Zusammenhang."
+        title={company?.name || "Firmenprofil"}
+        description="Ansprechpersonen, Angaben aus dem Impressum und woher die Firma stammt."
       >
         <button
           className="button secondary"
@@ -298,7 +276,7 @@ export function CompanyProfile(props: JourneyProps & { companyId: string }) {
                             {lead.first_name} {lead.last_name}
                           </strong>
                           <small>
-                            {lead.job_title || "Rolle nicht bekannt"} · ICP{" "}
+                            {lead.job_title || "Rolle nicht bekannt"} · Passung{" "}
                             {lead.score.value}/100
                           </small>
                         </span>
@@ -516,8 +494,8 @@ export function ImportHistory(props: JourneyProps) {
   return (
     <>
       <Heading
-        title="Importverlauf"
-        description="Datenübernahmen, Dubletten und zeilenbezogene Fehler nachvollziehen."
+        title="Importe"
+        description="Welche Listen du importiert hast, was übernommen wurde und was nicht."
       >
         <button className="button primary" onClick={onImport}>
           <Plus size={15} /> CSV importieren

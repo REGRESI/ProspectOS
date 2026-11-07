@@ -325,7 +325,7 @@ def new_workspace(
     auth=Depends(current_auth),
     db: Session = Depends(db_session, scope="function"),
 ):
-    workspace = Workspace(name=body.name, slug="workspace-" + uid()[:8])
+    workspace = Workspace(name=body.name, slug="workspace-" + uid()[:8], kind=body.kind)
     db.add(workspace)
     db.flush()
     db.add(Membership(workspace_id=workspace.id, user_id=auth.user_id, role="owner"))
@@ -380,6 +380,7 @@ def contact_output(contact, company, icp):
         "company": company.name if company else "",
         "company_id": contact.company_id,
         "score": score(contact, company, icp),
+        "outreach_stage": contact.outreach_stage or "new",
     }
 
 
@@ -407,10 +408,14 @@ def contacts(
     page: int = 1,
     limit: int = 25,
     status: str = "",
+    stage: str = "",
+    sort: str = "-created",
     member=Depends(scope),
     db: Session = Depends(db_session, scope="function"),
 ):
     stmt = select(Contact).where(Contact.workspace_id == ws)
+    if stage:
+        stmt = stmt.where(Contact.outreach_stage == stage)
     if search:
         pattern = "%" + search.replace("%", "\\%").replace("_", "\\_") + "%"
         company_ids = select(Company.id).where(Company.name.ilike(pattern))
@@ -425,7 +430,21 @@ def contacts(
         )
     if status:
         stmt = stmt.where(Contact.status == status)
-    items, total = paginate(db, stmt.order_by(Contact.created_at.desc(), Contact.id), page, limit)
+    desc = sort.startswith("-")
+    key = sort.lstrip("-")
+    columns = {
+        "name": func.lower(Contact.last_name + " " + Contact.first_name),
+        "company": select(func.lower(Company.name))
+        .where(Company.id == Contact.company_id)
+        .scalar_subquery(),
+        "location": func.lower(Contact.location),
+        "stage": Contact.outreach_stage,
+        "created": Contact.created_at,
+    }
+    if key not in columns:
+        raise HTTPException(422, "Unbekannte Sortierung.")
+    order = columns[key].desc().nullslast() if desc else columns[key].asc().nullslast()
+    items, total = paginate(db, stmt.order_by(order, Contact.id), page, limit)
     company_ids = {c.company_id for c in items if c.company_id}
     companies = (
         {c.id: c for c in db.scalars(select(Company).where(Company.id.in_(company_ids)))}

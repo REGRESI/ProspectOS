@@ -1,3 +1,4 @@
+import { ROUTES } from "./routes";
 import { test, expect, Page } from "@playwright/test";
 let sessionCookies: Awaited<
   ReturnType<import("@playwright/test").BrowserContext["cookies"]>
@@ -18,16 +19,18 @@ test.beforeEach(async ({ context }) => {
 });
 async function setup(page: Page) {
   await page.goto("/");
-  await expect(page.locator(".stat-card").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Heute", level: 1 })).toBeVisible();
   const me = await (await page.request.get("/api/v1/me")).json();
   const response = await page.request.post("/api/v1/workspaces", {
     headers: { "X-CSRF-Token": me.csrf_token },
-    data: { name: `E2E Journey ${Date.now()}` },
+    data: { name: `E2E Journey ${Date.now()}`, kind: "demo" },
   });
   expect(response.ok()).toBeTruthy();
   const ws = await response.json();
+  // Synthetic examples live in demo workspaces, which open without the picker.
+  await page.evaluate((id) => sessionStorage.setItem("prospectos.workspace", id), ws.id);
   await page.reload();
-  await page.getByLabel("Workspace", { exact: true }).selectOption(ws.id);
+  await expect(page.getByTestId("demo-banner")).toBeVisible();
   return {
     base: `/api/v1/workspaces/${ws.id}`,
     headers: { "X-CSRF-Token": me.csrf_token },
@@ -35,6 +38,10 @@ async function setup(page: Page) {
   };
 }
 async function nav(page: Page, label: string) {
+  if (ROUTES[label]) {
+    await page.goto(ROUTES[label]);
+    return;
+  }
   const menu = page.getByRole("button", {
     name: "Navigation öffnen",
     exact: true,
@@ -67,7 +74,7 @@ test("guided business onboarding → confirmed discovery job → selected import
   ).toBeDisabled();
   await page
     .getByRole("checkbox", {
-      name: "Ich habe Filter und zulässigen Nutzungszweck geprüft.",
+      name: "Filter geprüft. Ich nutze die Treffer nur für eigene Geschäftskontakte.",
     })
     .check();
   await page
@@ -133,10 +140,10 @@ test("contact profile → campaign enrollment → sequence → approved draft; f
       },
     })
   ).json();
-  await nav(page, "Kontakte");
+  await page.goto("/contacts/advanced");
   await page.getByRole("button", { name: /Synthetisch Journey/ }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByRole("button", { name: "Outreach & Verlauf" }).click();
+  await dialog.getByRole("button", { name: "Nachrichten & Verlauf" }).click();
   await dialog
     .getByLabel("Kampagne für diesen Kontakt")
     .selectOption(campaign.id);
@@ -202,12 +209,12 @@ test("structured ICP create/update → list application and responsive product v
   await page
     .getByRole("button", { name: "Regionen und Standorte hinzufügen" })
     .click();
-  await page.getByRole("button", { name: "ICP-Profil speichern" }).click();
+  await page.getByRole("button", { name: "Zielgruppe speichern" }).click();
   await expect(page.getByRole("status")).toContainText(
-    "ICP-Profil gespeichert",
+    "Zielgruppe gespeichert",
   );
   await page.getByLabel("Profilname").fill("Synthetisches ICP aktualisiert");
-  await page.getByRole("button", { name: "ICP-Profil speichern" }).click();
+  await page.getByRole("button", { name: "Zielgruppe speichern" }).click();
   await expect
     .poll(
       async () =>

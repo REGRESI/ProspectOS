@@ -37,6 +37,21 @@ export function StyleNotice({ base, write, compact = false }: { base: string; wr
     }
   }
   if (s.state === "ok" && s.in_sync && compact) return null;
+  if (compact)
+    return (
+      <p className="style-line" data-testid="style-notice">
+        <PenLine size={14} />
+        <span>
+          {s.state === "ok"
+            ? "Deine Beispieltexte haben sich geändert."
+            : "Die Texte klingen noch nicht nach dir: Es sind noch keine eigenen Beispieltexte hinterlegt."}
+        </span>
+        <button className="link-button" disabled={busy} onClick={sync}>
+          {busy ? "Wird übernommen …" : "Aus Datei übernehmen"}
+        </button>
+        {error && <span className="error-inline">{error}</span>}
+      </p>
+    );
   return (
     <section className={`style-notice ${s.state === "ok" ? "ok" : "todo"}`} data-testid="style-notice">
       <PenLine size={16} />

@@ -21,7 +21,7 @@ test.beforeEach(async ({ context }) => {
 
 async function setup(page: Page) {
   await page.goto("/");
-  await expect(page.locator(".stat-card").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Heute", level: 1 })).toBeVisible();
   const me = await (await page.request.get("/api/v1/me")).json();
   const headers = { "X-CSRF-Token": me.csrf_token };
   const ws = await (
@@ -43,20 +43,23 @@ test("flow navigation and main pages render on desktop and mobile without overfl
   test.setTimeout(180000);
   await setup(page);
   const nav = page.getByRole("navigation").first();
-  for (const section of ["HEUTE", "LEADS", "KAMPAGNEN", "CONTENT", "CRM", "EINSTELLUNGEN"]) {
-    await expect(nav.getByText(section, { exact: true })).toBeVisible();
+  for (const section of ["Heute", "Firmen", "Kontakte", "Content", "Einstellungen"]) {
+    await expect(nav.getByRole("button", { name: section, exact: true })).toBeVisible();
   }
+  // Developer views are not in the menu outside the demo workspace.
+  await expect(nav.getByRole("button", { name: "Entwicklungsbeispiele" })).toHaveCount(0);
   const pages: [string, string, string][] = [
     ["/today", "Heute", "heute"],
-    ["/agent", "Auftrags-Agent", "agent"],
-    ["/leads/top", "Top-Kandidaten", "top"],
-    ["/discover", "Lead Discovery", "discover"],
-    ["/campaigns", "Kampagnen", "campaigns"],
-    ["/content/plan", "LinkedIn-Strategie", "content"],
-    ["/pipeline", "CRM / Pipeline", "crm"],
-    ["/settings/integrations", "Integrationen", "integrations"],
-    ["/settings/setup", "Setup-Check", "setup"],
-    ["/social/studio", "Social Studio", "studio"],
+    ["/agent", "Autopilot", "agent"],
+    ["/leads/top", "Beste Treffer", "top"],
+    ["/companies", "Alle Firmen", "companies"],
+    ["/discover", "Firmen finden", "discover"],
+    ["/contacts", "Kontakte", "contacts"],
+    ["/content/plan", "LinkedIn-Plan", "content"],
+    ["/settings/integrations", "Verbindungen", "integrations"],
+    ["/settings/setup", "Status", "setup"],
+    ["/settings/outreach", "Anschreiben", "outreach"],
+    ["/social/studio", "Beitrag schreiben", "studio"],
   ];
   for (const [path, title, slug] of pages) {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -113,10 +116,12 @@ test("ICP template → ranking, Heute queue from Impressum contacts, approve all
   await page.goto("/leads/top");
   await page.getByRole("button", { name: /Vorlage „Büro-Unterhaltsreinigung/ }).click();
   await expect(page.getByTestId("top-candidates")).toContainText("Synthetische Kanzlei E2E GmbH");
-  await page.goto("/today");
+  await page.goto("/settings/outreach");
   await page.getByLabel("Absender").fill("E2E Absender");
   await page.getByLabel("Tageslimit").selectOption("5");
   await page.getByRole("button", { name: "Einstellungen speichern" }).click();
+  await expect(page.getByRole("status")).toContainText("Gespeichert");
+  await page.goto("/today");
   await expect(page.getByTestId("daily-limit")).toContainText("0 von 5 Anfragen gesendet");
   await page.getByRole("button", { name: /Tagesliste erstellen/ }).click();
   const list = page.getByTestId("today-list");

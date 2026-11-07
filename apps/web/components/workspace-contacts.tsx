@@ -150,7 +150,7 @@ export function Contacts({
                     <th>Position</th>
                     <th>Standort</th>
                     <th>
-                      ICP-Fit <CircleHelp size={12} />
+                      Passung <CircleHelp size={12} />
                     </th>
                     <th>Status</th>
                     <th />
@@ -188,7 +188,7 @@ export function Contacts({
                       <td>
                         <span
                           className={`score ${contact.score.value >= 65 ? "high" : contact.score.value >= 35 ? "medium" : "low"}`}
-                          title="Deterministischer ICP-Fit, keine Kaufwahrscheinlichkeit"
+                          title="Wie gut die Angaben zur Zielgruppe passen. Keine Kaufwahrscheinlichkeit."
                         >
                           <span />
                           {contact.score.value} <small>/100</small>
@@ -379,7 +379,7 @@ export function Contacts({
               <>
                 <section className="detail-section">
                   <div className="section-title">
-                    <h3>ICP-Fit verstehen</h3>
+                    <h3>Passung verstehen</h3>
                     <Badge tone="purple">{selected.score.value} / 100</Badge>
                   </div>
                   <div className="score-factors">
@@ -826,7 +826,7 @@ export function Audiences({
       );
       onChange();
       notify(
-        "ICP gespeichert. Scores werden mit den neuen Kriterien berechnet.",
+        "Zielgruppe gespeichert. Die Punkte werden neu berechnet.",
       );
     } catch (e) {
       setSaveError((e as Error).message);
@@ -839,7 +839,7 @@ export function Audiences({
       <Heading
         eyebrow="KLARHEIT VOR REICHWEITE"
         title="Wer passt wirklich zu dir?"
-        description="Definiere dein ideales Kundenprofil. Jeder Fit-Score bleibt nachvollziehbar."
+        description="Beschreibe deine idealen Kunden. Jede Punktzahl bleibt nachvollziehbar."
       />
       <div className="icp-layout">
         <section className="panel padded">
@@ -951,7 +951,7 @@ export function Audiences({
             <li>Jeder Faktor hat eine sichtbare Begründung.</li>
             <li>Fehlende Informationen bleiben unbekannt.</li>
             <li>Keine erfundene Firmengröße oder Kaufabsicht.</li>
-            <li>Ein hoher Score ist keine Versandfreigabe.</li>
+            <li>Viele Punkte heißen nicht, dass du schon schreiben darfst.</li>
           </ul>
           <Badge tone="purple">Deterministisches Scoring · v1</Badge>
         </aside>

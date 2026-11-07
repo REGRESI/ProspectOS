@@ -247,3 +247,21 @@ def test_rebuild_refreshes_stale_items_and_drops_hidden_companies(context, admin
     after = {i["id"]: i for i in client.get(f"{w}/today").json()["items"]}
     assert after[hide["id"]]["state"] == "skipped"
     assert not style.violations(after[keep["id"]]["note"])
+
+
+def test_compose_without_sender_name_has_no_placeholder_intro():
+    from app.models import Company, Contact
+    from app.today import Sender, compose
+
+    contact = Contact(first_name="Erika", last_name="Fiktiv")
+    company = Company(name="Synthetische Kanzlei", identity="x")
+    empty = compose(contact, company, {}, Sender())
+    assert "ich bin ich" not in empty["note"] and empty["note"].startswith(
+        "Guten Tag Erika Fiktiv. "
+    )
+    assert not empty["message"].rstrip().endswith("Grüße\n")
+    firm = compose(contact, company, {}, Sender(sender_company="CleanStar"))
+    assert firm["note"].startswith("Guten Tag Erika Fiktiv, hier schreibt CleanStar.")
+    named = compose(contact, company, {}, Sender(sender_name="Alex", address_form="du"))
+    assert named["note"].startswith("Hallo Erika, ich bin Alex.")
+    assert named["message"].endswith("Viele Grüße\nAlex")

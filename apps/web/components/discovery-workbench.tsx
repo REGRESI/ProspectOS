@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Search, ShieldCheck, Sparkles, Target } from "lucide-react";
+import { Search, ShieldCheck } from "lucide-react";
 import { request, dateTime } from "@/lib/api";
 import type { Page } from "@/lib/api";
 import { useData } from "@/lib/use-data";
@@ -14,7 +14,11 @@ export function DiscoveryWorkbench(props: JourneyProps) {
   const [briefing, setBriefing] = useState(
     "Büros und Dienstleistungsunternehmen in Offenburg",
   );
-  const [filters, setFilters] = useState<SearchFilters>(initialSearchFilters);
+  const [filters, setFilters] = useState<SearchFilters>(() =>
+    props.demo
+      ? initialSearchFilters
+      : { ...initialSearchFilters, provider: "osm", city: "Offenburg", radius_km: 10, max_results: 50 },
+  );
   const [confirmed, setConfirmed] = useState(false);
   const [name, setName] = useState("");
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -197,115 +201,31 @@ export function DiscoveryWorkbench(props: JourneyProps) {
   return (
     <>
       <Heading
-        title="Lead Discovery"
-        description="Zielkunden definieren, Quellen prüfen und ausgewählte Ergebnisse in deine Datenbank übernehmen."
+        title="Firmen finden"
+        description="Suche Firmen in deiner Umgebung. Du entscheidest, welche übernommen werden."
       />
-      {filters.provider === "synthetic" && (
-        <DemoDiscoveryQuickAction {...props} />
-      )}
+      {props.demo && filters.provider === "synthetic" && <DemoDiscoveryQuickAction {...props} />}
       <div className="journey-discovery-layout">
         <aside className="panel journey-search-panel">
           <div className="panel-head">
-            <h2>
-              <Target size={17} /> Suchprofil
-            </h2>
-            <Badge tone={filters.provider === "osm" ? "green" : "neutral"}>
-              {filters.provider === "synthetic"
-                ? "Entwicklungsbeispiele"
-                : filters.provider === "osm"
-                  ? "OpenStreetMap"
-                  : filters.provider === "northdata"
-                    ? "North Data"
-                    : "Lizenzanbieter"}
-            </Badge>
+            <h2>Suche</h2>
           </div>
           <div className="modal-body">
-            <label>
-              ICP-Briefing
-              <textarea
-                rows={3}
-                value={briefing}
-                onChange={(e) => {
-                  setBriefing(e.target.value);
-                  setConfirmed(false);
-                }}
-                maxLength={300}
-              />
-            </label>
-            <button
-              className="button secondary"
-              onClick={interpret}
-              disabled={busy || briefing.length < 3}
-            >
-              <Sparkles size={15} /> Filter vorschlagen
-            </button>
-            <p className="small muted">
-              Regelbasierte Vorschläge. Nicht erkannter Freitext bleibt
-              unbestätigt und wird nicht als Suchkriterium ausgegeben.
-            </p>
-            {warnings.map((w, i) => (
-              <p className="info-note small" key={i}>
-                {w}
-              </p>
-            ))}
-            <label>
-              Name der Suche
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="z. B. Büros in der Ortenau"
-                maxLength={120}
-              />
-            </label>
-            <label>
-              Datenquelle
-              <select
-                value={filters.provider}
-                onChange={(e) =>
-                  patch("provider", e.target.value as SearchFilters["provider"])
-                }
-              >
-                <option value="osm">
-                  OpenStreetMap · Orte & Firmen im Umkreis
-                  {providers.data &&
-                  !providers.data.items.find((p) => p.id === "osm")?.available
-                    ? " (nicht aktiviert)"
-                    : ""}
-                </option>
-                <option value="northdata">
-                  North Data · Registerdaten im Umkreis
-                  {providers.data &&
-                  !providers.data.items.find((p) => p.id === "northdata")
-                    ?.available
-                    ? " (nicht aktiviert)"
-                    : ""}
-                </option>
-                <option value="synthetic">
-                  Synthetische Demo · keine Recherche
-                </option>
-                <option value="pdl">
-                  People Data Labs · Lizenz erforderlich
-                </option>
-              </select>
-            </label>
             {activeProvider && (
               <div
                 className={`provider-capability ${activeProvider.available ? "ok" : "off"}`}
                 data-testid="provider-capability"
+                title={activeProvider.reason || undefined}
               >
-                <strong>
-                  {activeProvider.available ? "Verfügbar" : "Nicht verfügbar"}
-                </strong>{" "}
-                · {activeProvider.license} · {activeProvider.cost}
-                {activeProvider.reason && <p>{activeProvider.reason}</p>}
-                {!!activeProvider.unsupported.length && (
-                  <p className="small muted">
-                    Nicht unterstützt:{" "}
-                    {activeProvider.unsupported
-                      .map((u) => supportLabels[u] || u)
-                      .join(", ")}
-                  </p>
+                <strong>{activeProvider.available ? "Verfügbar" : "Nicht verfügbar"}</strong>
+                {!activeProvider.available && (
+                  <span> · noch nicht eingerichtet, siehe Einstellungen → Status</span>
                 )}
+                <small>
+                  Lizenz {activeProvider.license} · {activeProvider.cost}
+                  {!!activeProvider.unsupported.length &&
+                    ` · nicht filterbar: ${activeProvider.unsupported.map((u) => supportLabels[u] || u).join(", ")}`}
+                </small>
               </div>
             )}
             {filters.provider === "pdl" &&
@@ -320,22 +240,6 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                 </div>
               )}
             <div className="form-grid">
-              <label>
-                Land
-                <input
-                  value={filters.country}
-                  onChange={(e) => patch("country", e.target.value)}
-                  maxLength={100}
-                />
-              </label>
-              <label>
-                Region
-                <input
-                  value={filters.region}
-                  onChange={(e) => patch("region", e.target.value)}
-                  maxLength={100}
-                />
-              </label>
               <label>
                 Stadt
                 <input
@@ -412,6 +316,84 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                 </div>
               </>
             )}
+            <details className="more-filters">
+              <summary>Weitere Filter</summary>
+            <label>
+              In eigenen Worten
+              <textarea
+                rows={3}
+                value={briefing}
+                onChange={(e) => {
+                  setBriefing(e.target.value);
+                  setConfirmed(false);
+                }}
+                maxLength={300}
+              />
+            </label>
+            <button
+              className="button secondary"
+              onClick={interpret}
+              disabled={busy || briefing.length < 3}
+            >
+              Felder daraus ausfüllen
+            </button>
+            <p className="small muted">
+              Füllt Ort und Branchen aus deiner Beschreibung. Bitte danach prüfen.
+            </p>
+            {warnings.map((w, i) => (
+              <p className="info-note small" key={i}>
+                {w}
+              </p>
+            ))}
+            <label>
+              Datenquelle
+              <select
+                value={filters.provider}
+                onChange={(e) =>
+                  patch("provider", e.target.value as SearchFilters["provider"])
+                }
+              >
+                <option value="osm">
+                  OpenStreetMap · Orte & Firmen im Umkreis
+                  {providers.data &&
+                  !providers.data.items.find((p) => p.id === "osm")?.available
+                    ? " (nicht aktiviert)"
+                    : ""}
+                </option>
+                <option value="northdata">
+                  North Data · Registerdaten im Umkreis
+                  {providers.data &&
+                  !providers.data.items.find((p) => p.id === "northdata")
+                    ?.available
+                    ? " (nicht aktiviert)"
+                    : ""}
+                </option>
+                {props.demo && (
+                  <>
+                    <option value="synthetic">Beispieldaten (nur Demo)</option>
+                    <option value="pdl">People Data Labs (Lizenz nötig)</option>
+                  </>
+                )}
+              </select>
+            </label>
+            <div className="form-grid">
+              <label>
+                Land
+                <input
+                  value={filters.country}
+                  onChange={(e) => patch("country", e.target.value)}
+                  maxLength={100}
+                />
+              </label>
+              <label>
+                Region
+                <input
+                  value={filters.region}
+                  onChange={(e) => patch("region", e.target.value)}
+                  maxLength={100}
+                />
+              </label>
+            </div>
             <label>
               Ausgeschlossene Branchen
               <input
@@ -476,7 +458,7 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                     e.target.value.split(",").map((s) => s.trim()),
                   )
                 }
-                placeholder="Nur soweit lizenziert verfügbar"
+                placeholder="z. B. Geschäftsführung"
               />
             </label>
             <label>
@@ -513,13 +495,23 @@ export function DiscoveryWorkbench(props: JourneyProps) {
               />{" "}
               Bereits bekannte Kunden ausschließen
             </label>
+            <label>
+              Name der Suche
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="z. B. Büros in der Ortenau"
+                maxLength={120}
+              />
+            </label>
+            </details>
             <label className="checkbox-line">
               <input
                 type="checkbox"
                 checked={confirmed}
                 onChange={(e) => setConfirmed(e.target.checked)}
               />{" "}
-              Ich habe Filter und zulässigen Nutzungszweck geprüft.
+              Filter geprüft. Ich nutze die Treffer nur für eigene Geschäftskontakte.
             </label>
             <ErrorNote message={error} />
             <div className="form-actions">
@@ -544,10 +536,8 @@ export function DiscoveryWorkbench(props: JourneyProps) {
           <section className="panel">
             <div className="panel-head">
               <div>
-                <h2>Gespeicherte & letzte Suchen</h2>
-                <p>
-                  Konfiguration wiederverwenden, Filter vor jedem Start prüfen.
-                </p>
+                <h2>Gespeicherte Suchen</h2>
+                <p>Ein Klick übernimmt die Filter. Danach noch einmal prüfen und starten.</p>
               </div>
               <Badge>{saved.data?.total || 0}</Badge>
             </div>
@@ -572,7 +562,7 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                         {item.filters.provider === "synthetic"
                           ? "Demo"
                           : item.filters.provider === "osm"
-                            ? `OSM · ${item.filters.radius_km || 10} km`
+                            ? `OpenStreetMap · ${item.filters.radius_km || 10} km`
                             : item.filters.provider === "northdata"
                               ? `North Data · ${item.filters.radius_km || 10} km`
                               : "Lizenzanbieter"}
@@ -594,7 +584,7 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                 <p>
                   {run
                     ? results.data?.notice
-                    : "Ein Suchauftrag liefert nachvollziehbare Quellen und unbekannte Felder."}
+                    : "Hier erscheinen die gefundenen Firmen. Wähle aus, welche du übernehmen willst."}
                 </p>
               </div>
               {job && (
@@ -604,24 +594,24 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                     : job.status === "queued"
                       ? "In Warteschlange"
                       : job.status === "running"
-                        ? "Wird verarbeitet"
+                        ? "Läuft"
                         : job.status}
                 </Badge>
               )}
             </div>
             {running ? (
               <div className="loading-block">
-                <Spinner /> Suchauftrag wird verarbeitet.
+                <Spinner /> Suche läuft. Das dauert meist unter einer Minute.
               </div>
             ) : job?.last_error ? (
               <ErrorNote
-                message={`Suchauftrag nicht abgeschlossen: ${job.last_error}`}
+                message={`Die Suche ist fehlgeschlagen (${job.last_error}). Bitte später erneut versuchen oder den Status unter Einstellungen prüfen.`}
               />
             ) : !run ? (
               <Empty
                 icon={Search}
-                title="Zuerst ein Suchprofil prüfen"
-                description="Starte eine konfigurierte lizenzierte Suche oder ausdrücklich gekennzeichnete Entwicklungsbeispiele."
+                title="Noch keine Suche gestartet"
+                description="Wähle Ort, Umkreis und Branchen und starte die Suche."
               />
             ) : (
               <>
@@ -656,7 +646,7 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                     onChange={(e) => setSort(e.target.value)}
                   >
                     <option value="name">Name</option>
-                    <option value="score">ICP-Fit</option>
+                    <option value="score">Passung</option>
                   </select>
                 </div>
                 <ErrorNote message={results.error} />
@@ -715,7 +705,7 @@ export function DiscoveryWorkbench(props: JourneyProps) {
                             <th>Unternehmen / Kontakt</th>
                             <th>Ort · Branche</th>
                             <th>Quelle</th>
-                            <th>ICP-Fit</th>
+                            <th>Passung</th>
                             <th>Vollständigkeit</th>
                             <th>Status</th>
                           </tr>

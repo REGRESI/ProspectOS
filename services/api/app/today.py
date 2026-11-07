@@ -246,23 +246,30 @@ def compose(contact: Contact, company: Company | None, facts: dict, sender: Send
     firm = company.name if company else ""
     hook, sources = _hook(company, facts)
     du = sender.address_form == "du"
-    me = sender.sender_name or "ich"
-    intro = f"ich bin {me}" + (f" von {sender.sender_company}" if sender.sender_company else "")
+    # Without a sender name the intro is left out (never "ich bin ich").
+    if sender.sender_name:
+        intro = f", ich bin {sender.sender_name}" + (
+            f" von {sender.sender_company}" if sender.sender_company else ""
+        )
+    elif sender.sender_company:
+        intro = f", hier schreibt {sender.sender_company}"
+    else:
+        intro = ""
     hello = f"Hallo {first}" if du else f"Guten Tag {name}"
     region = sender.region
     your = "dein" if du else "Ihr"
     variants = [
-        f"{hello}, {intro}. Wir reinigen Büros und Praxen in {region}."
+        f"{hello}{intro}. Wir reinigen Büros und Praxen in {region}."
         + (f" {firm} ist mir aufgefallen." if firm else "")
         + " Ich freue mich über die Vernetzung.",
-        f"{hello}, {intro}. Wir reinigen Büros und Praxen in {region}. Ich freue mich über die Vernetzung.",
+        f"{hello}{intro}. Wir reinigen Büros und Praxen in {region}. Ich freue mich über die Vernetzung.",
         f"{hello}, ich freue mich über die Vernetzung. Viele Grüße, {sender.sender_name or 'aus der Region'}",
     ]
     variants = [style.clean(v) for v in variants]
     note = next((v for v in variants if len(v) <= NOTE_LIMIT), variants[-1][:NOTE_LIMIT])
     hook_line = f" Mir ist aufgefallen: {hook}." if hook else ""
-    sign = f"\n\nViele Grüße\n{sender.sender_name}" + (
-        f"\n{sender.sender_company}" if sender.sender_company else ""
+    sign = "\n\nViele Grüße" + "".join(
+        f"\n{v}" for v in (sender.sender_name, sender.sender_company) if v
     )
     place = firm or ("euch" if du else "Ihnen")
     message = (

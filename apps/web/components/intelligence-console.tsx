@@ -39,7 +39,7 @@ export function IntelligenceConsole({ base, write, notify, onChange }: ModulePro
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   return <>
-    <Heading eyebrow="QUELLEN STATT VERMUTUNGEN" title="Recherche & KI-Assistent" description="Echte Anbieter werden nur mit konfiguriertem Zugang und Budget genutzt. Aufträge bleiben nachvollziehbar." />
+    <Heading title="Recherche" description="Websites lesen und Texte mit KI vorbereiten, mit Quellenangabe." />
     <div className="info-note"><ShieldCheck size={20}/><p>Generierte Texte sind Vorschläge. Quellenangaben belegen die Eingabe, keine automatische Faktenprüfung. Kein Auftrag versendet Nachrichten oder Beiträge.</p></div>
     <ErrorNote message={error}/>
     <div className="integration-grid">

@@ -1,14 +1,14 @@
 "use client";
 import { TopCandidates } from "./top-candidates";
-import { TodayView } from "./today-view";
+import { OutreachSettingsPage, TodayView } from "./today-view";
 import { SetupCheck } from "./setup-check";
 import { AgentConsole } from "./agent-console";
 import { ContentPlanner } from "./content-planner";
 import { ICPBuilder } from "./icp-builder";
 import { useEffect, useState, FormEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowRight, PanelLeftClose, PanelLeftOpen, CheckCircle2, ChevronRight, ChevronsUpDown, CircleHelp, LogOut, Menu, Plus, ShieldCheck, Sparkles, X, Sun, Moon } from "lucide-react";
-import { Badge, Empty, Modal, Spinner, ErrorNote } from "./ui";
+import { PanelLeftClose, PanelLeftOpen, CheckCircle2, ChevronRight, ChevronsUpDown, LogOut, Menu, Plus, X, Sun, Moon } from "lucide-react";
+import { Empty, Modal, Spinner, ErrorNote } from "./ui";
 import { Social } from "./social-studio";
 import { WorkspaceOnboarding, TeamSettings, BillingSettings } from "./workspace-settings";
 import { DiscoveryWorkbench, LeadDatabase, CompanyDirectory, CompanyProfile, ImportHistory, OutreachWorkbench } from "./journey-workspaces";
@@ -17,8 +17,9 @@ import { IntelligenceConsole } from "./intelligence-console";
 import { AssetLibrary, BrandProfiles, TaskNotes, Campaigns, Operations, OutreachDrafts } from "./growth-modules";
 import { request, ApiError } from "@/lib/api";
 import type { Session, Workspace } from "@/lib/api";
-import { Logo, navigation, titles } from "./workspace-nav";
+import { DEV_ONLY, Logo, demoSection, sectionFor, sections, titleFor } from "./workspace-nav";
 import { WorkspacesAdmin } from "./workspaces-admin";
+import { ContactsTable } from "./contacts-table";
 import { Audiences, Companies, Contacts, ImportModal, Overview } from "./workspace-contacts";
 import { Audit, Discovery, Integrations, Pipeline } from "./workspace-modules";
 
@@ -26,7 +27,7 @@ import { Audit, Discovery, Integrations, Pipeline } from "./workspace-modules";
 export default function WorkspaceApp() {
   const router = useRouter();
   const pathname = usePathname();
-  const route = pathname === "/" ? "/overview" : pathname;
+  const route = pathname === "/" ? "/today" : pathname;
   const [authConfig, setAuthConfig] = useState<{
     mode: string;
     demo_enabled: boolean;
@@ -64,6 +65,7 @@ export default function WorkspaceApp() {
     }
   }, [route, session?.user.id]);
   const refresh = () => setRevision((v) => v + 1);
+  const isDemo = workspace?.kind === "demo";
   // After login always the production workspace; demo only via the Demo switch.
   const defaultWorkspace = (s: Session) =>
     s.workspaces.find((w) => w.kind === "production" && !w.archived) ||
@@ -190,110 +192,45 @@ export default function WorkspaceApp() {
   if (!session)
     return (
       <main className="login-page">
-        <section className="login-story">
+        <section className="login-card">
           <Logo />
-          <div>
-            <Badge tone="light">DEIN WACHSTUM. EIN WORKSPACE.</Badge>
-            <h1>
-              Gute Geschäfte
-              <br />
-              beginnen mit guten
-              <br />
-              <span>Verbindungen.</span>
-            </h1>
-            <p>
-              Finde passende Kontakte. Bereite bessere Gespräche vor.
-              <br />
-              Gib deiner Marke eine Stimme.
-            </p>
-            <div className="login-points">
-              <span>
-                <CheckCircle2 size={18} /> Nachvollziehbares Lead-Scoring
-              </span>
-              <span>
-                <CheckCircle2 size={18} /> Kontakte und Content an einem Ort
-              </span>
-              <span>
-                <CheckCircle2 size={18} /> Deine Daten. Dein Workspace.
-              </span>
-            </div>
-          </div>
-          <p className="login-foot">ProspectOS · Mit Klarheit wachsen.</p>
-        </section>
-        <section className="login-form-wrap">
-          <div className="login-form">
-            <Badge tone="purple">
-              <Sparkles size={12} />{" "}
-              {authConfig?.demo_enabled
-                ? "LOKALE ENTWICKLUNGSUMGEBUNG"
-                : "DEIN GESCHÜTZTER WORKSPACE"}
-            </Badge>
-            <h2>Willkommen zurück.</h2>
-            <p>Öffne deinen Workspace und mach den nächsten Schritt.</p>
-            <form onSubmit={login}>
-              <label>
-                E-Mail-Adresse
-                <input
-                  name="email"
-                  type="email"
-                  defaultValue={
-                    authConfig?.demo_enabled ? "demo@prospectos.local" : ""
-                  }
-                  required
-                  autoComplete="username"
-                />
-              </label>
-              <label>
-                Passwort
-                <input
-                  name="password"
-                  type="password"
-                  defaultValue={
-                    authConfig?.demo_enabled ? "ProspectDemo!2026" : ""
-                  }
-                  required
-                  autoComplete="current-password"
-                />
-              </label>
-              {error && (
-                <p role="alert" className="error-note">
-                  {error}
-                </p>
-              )}
-              <button
-                className="button primary login-submit"
-                disabled={busy || !authConfig}
-              >
-                {busy ? (
-                  <Spinner />
-                ) : (
-                  <>
-                    {authConfig?.demo_enabled
-                      ? "Demo-Workspace öffnen"
-                      : "Anmelden"}{" "}
-                    <ArrowRight size={17} />
-                  </>
-                )}
-              </button>
-            </form>
-            <div className="info-note">
-              <ShieldCheck size={20} />
-              <p>
-                <strong>
-                  {authConfig?.demo_enabled
-                    ? "Transparent im Demo-Modus"
-                    : "Sicher anmelden"}
-                </strong>
-                {authConfig?.demo_enabled
-                  ? "Diese Zugangsdaten sind nur für die lokale Entwicklung. Beispieldaten sind synthetisch."
-                  : "Die Anmeldung wird durch deinen konfigurierten Identitätsanbieter geprüft. Dein Browser erhält eine geschützte Sitzung."}
+          <h1>Anmelden</h1>
+          <p className="muted">Deine Firmen, Kontakte und Beiträge für heute.</p>
+          <form onSubmit={login} className="login-form">
+            <label>
+              E-Mail-Adresse
+              <input
+                name="email"
+                type="email"
+                defaultValue={authConfig?.demo_enabled ? "demo@prospectos.local" : ""}
+                required
+                autoComplete="username"
+              />
+            </label>
+            <label>
+              Passwort
+              <input
+                name="password"
+                type="password"
+                defaultValue={authConfig?.demo_enabled ? "ProspectDemo!2026" : ""}
+                required
+                autoComplete="current-password"
+              />
+            </label>
+            {error && (
+              <p role="alert" className="error-note">
+                {error}
               </p>
-            </div>
-          </div>
-          <span className="login-caption">
-            Externe Aktionen benötigen explizite Freigaben und verifizierte
-            Berechtigungen.
-          </span>
+            )}
+            <button className="button primary login-submit" disabled={busy || !authConfig}>
+              {busy ? <Spinner /> : authConfig?.demo_enabled ? "Demo-Workspace öffnen" : "Anmelden"}
+            </button>
+          </form>
+          {authConfig?.demo_enabled && (
+            <p className="login-note">
+              Lokale Entwicklungsumgebung. Die Zugangsdaten sind vorausgefüllt.
+            </p>
+          )}
         </section>
       </main>
     );
@@ -361,31 +298,41 @@ export default function WorkspaceApp() {
           <ChevronsUpDown size={14} />
         </div>
         <nav aria-label="Hauptnavigation">
-          {navigation.map((group) => (
-            <div className="nav-group" key={group.section}>
-              <p>{group.section}</p>
-              {group.items.map((item) => (
+          <div className="nav-group">
+            {sections.map((section) => {
+              const current = sectionFor(route, isDemo)?.key === section.key;
+              return (
                 <button
-                  key={item.path}
-                  aria-label={item.label}
-                  title={collapsed ? item.label : undefined}
-                  aria-current={
-                    route === item.path || route.startsWith(item.path + "/")
-                      ? "page"
-                      : undefined
-                  }
-                  className={`nav-item ${route === item.path || route.startsWith(item.path + "/") ? "active" : ""}`}
-                  onClick={() => go(item.path)}
+                  key={section.key}
+                  aria-label={section.label}
+                  title={collapsed ? section.label : undefined}
+                  aria-current={current ? "page" : undefined}
+                  className={`nav-item ${current ? "active" : ""}`}
+                  onClick={() => go(section.tabs[0].path)}
                 >
-                  <item.icon size={18} />
-                  <span>{item.label}</span>
-                  {item.path === "/social/studio" && (
-                    <span className="nav-new">NEU</span>
-                  )}
+                  <section.icon size={16} />
+                  <span>{section.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {isDemo && (
+            <div className="nav-group nav-more">
+              <p>Nur im Demo</p>
+              {demoSection.tabs.map((tab) => (
+                <button
+                  key={tab.path}
+                  aria-label={tab.label}
+                  aria-current={route === tab.path ? "page" : undefined}
+                  className={`nav-item ${route === tab.path ? "active" : ""}`}
+                  onClick={() => go(tab.path)}
+                >
+                  <demoSection.icon size={16} />
+                  <span>{tab.label}</span>
                 </button>
               ))}
             </div>
-          ))}
+          )}
         </nav>
         <div className="sidebar-bottom">
           {session.workspaces.some((w) => w.kind === "demo") && (
@@ -452,22 +399,15 @@ export default function WorkspaceApp() {
             >
               <Menu size={21} />
             </button>
-            <span className="desktop-only">Workspace</span>
-            <ChevronRight size={14} />
-            <strong>
-              {titles[route] ||
-                (route.startsWith("/campaigns/")
-                  ? "Kampagnendetails"
-                  : route.startsWith("/companies/")
-                    ? "Unternehmensprofil"
-                    : "Workspace")}
-            </strong>
+            <span className="desktop-only">{sectionFor(route, isDemo)?.label || "ProspectOS"}</span>
+            {titleFor(route, isDemo) && titleFor(route, isDemo) !== sectionFor(route, isDemo)?.label && (
+              <>
+                <ChevronRight size={14} />
+                <strong>{titleFor(route, isDemo)}</strong>
+              </>
+            )}
           </div>
           <div className="topbar-actions">
-            <Badge tone="green">
-              <span className="status-dot" />{" "}
-              {workspace?.role === "owner" ? "Owner" : workspace?.role}
-            </Badge>
             <button
               className="icon-button"
               onClick={() => setTheme(theme === "light" ? "dark" : "light")}
@@ -478,14 +418,6 @@ export default function WorkspaceApp() {
               }
             >
               {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-            </button>
-            <button
-              className="icon-button"
-              title="Integrationsstatus"
-              aria-label="Integrationsstatus öffnen"
-              onClick={() => go("/settings/integrations")}
-            >
-              <CircleHelp size={18} />
             </button>
             <span className="top-avatar">
               {session.user.name?.slice(0, 1) || "D"}
@@ -502,10 +434,29 @@ export default function WorkspaceApp() {
               </button>
             </p>
           )}
-          {workspace ? (
+          {workspace && sectionFor(route, isDemo) && (sectionFor(route, isDemo)?.tabs.length || 0) > 1 && (sectionFor(route, isDemo)?.key !== "demo" || isDemo) && (
+            <nav className="section-tabs" aria-label="Unterseiten">
+              {sectionFor(route, isDemo)?.tabs.map((tab) => (
+                <button
+                  key={tab.path}
+                  aria-current={route === tab.path ? "page" : undefined}
+                  onClick={() => go(tab.path)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          )}
+          {workspace && !isDemo && DEV_ONLY.includes(route) ? (
+            <Empty
+              title="Nur im Demo-Workspace"
+              description="Diese Ansicht zeigt Entwicklungsbeispiele. Schalte unten links „Demo ansehen“ ein, um sie zu öffnen."
+            />
+          ) : workspace ? (
             <>
               {route === "/discover" && (
                 <DiscoveryWorkbench
+                  demo={isDemo}
                   base={base}
                   write={write}
                   csrf={session.csrf_token}
@@ -517,6 +468,18 @@ export default function WorkspaceApp() {
                 />
               )}
               {route === "/contacts" && (
+                <ContactsTable
+                  base={base}
+                  write={write}
+                  csrf={session.csrf_token}
+                  notify={notify}
+                  revision={revision}
+                  onChange={refresh}
+                  onNavigate={go}
+                  onImport={() => setImportOpen(true)}
+                />
+              )}
+              {route === "/contacts/advanced" && (
                 <LeadDatabase
                   base={base}
                   write={write}
@@ -528,7 +491,8 @@ export default function WorkspaceApp() {
                   onImport={() => setImportOpen(true)}
                 />
               )}
-              {route === "/today" && <TodayView base={base} write={write} />}
+              {route === "/today" && <TodayView base={base} write={write} onNavigate={go} />}
+              {route === "/settings/outreach" && <OutreachSettingsPage base={base} write={write} notify={notify} />}
               {route === "/agent" && (
                 <AgentConsole base={base} write={write} onNavigate={go} />
               )}
@@ -781,21 +745,16 @@ export default function WorkspaceApp() {
                   onChange={refresh}
                 />
               )}
-              {!titles[route] &&
-                !route.startsWith("/companies/") &&
-                !route.startsWith("/campaigns/") && (
-                  <Empty
-                    title="Diese Seite gibt es noch nicht"
-                    description="Die verfügbaren Bereiche findest du in der Navigation."
-                  >
-                    <button
-                      className="button primary"
-                      onClick={() => go("/overview")}
-                    >
-                      Zur Übersicht
-                    </button>
-                  </Empty>
-                )}
+              {!sectionFor(route, true) && (
+                <Empty
+                  title="Diese Seite gibt es nicht"
+                  description="Über die Navigation links kommst du zu allen Bereichen."
+                >
+                  <button className="button primary" onClick={() => go("/today")}>
+                    Zu Heute
+                  </button>
+                </Empty>
+              )}
             </>
           ) : (
             <Empty
@@ -811,15 +770,6 @@ export default function WorkspaceApp() {
             </Empty>
           )}
         </main>
-        <footer className="app-footer">
-          <span>
-            ProspectOS <span className="muted">/</span> Dein nächster guter
-            Kontakt.
-          </span>
-          <span>
-            <ShieldCheck size={12} /> Daten bleiben in deinem Workspace
-          </span>
-        </footer>
       </div>
       {toast && (
         <div role="status" className="toast">

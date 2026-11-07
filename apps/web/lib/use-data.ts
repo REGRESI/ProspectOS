@@ -21,8 +21,10 @@ export function useData<T>(path: string, revision = 0) {
       active = false;
     };
   }, [path, revision, key]);
+  // Keep showing the previous data for the same path while a refresh loads (no flicker).
+  const samePath = !!result && result.key.slice(0, result.key.lastIndexOf(":")) === path;
   return {
-    data: result?.key === key ? result.data : null,
+    data: result?.key === key ? result.data : samePath ? result.data : null,
     error: result?.key === key ? result.error : "",
     loading: result?.key !== key,
   };

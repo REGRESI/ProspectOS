@@ -1,3 +1,4 @@
+import { ROUTES } from "./routes";
 import { test, expect, Page } from "@playwright/test";
 import { deflateSync } from "node:zlib";
 let browserErrors: string[] = [];
@@ -31,6 +32,10 @@ async function login(page: Page) {
   await expect(page.locator(".stat-card").first()).not.toContainText("—");
 }
 async function nav(page: Page, label: string) {
+  if (ROUTES[label]) {
+    await page.goto(ROUTES[label]);
+    return;
+  }
   const menu = page.getByRole("button", {
     name: "Navigation öffnen",
     exact: true,

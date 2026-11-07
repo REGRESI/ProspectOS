@@ -3,6 +3,8 @@ import type { ModuleProps } from "./growth-modules";
 export type JourneyProps = ModuleProps & {
   onNavigate?: (path: string) => void;
   onImport?: () => void;
+  /** Demo workspace: synthetic examples and developer views are shown. */
+  demo?: boolean;
 };
 export type Completeness = {
   present: number;
@@ -28,6 +30,7 @@ export type Company = {
   deal_count: number;
   completeness?: Completeness;
   provenance?: Record<string, unknown>;
+  created_at?: string | null;
 };
 export type LeadFilters = {
   search: string;

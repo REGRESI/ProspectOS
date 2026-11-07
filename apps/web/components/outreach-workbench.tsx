@@ -157,8 +157,8 @@ export function OutreachWorkbench(
   return (
     <>
       <Heading
-        title="Outreach-Workspace"
-        description="Zielgruppe, Sequenz, Entwürfe und manuelle Gespräche in einem durchgängigen Ablauf."
+        title="Kampagne"
+        description="Zielgruppe, Abfolge der Nachrichten und Entwürfe einer Kampagne."
       >
         <button className="button primary" onClick={() => setCreate(true)}>
           <Plus size={16} /> Neue Kampagne

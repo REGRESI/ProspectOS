@@ -65,8 +65,8 @@ export function AgentConsole({ base, write, onNavigate }: { base: string; write:
     <>
       <Heading
         eyebrow="AUFTRAG"
-        title="Auftrags-Agent"
-        description="Beschreibe, was passieren soll. Der Agent zeigt Plan und Kosten, startet erst nach Bestätigung und nutzt nur belegte Daten. Er sendet nichts nach außen."
+        title="Autopilot"
+        description="Findet jeden Morgen neue Firmen und bereitet die Texte für „Heute“ vor. Gesendet wird nichts ohne dich."
       />
       <ErrorNote message={error} />
       <form className="panel pad agent-form" onSubmit={plan}>

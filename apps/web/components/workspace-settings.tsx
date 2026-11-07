@@ -61,8 +61,8 @@ export function WorkspaceOnboarding({
     <>
       <Heading
         eyebrow="EINSTELLUNGEN / WORKSPACE"
-        title="Workspace einrichten"
-        description="Geschäftskontext speichern und die nächsten Produkt-Schritte gezielt erledigen."
+        title="Mein Angebot"
+        description="Was du anbietest, wo und für wen. Daraus entstehen Zielgruppe und Texte."
       />
       <ErrorNote message={localError || error} />
       <div className="setup-layout">
@@ -117,7 +117,7 @@ export function WorkspaceOnboarding({
           <div className="setup-steps">
             {[
               {
-                title: "2 · Zielkunden als ICP strukturieren",
+                title: "2 · Zielgruppe festlegen",
                 text: "Kriterien, bekannte Fakten und Gewichte im Profil speichern.",
                 path: "/audiences",
               },
@@ -218,8 +218,8 @@ export function TeamSettings({
     <>
       <Heading
         eyebrow="EINSTELLUNGEN / ZUGRIFF"
-        title="Team & Rollen"
-        description="Zugriff wird pro Workspace geprüft. Einladungen sind kurzlebig, einmalig und an die E-Mail-Adresse gebunden."
+        title="Team"
+        description="Wer Zugriff hat und was er darf. Einladungen gelten einmal und nur für die genannte E-Mail-Adresse."
       />
       <ErrorNote message={localError || error} />
       <div className="setup-layout">
@@ -371,7 +371,7 @@ export function BillingSettings({ base, write, revision }: ModuleProps) {
     <>
       <Heading
         eyebrow="EINSTELLUNGEN / ABRECHNUNG"
-        title="Abo & Ressourcen"
+        title="Abo"
         description="Aktuell ausschließlich Stripe-Testmodus. Keine echten Produktionszahlungen."
       />
       <ErrorNote message={localError || error} />
@@ -450,7 +450,7 @@ export function ProviderChecks({ write }: Pick<ModuleProps, "write">) {
           { id: "llm", label: "KI-Text" },
           { id: "images", label: "KI-Bilder" },
           { id: "linkedin", label: "LinkedIn" },
-          { id: "discovery", label: "Lizenzierte Discovery" },
+          { id: "discovery", label: "Firmensuche mit Lizenz" },
           { id: "stripe", label: "Stripe-Testmodus" },
           { id: "email", label: "E-Mail" },
         ].map((provider) => (

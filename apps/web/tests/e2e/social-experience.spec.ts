@@ -1,3 +1,4 @@
+import { ROUTES } from "./routes";
 import { test, expect, Page } from "@playwright/test";
 async function login(page: Page) {
   await page.goto("/");
@@ -15,6 +16,10 @@ async function login(page: Page) {
   return { ws, csrf: me.csrf_token };
 }
 async function nav(page: Page, label: string) {
+  if (ROUTES[label]) {
+    await page.goto(ROUTES[label]);
+    return;
+  }
   const menu = page.getByRole("button", {
     name: "Navigation öffnen",
     exact: true,

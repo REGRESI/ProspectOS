@@ -50,10 +50,7 @@ test("voice examples → gallery modes → preview → save/reload → revision 
   ).toBeTruthy();
   await page.reload();
   await page.getByLabel("Workspace", { exact: true }).selectOption(ws.id);
-  await page
-    .getByRole("navigation")
-    .getByRole("button", { name: "Social Studio", exact: true })
-    .click();
+  await page.goto("/social/studio");
   await page
     .getByRole("button", { name: "Schreibprofil erstellen", exact: true })
     .click();

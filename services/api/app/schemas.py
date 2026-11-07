@@ -15,6 +15,8 @@ class Login(Strict):
 
 class WorkspaceInput(Strict):
     name: str = Field(min_length=2, max_length=120)
+    # "demo" = synthetic examples only (used by browser tests); never offered in the UI.
+    kind: Literal["standard", "demo"] = "standard"
 
 
 class ContactInput(Strict):

@@ -152,7 +152,7 @@ export function ICPBuilder({
       );
       setSelected(result);
       onChange();
-      notify("ICP-Profil gespeichert. Nur belegte Kriterien erhalten Punkte.");
+      notify("Zielgruppe gespeichert. Nur belegte Angaben bringen Punkte.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -164,9 +164,9 @@ export function ICPBuilder({
       <div className="journey-heading">
         <div>
           <span className="eyebrow">LEADS / INTELLIGENZ</span>
-          <h1>ICP-Profile</h1>
+          <h1>Zielgruppe</h1>
           <p className="muted">
-            Zielkunden strukturiert definieren und nachvollziehbar bewerten.
+            Welche Firmen zu dir passen. Daraus entsteht die Rangliste unter Firmen.
           </p>
         </div>
         <button
@@ -369,7 +369,7 @@ export function ICPBuilder({
           </p>
           <div className="journey-inline-actions">
             <button className="button primary" disabled={busy || total !== 100}>
-              {busy ? "Speichert …" : "ICP-Profil speichern"}
+              {busy ? "Speichert …" : "Zielgruppe speichern"}
             </button>
             {selected.id && (
               <button

@@ -91,6 +91,6 @@ describe("Authentication mode is a server decision", () => {
     expect(
       (screen.getByLabelText("E-Mail-Adresse") as HTMLInputElement).value,
     ).toBe("demo@prospectos.local");
-    expect(screen.getByText("Transparent im Demo-Modus")).toBeTruthy();
+    expect(screen.getByText(/Lokale Entwicklungsumgebung/)).toBeTruthy();
   });
 });

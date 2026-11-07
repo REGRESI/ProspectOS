@@ -13,14 +13,14 @@ test("durable discovery job → attributed import; missing AI credentials fail h
   const ws = await workspace.json();
   await page.reload();
   await page.getByLabel("Workspace", { exact: true }).selectOption(ws.id);
-  await page.getByRole("navigation").getByRole("button", { name: "Recherche & KI", exact: true }).click();
+  await page.goto("/intelligence");
   await page.getByRole("button", { name: "Suchauftrag anlegen" }).click();
   await expect(page.getByText("succeeded", { exact: true })).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole("heading", { name: "Demo-Unternehmen 1 (synthetisch)" })).toBeVisible();
   await page.getByRole("button", { name: "Ergebnisse mit Herkunft übernehmen" }).click();
   await page.getByRole("navigation").getByRole("button", { name: "Kontakte", exact: true }).click();
   await expect(page.getByText("5 Kontakte · Seite 1 von 1")).toBeVisible();
-  await page.getByRole("navigation").getByRole("button", { name: "Recherche & KI", exact: true }).click();
+  await page.goto("/intelligence");
   const integrations=await (await page.request.get(`/api/v1/workspaces/${ws.id}/integrations`)).json();
   if (integrations.items.some((item:{name:string;status:string})=>item.name==="KI-Text"&&item.status==="configured")) return;
   await page.getByLabel("Aufgabe", { exact: true }).fill("Schreibe einen Vorschlag ohne erfundene Fakten.");

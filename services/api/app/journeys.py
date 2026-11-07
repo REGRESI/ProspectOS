@@ -584,7 +584,10 @@ def contact_extended(db, contact, company, profile, metadata=None):
     return values
 
 
-def company_listing(db, ws, page=1, limit=25, search=""):
+COMPANY_SORT = {"name", "location", "contacts", "created"}
+
+
+def company_listing(db, ws, page=1, limit=25, search="", sort="name"):
     if page < 1 or not 1 <= limit <= 100:
         raise HTTPException(422, "Invalid pagination.")
     counts = (
@@ -617,8 +620,20 @@ def company_listing(db, ws, page=1, limit=25, search=""):
             )
         )
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+    desc = sort.startswith("-")
+    key = sort.lstrip("-")
+    if key not in COMPANY_SORT:
+        raise HTTPException(422, "Unbekannte Sortierung.")
+    column = {
+        "name": func.lower(Company.name),
+        "location": func.lower(Company.location),
+        "contacts": func.coalesce(counts.c.contact_count, 0),
+        "created": Company.created_at,
+    }[key]
     rows = db.execute(
-        stmt.order_by(Company.name, Company.id).offset((page - 1) * limit).limit(limit)
+        stmt.order_by(column.desc() if desc else column.asc(), Company.name, Company.id)
+        .offset((page - 1) * limit)
+        .limit(limit)
     ).all()
     return {
         "items": [
@@ -635,6 +650,7 @@ def company_listing(db, ws, page=1, limit=25, search=""):
                 "completeness": completeness(
                     {"location": c.location, "industry": c.industry, "website": c.website}
                 ),
+                "created_at": c.created_at.isoformat() if c.created_at else None,
             }
             for c, count, deal_count in rows
         ],
@@ -1008,10 +1024,11 @@ def register_journey_routes(
         search: str = "",
         page: int = 1,
         limit: int = 25,
+        sort: str = "name",
         member=Depends(scope),
         db=Depends(db_session, scope="function"),
     ):
-        return company_listing(db, ws, page, limit, search)
+        return company_listing(db, ws, page, limit, search, sort)
 
     @app.get("/v1/workspaces/{ws}/companies/{entity_id}")
     def company_detail(

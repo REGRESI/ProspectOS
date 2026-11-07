@@ -1,3 +1,4 @@
+import { ROUTES } from "./routes";
 import { test, expect, Page } from "@playwright/test";
 
 /*
@@ -25,7 +26,7 @@ test.beforeEach(async ({ context }) => {
 
 async function setup(page: Page) {
   await page.goto("/");
-  await expect(page.locator(".stat-card").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Heute", level: 1 })).toBeVisible();
   const me = await (await page.request.get("/api/v1/me")).json();
   const headers = { "X-CSRF-Token": me.csrf_token };
   const ws = await (
@@ -40,6 +41,10 @@ async function setup(page: Page) {
 }
 
 async function nav(page: Page, label: string) {
+  if (ROUTES[label]) {
+    await page.goto(ROUTES[label]);
+    return;
+  }
   const menu = page.getByRole("button", {
     name: "Navigation öffnen",
     exact: true,
@@ -60,6 +65,7 @@ test("discovery shows OSM as a disclosed, configurable source with ODbL categori
   ).json();
   const osm = providers.items.find((p: { id: string }) => p.id === "osm");
   await nav(page, "Lead Discovery");
+  await page.getByText("Weitere Filter").click();
   await page.getByLabel("Datenquelle").selectOption("osm");
   const capability = page.getByTestId("provider-capability");
   await expect(capability).toContainText("ODbL 1.0");

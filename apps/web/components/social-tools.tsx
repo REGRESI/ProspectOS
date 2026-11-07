@@ -65,7 +65,7 @@ export function useGenerationJob(
         } else if (++attempts >= 120) {
           window.clearInterval(timer);
           setPollError(
-            "Der Auftrag läuft weiter. Den aktuellen Status findest du unter Einstellungen → Aufträge & Budget.",
+            "Der Auftrag läuft weiter. Den Stand findest du unter Einstellungen → Kosten.",
           );
         }
       } catch (e) {
@@ -1006,8 +1006,8 @@ export function EngagementWorkspace({
     <>
       <Heading
         eyebrow="SOCIAL · ENGAGEMENT"
-        title="Interaktionen prüfen"
-        description="Manuell erfasster Kontext und geprüfte Antwortentwürfe. Kein automatisches Lesen fremder Feeds, Kommentieren oder Liken."
+        title="Kommentare"
+        description="Kommentare, die du selbst einträgst, mit Antwortvorschlägen. Nichts wird automatisch gelesen oder gepostet."
       />
       <div className="info-note">
         <MessageSquare size={18} />

@@ -185,11 +185,11 @@ export function Social({
         eyebrow={
           calendar ? "DEIN REDAKTIONELLER RHYTHMUS" : "IDEEN, DIE VERBINDEN"
         }
-        title={calendar ? "Content-Kalender" : "Beiträge erstellen"}
+        title={calendar ? "Kalender" : "Beitrag schreiben"}
         description={
           calendar
             ? "Redaktionelle und ausdrücklich autorisierte Termine in Europe/Berlin."
-            : "Entwickle Ideen, feile an deinem Text und bereite deinen nächsten Beitrag vor."
+            : "Idee, Text, Bild und Vorschau. Veröffentlicht wird nur nach deiner Freigabe."
         }
       />
       <div className="provider-notice">

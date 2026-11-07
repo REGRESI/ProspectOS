@@ -1,11 +1,12 @@
 "use client";
 import { FormEvent, useState } from "react";
-import { CalendarRange, Copy, ExternalLink, ImagePlus, Sparkles } from "lucide-react";
+import { Copy, ExternalLink } from "lucide-react";
 import { request } from "@/lib/api";
 import { useData } from "@/lib/use-data";
 import { Badge, Empty, ErrorNote, Heading, Spinner } from "./ui";
 import type { Write } from "./growth-modules";
 import { StyleNotice } from "./style-notice";
+import { SkeletonTable } from "./table";
 
 type PlanItem = {
   id: string;
@@ -33,6 +34,16 @@ type Plan = {
   items: PlanItem[];
 };
 
+const POST_STATE: Record<string, [string, string]> = {
+  draft: ["Entwurf", "dot"],
+  needs_review: ["zur Prüfung", "amber"],
+  approved: ["freigegeben", "green"],
+  scheduled: ["geplant", "blue"],
+  published: ["veröffentlicht", "green"],
+  published_manually: ["veröffentlicht", "green"],
+  failed: ["fehlgeschlagen", "red"],
+};
+
 async function waitForJob(base: string, id: string) {
   for (let i = 0; i < 90; i++) {
     await new Promise((r) => setTimeout(r, 2000));
@@ -48,6 +59,7 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
   const [active, setActive] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const plans = useData<{ items: Plan[] }>(`${base}/content/plans`, revision);
   const voices = useData<{ items: { id: string; name: string }[] }>(`${base}/social/voices`);
   const [form, setForm] = useState({
@@ -72,6 +84,7 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
       });
       await waitForJob(base, r.job.id);
       setActive(r.id);
+      setShowForm(false);
       setRevision((v) => v + 1);
     } catch (err) {
       setError((err as Error).message);
@@ -81,19 +94,31 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
   }
 
   const current = active || plans.data?.items[0]?.id || null;
+  const formOpen = showForm || (!!plans.data && plans.data.items.length === 0);
   return (
     <>
       <Heading
-        eyebrow="CONTENT"
-        title="LinkedIn-Strategie"
-        description="Ziel, Zielgruppe und Themensäulen festlegen. Daraus entsteht ein Plan mit rotem Faden, pro Post zwei Varianten im eigenen Stil."
-      />
+        title="LinkedIn-Plan"
+        description="Was du wann auf LinkedIn postest. Jeder Beitrag kommt in zwei Varianten, du wählst und gibst frei."
+      >
+        {plans.data && plans.data.items.length > 1 && (
+          <select aria-label="Plan auswählen" value={current || ""} onChange={(e) => setActive(e.target.value)}>
+            {plans.data.items.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <button className={`button ${formOpen ? "secondary" : "primary"}`} onClick={() => setShowForm(!formOpen)}>
+          {formOpen && plans.data?.items.length ? "Abbrechen" : "Neuer Plan"}
+        </button>
+      </Heading>
       <ErrorNote message={error || plans.error} />
-      <StyleNotice base={base} write={write} />
-      <section className="panel pad">
-        <h2>
-          <CalendarRange size={17} /> Neuer Plan
-        </h2>
+      <StyleNotice base={base} write={write} compact />
+      {formOpen && (
+      <section className="card plan-new">
+        <h2>Neuer Plan</h2>
         <form className="planner-form" onSubmit={create}>
           <label>
             Name
@@ -109,7 +134,7 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
           </label>
           {form.pillars.map((p, i) => (
             <label key={i}>
-              Themensäule {i + 1}
+              Thema {i + 1}
               <input
                 required={i < 3}
                 value={p}
@@ -119,11 +144,11 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
           ))}
           {form.pillars.length < 4 && (
             <button type="button" className="button ghost small" onClick={() => setForm({ ...form, pillars: [...form.pillars, ""] })}>
-              + 4. Säule
+              + 4. Thema
             </button>
           )}
           <label>
-            Posts pro Woche
+            Beiträge pro Woche
             <input type="number" min={1} max={5} value={form.cadence} onChange={(e) => setForm({ ...form, cadence: Number(e.target.value) })} />
           </label>
           <label>
@@ -131,9 +156,9 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
             <input type="number" min={2} max={12} value={form.weeks} onChange={(e) => setForm({ ...form, weeks: Number(e.target.value) })} />
           </label>
           <label>
-            Schreibprofil
+            Schreibstil
             <select value={form.voice_profile_id} onChange={(e) => setForm({ ...form, voice_profile_id: e.target.value })}>
-              <option value="">Standard: meine-texte.md (sonst neutral)</option>
+              <option value="">Aus deinen eigenen Texten</option>
               {voices.data?.items.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}
@@ -141,27 +166,19 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
               ))}
             </select>
           </label>
-          <p className="muted small wide">Eigene Texte (3 bis 5) in data/private/meine-texte.md ablegen und oben übernehmen, oder unter Social Studio → Schreibprofile.</p>
           <div className="form-actions wide">
             <button className="button primary" disabled={busy}>
-              {busy ? <Spinner /> : <><Sparkles size={15} /> Plan erstellen</>}
+              {busy ? <Spinner /> : "Plan erstellen"}
             </button>
+            {busy && <span className="muted small">Der Plan wird geschrieben. Das dauert etwa eine Minute.</span>}
           </div>
         </form>
       </section>
-      {plans.data && plans.data.items.length > 1 && (
-        <div className="chip-row">
-          {plans.data.items.map((p) => (
-            <button key={p.id} className={`chip ${p.id === current ? "active" : ""}`} onClick={() => setActive(p.id)}>
-              {p.name}
-            </button>
-          ))}
-        </div>
       )}
       {current ? (
         <PlanView key={current + revision} base={base} write={write} planId={current} />
       ) : (
-        !plans.loading && <Empty title="Noch kein Plan" description="Oben Ziel, Zielgruppe und Säulen eintragen." />
+        !plans.loading && !formOpen && <Empty title="Noch kein Plan" description="Lege mit „Neuer Plan“ Ziel, Zielgruppe und Themen fest." />
       )}
     </>
   );
@@ -170,26 +187,28 @@ export function ContentPlanner({ base, write }: { base: string; write: Write }) 
 function PlanView({ base, write, planId }: { base: string; write: Write; planId: string }) {
   const [revision, setRevision] = useState(0);
   const plan = useData<Plan>(`${base}/content/plans/${planId}`, revision);
-  if (plan.loading && !plan.data) return <Spinner />;
+  if (plan.loading && !plan.data) return <SkeletonTable rows={6} cols={4} />;
   const p = plan.data;
   if (!p) return <ErrorNote message={plan.error} />;
   const weeks = Array.from({ length: p.weeks }, (_, i) => i + 1);
   return (
-    <section className="panel pad" data-testid="content-plan">
-      <h2>{p.name}</h2>
-      <p className="muted">
-        {p.goal} · {p.audience} · {p.cadence}× pro Woche
-      </p>
+    <section data-testid="content-plan">
+      <div className="plan-head">
+        <h2>{p.name}</h2>
+        <p className="muted">
+          {p.goal} · {p.audience} · {p.cadence} Beiträge pro Woche
+        </p>
+      </div>
       {p.status !== "ready" && <ErrorNote message={p.status === "failed" ? "Plan konnte nicht erstellt werden." : ""} />}
       {p.storyline && (
-        <p className="info-note">
+        <p className="plan-storyline">
           <strong>Roter Faden:</strong> {p.storyline}
         </p>
       )}
       {weeks.map((w) => (
         <div key={w} className="plan-week">
           <h3>Woche {w}</h3>
-          <div className="plan-items">
+          <div className="plan-items row-list">
             {p.items
               .filter((i) => i.week === w)
               .map((item) => (
@@ -222,13 +241,18 @@ function PlanCard({ base, write, plan, item, onChange }: { base: string; write: 
   return (
     <article className="plan-card">
       <header>
-        <Badge>{item.day}</Badge>
-        <Badge tone="neutral">{item.pillar}</Badge>
-        <small className="muted">{item.format}</small>
-        {post && <Badge tone={post.state === "approved" || post.state === "published_manually" ? "green" : "amber"}>{post.state}</Badge>}
+        <span className="plan-day">{item.day}</span>
+        <span className="plan-topic">
+          <strong>{item.topic}</strong>
+          <small className="muted">
+            {item.pillar}
+            {item.hook ? ` · ${item.hook}` : ""}
+          </small>
+        </span>
+        <Badge tone={!post ? "dot" : POST_STATE[post.state]?.[1] || "dot"}>
+          {!post ? "noch kein Text" : POST_STATE[post.state]?.[0] || post.state}
+        </Badge>
       </header>
-      <strong>{item.topic}</strong>
-      <p className="muted small">{item.hook}</p>
       <ErrorNote message={error} />
       {!item.post_id ? (
         <button
@@ -277,11 +301,11 @@ function PlanCard({ base, write, plan, item, onChange }: { base: string; write: 
                     await waitForJob(base, job.id);
                     const asset = await write<{ id: string }>(`/social/images/${job.id}/save`, { rights_confirmed: true });
                     await write(`/content/posts/${item.post_id}/apply`, { asset_id: asset.id, alt_text: (post.image_idea || item.topic).slice(0, 200) });
-                    setImageNote("Bild erzeugt, geprüft und angehängt (Bibliothek).");
+                    setImageNote("Bild erzeugt und angehängt. Du findest es auch unter Content → Bilder.");
                   })
                 }
               >
-                {busy === "img" ? <Spinner /> : <><ImagePlus size={14} /> Bild erzeugen</>}
+                {busy === "img" ? <Spinner /> : "Bild erzeugen"}
               </button>
               {post.state === "draft" && (
                 <button className="button secondary small" disabled={!!busy} onClick={() => run("rv", () => write(`/social/posts/${item.post_id}/submit-review`))}>

@@ -77,7 +77,7 @@ it("creates and updates a structured ICP without posting server metadata", async
   fireEvent.click(
     screen.getByRole("button", { name: "Regionen und Standorte hinzufügen" }),
   );
-  fireEvent.click(screen.getByRole("button", { name: "ICP-Profil speichern" }));
+  fireEvent.click(screen.getByRole("button", { name: "Zielgruppe speichern" }));
   await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
   expect(write.mock.calls[0][1].locations).toEqual(["Berlin"]);
   await waitFor(() =>
@@ -85,7 +85,7 @@ it("creates and updates a structured ICP without posting server metadata", async
       screen.getByRole("heading", { name: "Profil bearbeiten" }),
     ).toBeTruthy(),
   );
-  fireEvent.click(screen.getByRole("button", { name: "ICP-Profil speichern" }));
+  fireEvent.click(screen.getByRole("button", { name: "Zielgruppe speichern" }));
   await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
   expect(write.mock.calls[1][0]).toBe("/icp-profiles/profile-a");
   expect(write.mock.calls[1][1]).not.toHaveProperty("created_at");

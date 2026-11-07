@@ -60,7 +60,9 @@ def test_lights_and_next_steps(context, monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_API_KEY", "synthetic-key")
     monkeypatch.setenv("IMAGE_MAX_COST_USD_CENTS", "100")
     image = {i["key"]: i for i in client.get(f"/v1/workspaces/{ws}/setup-check").json()["items"]}
-    assert "Bildpreise fehlen" in image["image"]["status"]
+    assert (
+        "Bildpreise fehlen" in image["image"]["status"] and "IMAGE_OUTPUT" in image["image"]["tech"]
+    )
     with Session(admin_engine) as db, db.begin():
         db.get(Workspace, other).kind = "demo"
     demo = client.get(f"/v1/workspaces/{other}/setup-check").json()

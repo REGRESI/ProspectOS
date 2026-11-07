@@ -241,10 +241,10 @@ def status(db, ws: str) -> dict:
         "hint": None
         if state == "ok"
         else (
-            "Lege die Datei data/private/meine-texte.md an (sie ist gitignored) und füge 3 bis 5 "
-            "Texte ein, die du wirklich selbst geschrieben hast: LinkedIn-Posts, Nachrichten an "
-            "Kunden oder E-Mails. Trenne die Texte mit einer Zeile ---. Danach hier "
-            "„Aus Datei übernehmen“ klicken. Bis dahin gelten nur die festen Stilregeln."
+            "Kopiere 3 bis 5 Texte, die du selbst geschrieben hast (LinkedIn-Beiträge, "
+            "Nachrichten an Kunden, E-Mails), in die Datei data/private/meine-texte.md im "
+            "ProspectOS-Ordner. Trenne die Texte mit einer Zeile ---. Danach "
+            "„Aus Datei übernehmen“ klicken. Die Datei bleibt auf deinem Rechner."
         ),
     }
 

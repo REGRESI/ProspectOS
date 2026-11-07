@@ -161,8 +161,8 @@ export function AssetLibrary({
     <>
       <Heading
         eyebrow="DEINE VISUELLE HANDSCHRIFT"
-        title="Bilder mit einer Geschichte."
-        description="Private Bildbibliothek für deinen Workspace. Mit Bildbeschreibung und dokumentierten Nutzungsrechten."
+        title="Bilder"
+        description="Deine Bilder für Beiträge, mit Beschreibung und Nutzungsrechten."
       >
         <button className="button primary" onClick={() => setOpen(true)}>
           <Upload size={16} /> Bild hochladen
@@ -210,7 +210,7 @@ export function AssetLibrary({
           <Empty
             icon={ImageIcon}
             title="Deine Marke verdient eigene Bilder."
-            description="Lade dein erstes Bild hoch. Es bleibt privat und kann im Social Studio ausgewählt werden."
+            description="Lade dein erstes Bild hoch. Es bleibt privat und steht dir beim Beitrag schreiben zur Verfügung."
           >
             <button className="button primary" onClick={() => setOpen(true)}>
               <Upload size={16} /> Erstes Bild hochladen
@@ -319,8 +319,8 @@ export function BrandProfiles({
     <>
       <Heading
         eyebrow="KONSISTENT AUFTRETEN"
-        title="Eine Marke. Eine klare Stimme."
-        description="Halte Zielgruppe, Tonalität und Content-Säulen fest – für konsistente Beiträge."
+        title="Markenprofile"
+        description="Zielgruppe, Ton und Themen deiner Marke an einem Ort."
       >
         <button className="button primary" onClick={() => setOpen(true)}>
           <Plus size={16} /> Markenprofil
@@ -517,8 +517,8 @@ export function TaskNotes({
     <>
       <Heading
         eyebrow="DEN FADEN BEHALTEN"
-        title="Gute Gespräche gehen weiter."
-        description="Plane den nächsten Schritt und halte fest, was für deine Beziehungen wichtig ist."
+        title="Aufgaben"
+        description="Nächste Schritte und Notizen zu deinen Kontakten."
       >
         <button className="button primary" onClick={() => setOpen(true)}>
           <Plus size={16} /> {tab === "tasks" ? "Aufgabe" : "Notiz"} hinzufügen
@@ -758,8 +758,8 @@ export function Campaigns({
     <>
       <Heading
         eyebrow="BEZIEHUNGEN MIT RICHTUNG"
-        title="Mit einem guten Plan ins Gespräch."
-        description="Gruppiere Kontakte, definiere dein Ziel und bereite persönliche Gesprächsentwürfe vor."
+        title="Kampagnen"
+        description="Kontakte gruppieren und Gesprächsentwürfe vorbereiten."
       >
         <button className="button primary" onClick={() => setOpen(true)}>
           <Plus size={16} /> Kampagne erstellen
@@ -996,8 +996,8 @@ export function Operations({
     <>
       <Heading
         eyebrow="TRANSPARENZ IM BETRIEB"
-        title="Was läuft. Was es kostet."
-        description="Aufträge, Fehler und KI-Budget für diesen Workspace. Ohne erfundene Nutzungswerte."
+        title="Kosten"
+        description="Was die KI diesen Monat gekostet hat, dein Budget und alle Hintergrundaufträge."
       >
         <button className="button secondary" onClick={onChange}>
           <RefreshCw size={16} /> Aktualisieren
@@ -1029,10 +1029,9 @@ export function Operations({
       {usage.data && (
         <form className="panel budget-form" onSubmit={budget}>
           <div>
-            <h2>KI-Budget begrenzen</h2>
+            <h2>Monatsbudget für KI</h2>
             <p>
-              Ein Budget verbindet keinen Anbieter und löst keine
-              kostenpflichtige Aktion aus.
+              Ist das Budget erreicht, pausieren alle KI-Aufträge bis zum nächsten Monat.
             </p>
           </div>
           <label>
@@ -1055,7 +1054,7 @@ export function Operations({
       <section className="panel">
         <div className="panel-head">
           <div>
-            <h2>Aufträge & Hintergrundverarbeitung</h2>
+            <h2>Hintergrundaufträge</h2>
             <p>Nur tatsächlich angelegte Aufträge erscheinen hier.</p>
           </div>
         </div>
@@ -1141,8 +1140,8 @@ export function OutreachDrafts({ base, notify, revision }: ModuleProps) {
     <>
       <Heading
         eyebrow="PERSÖNLICH VORBEREITET"
-        title="Bessere Gespräche beginnen vor dem Senden."
-        description="Gespeicherte Entwürfe aus deinem Workspace. Ohne automatischen Versand."
+        title="Entwürfe"
+        description="Gespeicherte Nachrichtenentwürfe. Nichts wird automatisch gesendet."
       />
       <div className="provider-notice">
         <ShieldCheck size={23} />

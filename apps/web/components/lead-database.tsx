@@ -120,7 +120,7 @@ export function LeadDatabase(props: JourneyProps) {
     <>
       <Heading
         title="Kontakte"
-        description="Kontakte qualifizieren, segmentieren und mit dem nächsten Schritt verbinden."
+        description="Kontakte filtern, mehrere auf einmal bearbeiten und Auswahlen als Liste speichern."
       >
         <button className="button secondary" onClick={onImport}>
           <FileText size={16} /> CSV importieren
@@ -177,7 +177,7 @@ export function LeadDatabase(props: JourneyProps) {
           >
             <option value="created">Neueste zuerst</option>
             <option value="name">Name</option>
-            <option value="score">ICP-Fit</option>
+            <option value="score">Passung</option>
           </select>
         </div>
         {advanced && (
@@ -359,7 +359,7 @@ export function LeadDatabase(props: JourneyProps) {
                     <th>Unternehmen</th>
                     <th>Position</th>
                     <th>Standort</th>
-                    <th>ICP-Fit</th>
+                    <th>Passung</th>
                     <th>Vollständigkeit</th>
                     <th>Status</th>
                   </tr>
@@ -760,7 +760,7 @@ export function LeadProfile(
                 {[
                   ["profile", "Profil & Qualifizierung"],
                   ["history", "Notizen & Aufgaben"],
-                  ["outreach", "Outreach & Verlauf"],
+                  ["outreach", "Nachrichten & Verlauf"],
                 ].map(([id, label]) => (
                   <button
                     className={`tab ${tab === id ? "active" : ""}`}
@@ -1005,7 +1005,7 @@ export function LeadProfile(
                           onNavigate?.("/outreach/workbench");
                         }}
                       >
-                        Zum Outreach-Workspace <ArrowRight size={14} />
+                        Zur Kampagne <ArrowRight size={14} />
                       </button>
                     </section>
                   </div>

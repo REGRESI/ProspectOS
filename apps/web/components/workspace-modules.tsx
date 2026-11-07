@@ -100,7 +100,7 @@ export function Pipeline({
     <>
       <Heading
         eyebrow="CRM / PIPELINE"
-        title="Verkaufschancen"
+        title="Pipeline"
         description="Phasen, Werte und nächste Schritte. Verschiebe Karten per Drag-and-drop oder nutze die tastaturbedienbare Phasenauswahl."
       >
         <button className="button primary" onClick={() => setOpen(true)}>
@@ -467,8 +467,8 @@ export function Integrations({ base, write }: { base: string; write: Write }) {
     <>
       <Heading
         eyebrow="BEWUSST VERBUNDEN"
-        title="Deine Werkzeuge. Klare Berechtigungen."
-        description="Hier siehst du, welche Anbieter tatsächlich verbunden sind und was noch fehlt."
+        title="Verbindungen"
+        description="Zugänge zu LinkedIn, KI und Suchdiensten. Schlüssel werden verschlüsselt gespeichert und nie angezeigt."
       />
       <div className="info-note integration-intro">
         <ShieldCheck size={22} />
@@ -593,8 +593,8 @@ export function Audit({ base }: { base: string }) {
     <>
       <Heading
         eyebrow="NACHVOLLZIEHBARKEIT"
-        title="Ein Workspace mit Gedächtnis."
-        description="Importe, Änderungen und Statuswechsel – mit Zeitpunkt und Kontext."
+        title="Verlauf"
+        description="Wer wann was geändert hat."
       />
       <ErrorNote message={error} />
       <section className="panel">
@@ -722,7 +722,7 @@ export function Discovery({
       <Heading
         eyebrow="PASSENDE UNTERNEHMEN ENTDECKEN"
         title="Neue Möglichkeiten beginnen hier."
-        description="Erprobe den Discovery-Ablauf mit transparenten Beispieldaten."
+        description="Probiere die Firmensuche mit Beispieldaten aus."
       />
       <div className="provider-notice">
         <Sparkles size={23} />

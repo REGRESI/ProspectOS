@@ -4,6 +4,9 @@ green = configured and confirmed (last connection test or live connection), yell
 configured but not confirmed / incomplete, red = missing, off = deliberately not
 connected yet (mailbox until the Google account is unlocked). Values are never
 returned, only whether they exist and where they come from.
+
+`next` is written for the person using the app (no jargon); `tech` carries the
+technical detail (env names, scripts) for whoever maintains the installation.
 """
 
 import os
@@ -23,7 +26,7 @@ def _tested(db, ws, provider: str) -> str:
     return describe(db, ws, provider)["status"]
 
 
-def _item(key, label, light, status, next_step, link="/settings/integrations", detail=""):
+def _item(key, label, light, status, next_step, link="/settings/integrations", detail="", tech=""):
     return {
         "key": key,
         "label": label,
@@ -31,6 +34,7 @@ def _item(key, label, light, status, next_step, link="/settings/integrations", d
         "status": status,
         "detail": detail,
         "next": next_step,
+        "tech": tech,
         "link": link,
     }
 
@@ -54,20 +58,21 @@ def linkedin(db, ws) -> dict:
             "linkedin",
             "LinkedIn",
             "red",
-            "App-Zugangsdaten fehlen",
-            "Client ID und Secret der LinkedIn-App unter Integrationen eintragen.",
+            "Zugangsdaten der LinkedIn-App fehlen",
+            "Unter Verbindungen die Client ID und das Secret der LinkedIn-App eintragen.",
         )
     if not live:
         return _item(
             "linkedin",
             "LinkedIn",
             "yellow",
-            "App eingetragen, Konto nicht verbunden" if not connection else "Verbindung abgelaufen",
-            "Integrationen → „Offiziell mit LinkedIn verbinden“ (ProspectOS über http://localhost:3000 öffnen).",
+            "Konto nicht verbunden" if not connection else "Verbindung abgelaufen",
+            "Unter Verbindungen auf „Mit LinkedIn verbinden“ klicken.",
+            tech="ProspectOS dafür über http://localhost:3000 öffnen.",
         )
     days = (connection.expires_at - now()).days
-    detail = f"Verbunden, Token noch {days} Tage gültig. " + (
-        "Posten erlaubt (w_member_social)." if can_post else "Posten nicht gewährt."
+    detail = f"Verbunden, noch {days} Tage gültig. " + (
+        "Posten erlaubt." if can_post else "Posten nicht erlaubt."
     )
     if not can_post or not flag:
         return _item(
@@ -75,17 +80,18 @@ def linkedin(db, ws) -> dict:
             "LinkedIn",
             "yellow",
             "Verbunden, Posten noch nicht freigeschaltet",
-            "LINKEDIN_PUBLISHING_APPROVED=true setzen"
+            "Das Posten muss einmalig freigeschaltet werden."
             if can_post
-            else "Produkt „Share on LinkedIn“ aktivieren und neu verbinden.",
+            else "In der LinkedIn-App das Produkt „Share on LinkedIn“ aktivieren und neu verbinden.",
             detail=detail,
+            tech="LINKEDIN_PUBLISHING_APPROVED=true in .env" if can_post else "",
         )
     return _item(
         "linkedin",
         "LinkedIn",
         "green",
         "Verbunden, Posten nach Freigabe möglich",
-        "Probe-Post im Social Studio vorbereiten. Anfragen sendest du selbst in LinkedIn.",
+        "Nichts zu tun. Anfragen sendest du selbst in LinkedIn.",
         link="/social/studio",
         detail=detail,
     )
@@ -97,30 +103,31 @@ def llm(db, ws) -> dict:
     if tested == "missing":
         return _item(
             "llm",
-            "KI-Text (LLM)",
+            "KI-Texte",
             "red",
-            "API-Key, Modell oder Tokenpreise fehlen",
-            "OpenAI-Key, Textmodell und Preise unter Integrationen eintragen.",
+            "Zugang zum KI-Anbieter fehlt",
+            "Unter Verbindungen den OpenAI-Schlüssel, das Modell und die Preise eintragen.",
         )
     if tested == "connected":
         return _item(
             "llm",
-            "KI-Text (LLM)",
+            "KI-Texte",
             "green",
             f"Bestätigt ({model})",
-            "Nichts zu tun. Kosten stehen unter Aufträge & Budget.",
+            "Nichts zu tun. Die Kosten siehst du unter Einstellungen → Kosten.",
             link="/operations",
         )
     return _item(
         "llm",
-        "KI-Text (LLM)",
+        "KI-Texte",
         "red" if tested == "error" else "yellow",
-        "Letzter Test fehlgeschlagen" if tested == "error" else "Eingetragen, nicht getestet",
-        "Integrationen → OpenAI → „Verbindung testen“.",
+        "Letzter Test fehlgeschlagen" if tested == "error" else "Eingetragen, noch nicht getestet",
+        "Unter Verbindungen bei OpenAI auf „Verbindung testen“ klicken.",
     )
 
 
 def image(db, ws) -> dict:
+    from app.costs import image_prices
     from app.experience import image_requirements
 
     req = image_requirements()
@@ -129,18 +136,18 @@ def image(db, ws) -> dict:
             "image",
             "KI-Bilder",
             "red",
-            "Fehlt: " + ", ".join(req["requirements"]),
-            "Bildmodell unter Integrationen und IMAGE_MAX_COST_USD_CENTS in .env setzen.",
+            "Bildmodell oder Kostenobergrenze fehlt",
+            "Unter Verbindungen das Bildmodell eintragen.",
+            tech="Fehlt: " + ", ".join(req["requirements"]),
         )
-    from app.costs import image_prices
-
     if not image_prices():
         return _item(
             "image",
             "KI-Bilder",
             "yellow",
-            "Bildpreise fehlen, Kosten werden zur Obergrenze geschätzt",
-            "IMAGE_TEXT_INPUT_USD_PER_MILLION und IMAGE_OUTPUT_USD_PER_MILLION in .env eintragen.",
+            "Bildpreise fehlen, Kosten werden nur geschätzt",
+            "Die Preise des Bildanbieters in der Konfiguration eintragen lassen.",
+            tech="IMAGE_TEXT_INPUT_USD_PER_MILLION und IMAGE_OUTPUT_USD_PER_MILLION in .env",
         )
     tested = _tested(db, ws, "openai")
     light = "green" if tested == "connected" else "yellow"
@@ -148,11 +155,10 @@ def image(db, ws) -> dict:
         "image",
         "KI-Bilder",
         light,
-        f"Bereit ({credentials.get('IMAGE_MODEL')}, gebucht wird der echte Preis, "
-        f"reserviert max. {req['max_cost_minor']} ct pro Bild)",
-        "Bild zu einem Plan-Post erzeugen und prüfen."
+        f"Bereit, höchstens {req['max_cost_minor']} ct pro Bild",
+        "Nichts zu tun."
         if light == "green"
-        else "OpenAI-Verbindung testen.",
+        else "Unter Verbindungen die OpenAI-Verbindung testen.",
         link="/content/plan",
     )
 
@@ -162,66 +168,66 @@ def osm() -> dict:
     contact = credentials.get("OSM_CONTACT", "").strip()
     extract = os.getenv("OSM_EXTRACT_PATH", "").strip()
     has_extract = bool(extract and Path(extract).is_file())
+    label = "Firmensuche (OpenStreetMap)"
     if not enabled:
         return _item(
             "osm",
-            "OpenStreetMap",
+            label,
             "red",
-            "Firmensuche aus",
-            "OSM_DISCOVERY_ENABLED=true in .env (infra/scripts/bootstrap-local.sh setzt es).",
+            "Firmensuche ist aus",
+            "Die Firmensuche in der Konfiguration einschalten lassen.",
+            tech="OSM_DISCOVERY_ENABLED=true in .env (infra/scripts/bootstrap-local.sh)",
         )
     if not contact or contact.endswith("example.invalid"):
         return _item(
             "osm",
-            "OpenStreetMap",
+            label,
             "yellow",
             "Kontaktangabe fehlt",
-            "OSM_CONTACT (E-Mail oder URL) unter Integrationen eintragen; Pflicht der OSM-Richtlinie.",
+            "Unter Verbindungen eine Kontakt-E-Mail für OpenStreetMap eintragen. "
+            "Das verlangen deren Regeln.",
+            tech="OSM_CONTACT",
         )
     if not has_extract:
         return _item(
             "osm",
-            "OpenStreetMap",
+            label,
             "yellow",
-            "Kein lokaler Auszug, nutzt öffentliches Overpass",
-            "infra/scripts/bootstrap-local.sh laden lassen (Geofabrik-Auszug), öffentliches Overpass lehnt Automatik oft ab.",
+            "Kartendaten nicht lokal gespeichert",
+            "Die Kartendaten einmalig herunterladen lassen. Ohne sie schlägt die Suche oft fehl.",
+            tech="infra/scripts/bootstrap-local.sh lädt den Geofabrik-Auszug",
         )
     size = Path(extract).stat().st_size // (1024 * 1024)
     return _item(
         "osm",
-        "OpenStreetMap",
+        label,
         "green",
-        f"Lokaler Geofabrik-Auszug ({size} MB)",
-        "Nichts zu tun. Auszug gelegentlich aktualisieren.",
+        f"Kartendaten lokal gespeichert ({size} MB)",
+        "Nichts zu tun.",
         link="/discover",
     )
 
 
 def brave(db, ws) -> dict:
     tested = _tested(db, ws, "brave")
+    label = "Profilsuche (Brave Search)"
     if tested == "missing":
         return _item(
             "brave",
-            "Brave Search",
+            label,
             "red",
-            "API-Key fehlt",
-            "Brave-Search-API-Key unter Integrationen eintragen (für LinkedIn-Profil-Kandidaten).",
+            "Schlüssel fehlt",
+            "Unter Verbindungen den Brave-Search-Schlüssel eintragen. Damit findet ProspectOS "
+            "passende LinkedIn-Profile.",
         )
     if tested == "connected":
-        return _item(
-            "brave",
-            "Brave Search",
-            "green",
-            "Bestätigt",
-            "Nichts zu tun. Treffer werden nicht gespeichert.",
-            link="/today",
-        )
+        return _item("brave", label, "green", "Bestätigt", "Nichts zu tun.", link="/today")
     return _item(
         "brave",
-        "Brave Search",
+        label,
         "red" if tested == "error" else "yellow",
-        "Letzter Test fehlgeschlagen" if tested == "error" else "Eingetragen, nicht getestet",
-        "Integrationen → Brave Search → „Verbindung testen“.",
+        "Letzter Test fehlgeschlagen" if tested == "error" else "Eingetragen, noch nicht getestet",
+        "Unter Verbindungen bei Brave Search auf „Verbindung testen“ klicken.",
     )
 
 
@@ -232,18 +238,18 @@ def mailbox(db, ws) -> dict:
     if not count:
         return _item(
             "mailbox",
-            "Mailbox (E-Mail)",
+            "E-Mail-Postfach",
             "off",
             "noch nicht verbunden",
-            "Erst wenn das Google-Konto freigeschaltet ist: unter Integrationen → Mailbox SMTP/IMAP "
-            "mit App-Passwort eintragen. Bis dahin wird keine E-Mail versendet.",
+            "Erst wenn das Google-Konto freigeschaltet ist. Bis dahin wird keine E-Mail versendet.",
+            tech="Verbindungen → Mailbox: SMTP/IMAP mit App-Passwort",
         )
     return _item(
         "mailbox",
-        "Mailbox (E-Mail)",
+        "E-Mail-Postfach",
         "yellow",
-        f"{count} Mailbox eingetragen",
-        "Mailbox-Test unter Integrationen ausführen; Versand nur mit Rechtsgrundlage und Freigabe.",
+        f"{count} Postfach eingetragen",
+        "Unter Verbindungen den Postfach-Test ausführen. Versand nur mit Freigabe.",
     )
 
 
@@ -255,16 +261,19 @@ def writing_style(db, ws) -> dict:
             "Schreibstil",
             "yellow",
             "Keine eigenen Texte" if s["state"] == "missing" else "Datei ohne Texte",
-            "3 bis 5 eigene Texte in data/private/meine-texte.md einfügen, dann übernehmen.",
-            link="/content/plan",
+            "3 bis 5 eigene Texte hinterlegen, damit die Entwürfe nach dir klingen.",
+            link="/settings/outreach",
+            tech="data/private/meine-texte.md, Texte mit --- trennen",
         )
     return _item(
         "style",
         "Schreibstil",
         "green" if s["in_sync"] else "yellow",
         f"{s['samples']} eigene Texte",
-        "Nichts zu tun." if s["in_sync"] else "Datei geändert: „Aus Datei übernehmen“ klicken.",
-        link="/content/plan",
+        "Nichts zu tun."
+        if s["in_sync"]
+        else "Deine Texte haben sich geändert: „Aus Datei übernehmen“ klicken.",
+        link="/settings/outreach",
     )
 
 
@@ -276,8 +285,8 @@ def setup_check(db, ws) -> dict:
                 "Workspace",
                 "off",
                 "Demo-Workspace",
-                "Für echte Arbeit den Workspace „CleanStar“ wählen.",
-                link="/overview",
+                "Für echte Arbeit den Demo-Schalter unten links ausschalten.",
+                link="/today",
             )
         ]
         return {"items": items, "summary": {"green": 0, "yellow": 0, "red": 0, "off": 1}}

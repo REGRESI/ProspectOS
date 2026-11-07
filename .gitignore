@@ -23,3 +23,4 @@ data/private/
 !.env.example
 !.env.production.example
 .DS_Store
+docs/design/iter/

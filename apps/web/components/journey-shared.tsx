@@ -116,7 +116,7 @@ export function ScoreDetails({ lead }: { lead: Pick<Lead, "score"> }) {
   return (
     <section className="detail-section">
       <div className="section-title">
-        <h3>ICP-Fit verstehen</h3>
+        <h3>Passung verstehen</h3>
         <Badge tone="purple">{lead.score.value}/100</Badge>
       </div>
       <div className="score-factors">
