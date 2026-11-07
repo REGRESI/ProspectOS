@@ -234,7 +234,7 @@ test("Responsive dashboard, keyboard modal and transparent integrations", async 
   ).toBeVisible();
   await expect(
     page.getByText(
-      "OAuth und Freigaben fehlen. Veröffentlichung nicht verfügbar.",
+      "Noch nicht verbunden. Posten ist erst nach der Verbindung möglich.",
     ),
   ).toBeVisible();
   expect(errors).toEqual([]);

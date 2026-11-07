@@ -1154,37 +1154,37 @@ def integrations(ws: str, member=Depends(scope), db=Depends(db_session, scope="f
                 ),
                 "scopes": connected.scopes if connected else [],
                 "status": "connected" if connected else "not_configured",
-                "reason": "Offizielle Verbindung; Publishing benötigt tatsächlich gewährte Scopes und Produktfreigabe."
+                "reason": "Verbunden. Posten geht nur, wenn LinkedIn es für deine App freigegeben hat."
                 if connected
-                else "OAuth und Freigaben fehlen. Veröffentlichung nicht verfügbar.",
+                else "Noch nicht verbunden. Posten ist erst nach der Verbindung möglich.",
             },
             {
                 "name": "KI-Text",
                 "status": "configured"
                 if credentials.get("LLM_API_KEY") and credentials.get("LLM_MODEL")
                 else "not_configured",
-                "reason": "Konfigurierter Anbieter; asynchrone, quellengebundene Vorschläge mit Budgetprüfung."
+                "reason": "Eingerichtet. Texte entstehen nur mit Quellen und im Rahmen deines Budgets."
                 if credentials.get("LLM_API_KEY")
-                else "Kein KI-Anbieter verbunden. Offline-Vorschläge sind separat gekennzeichnet.",
+                else "Noch kein KI-Anbieter eingerichtet.",
             },
             {
                 "name": "KI-Bilder",
                 "status": "configured" if images["configured"] else "not_configured",
-                "reason": "Anbieter konfiguriert; reale Generierung erfordert Budget und anschließende Bildprüfung."
+                "reason": "Eingerichtet. Jedes Bild prüfst du, bevor es verwendet wird."
                 if images["configured"]
-                else "Bildanbieter einrichten: " + ", ".join(images["requirements"]),
+                else "Noch nicht eingerichtet. Es fehlt: " + ", ".join(images["requirements"]),
             },
             {
-                "name": "Lead Discovery",
+                "name": "Firmensuche mit Lizenz",
                 "status": "configured"
                 if os.getenv("PDL_API_KEY") and os.getenv("PDL_LICENSE_APPROVED") == "true"
                 else "not_configured",
-                "reason": "Lizenzanbieter erfordert geprüften Vertrag; synthetische Beispiele nur in Entwicklung.",
+                "reason": "Optional. Braucht einen Vertrag mit einem Datenanbieter. OpenStreetMap funktioniert ohne.",
             },
             {
                 "name": "Stripe",
                 "status": "configured" if os.getenv("STRIPE_SECRET_KEY") else "not_configured",
-                "reason": "Nur Testmodus; Checkout und signierte Webhooks benötigen Testzugangsdaten.",
+                "reason": "Zahlungen, nur im Testmodus.",
             },
         ]
     }

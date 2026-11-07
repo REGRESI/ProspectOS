@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { CheckCircle2, FlaskConical, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 import { useData } from "@/lib/use-data";
 import { ErrorNote, Spinner } from "./ui";
 import type { Write } from "./growth-modules";
@@ -39,10 +39,13 @@ export function ProbePost({ base, write, onChange }: { base: string; write: Writ
     }
   }
   return (
-    <section className="panel pad probe-post" data-testid="probe-post">
-      <h2>
-        <FlaskConical size={16} /> Probe-Post
-      </h2>
+    <details className="card probe-post" data-testid="probe-post" open={!!note}>
+      <summary>
+        <strong>Probe-Post</strong>
+        <span className="muted">
+          {r ? ` · ${r.checks.filter((c) => c.ok).length} von ${r.checks.length} Bedingungen erfüllt` : ""}
+        </span>
+      </summary>
       <p className="muted small">{r?.rule}</p>
       {r && (
         <ul className="probe-checks">
@@ -64,6 +67,6 @@ export function ProbePost({ base, write, onChange }: { base: string; write: Writ
         </small>
       </div>
       {note && <p className="credential-result connected" role="status">{note}</p>}
-    </section>
+    </details>
   );
 }

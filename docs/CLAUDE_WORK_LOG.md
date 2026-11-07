@@ -142,3 +142,20 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
 - M4 content: live plan + 6 drafts + 6 images (ledger 615 → 1222 cents, images booked at the 100-cent cap), submitted to review. Bug fixed: local variable shadowed the style module in `post_prompt`.
 - M5 autopilot: first live run failed — `.env` lacked `OSM_EXTRACT_PATH_CONTAINER` and `RESEARCH_ENABLED` (public Overpass 502); fixed via bootstrap script (backup of .env kept privately). Lahr run: 30 hits, 8 new. Manual research run returned 0 because no website was open (109 without website, 107 researched, 26 failed recently); transient failures now retried after 3 days.
 - M6 setup check page. E2E `cleanstar.spec.ts` extended (setup check, demo banner, daily limit, stage) → 6/6.
+
+## 2026-11-07 — Costs, test workspaces, design (`bda09ce` … this commit)
+
+- **Costs:**
+  - The ledger booked reservations as spend: 6×2 images at the 100-cent cap, and every text call was rounded up to ≥1 cent. The new ledger stores micro-USD from the provider usage field.
+  - Live check: text 169/32 tokens → 0.000119 USD, image `quality=low`, 31/196 tokens → 0.006035 USD. Both are identical to the usage in the response.
+  - Text and image calls use the same project key (`IMAGE_API_KEY` is empty).
+  - Old images were re-estimated at 196 tokens and flagged as estimated.
+- **Test isolation:**
+  - Isolated E2E stack; login rate limit is configurable for it.
+  - 86 workspaces purged after a DB dump (`data/private/backups/prospectos-2026-11-07-before-cleanup.dump`).
+- **Design:** before/after screenshots with a synthetic fixture (`app/design_fixture.py`, E2E stack only).
+- **Fixes found in screenshots:**
+  - "ich bin ich" intro when no sender name was set.
+  - Settings PUT carried an extra field.
+  - Template button overflowed on mobile.
+- **Tests:** backend 220 passed; frontend lint/typecheck, unit 22 passed; E2E 22/22 on the isolated stack.

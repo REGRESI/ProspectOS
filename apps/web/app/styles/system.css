@@ -765,3 +765,19 @@ select.stage-select.quiet { width: auto !important; }
   .plan-card > :not(header) { margin-left: 0; }
 }
 .button.wrap { white-space: normal; height: auto; min-height: var(--control-h); padding-top: 6px; padding-bottom: 6px; text-align: left; }
+.probe-post { margin-bottom: var(--space-5); }
+.probe-post > summary { cursor: pointer; list-style: none; }
+.probe-post > summary::-webkit-details-marker { display: none; }
+.probe-post[open] > summary { margin-bottom: var(--space-3); }
+.probe-checks { list-style: none; padding: 0; margin: 0 0 var(--space-3); display: grid; gap: var(--space-1); font-size: var(--font-sm); }
+.probe-checks li.ok svg { color: var(--ok); }
+.probe-checks li.bad svg { color: var(--bad); }
+.provider-notice { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); font-size: var(--font-sm); }
+.provider-notice strong { color: var(--text); font-weight: 500; }
+.autopilot-card, .agent-form { margin-bottom: var(--space-5); display: grid; gap: var(--space-3); }
+.autopilot-card h2, .agent-form h2 { margin: 0; }
+.autopilot-card > p, .agent-form > p { margin: 0; }
+.agent-form label { display: grid; gap: var(--space-1); }
+.agent-form textarea { width: 100%; }
+.form-actions { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+label.inline-toggle { white-space: nowrap; }

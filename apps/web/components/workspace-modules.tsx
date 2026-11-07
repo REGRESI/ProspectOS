@@ -2,7 +2,7 @@
 import { IntegrationCredentials } from "./integration-credentials";
 import { MailboxManager } from "./email-outreach";
 import { useState, useCallback, FormEvent } from "react";
-import { Building2, Check, ChevronLeft, ChevronRight, Plus, Search, ShieldCheck, Sparkles, Target, Link2 } from "lucide-react";
+import { Building2, Check, ChevronLeft, ChevronRight, Plus, Search, ShieldCheck, Sparkles, Target } from "lucide-react";
 import { Badge, Empty, Modal, Spinner, Heading, ErrorNote } from "./ui";
 import { ProviderChecks } from "./workspace-settings";
 import { useData } from "@/lib/use-data";
@@ -473,10 +473,8 @@ export function Integrations({ base, write }: { base: string; write: Write }) {
       <div className="info-note integration-intro">
         <ShieldCheck size={22} />
         <p>
-          <strong>Keine Verbindung wird simuliert.</strong>Die lokale Anwendung
-          funktioniert ohne API-Schlüssel. Offline-Vorschläge sind
-          gekennzeichnet. Verbindungsstatus und verfügbare Anbieter werden vom
-          Backend gemeldet.
+          <strong>Keine Verbindung wird simuliert.</strong> Was hier als verbunden
+          gilt, ist wirklich verbunden. Den Gesamtstand siehst du unter Status.
         </p>
       </div>
       <ErrorNote message={localError || error} />
@@ -484,15 +482,8 @@ export function Integrations({ base, write }: { base: string; write: Write }) {
         <Spinner />
       ) : (
         <div className="integration-grid">
-          {data?.items.map((integration, i) => (
+          {data?.items.map((integration) => (
             <section className="panel provider-card" key={integration.name}>
-              <span className={`provider-logo provider-${i % 4}`}>
-                {integration.name.toLowerCase().includes("linkedin") ? (
-                  "in"
-                ) : (
-                  <Link2 size={25} />
-                )}
-              </span>
               <div className="section-title">
                 <h2>{integration.name}</h2>
                 <Badge
@@ -506,7 +497,7 @@ export function Integrations({ base, write }: { base: string; write: Write }) {
                       configured: "Konfiguriert",
                       available: "Verfügbar",
                       offline: "Offline-Modus",
-                      not_configured: "Nicht konfiguriert",
+                      not_configured: "nicht eingerichtet",
                       missing_credentials: "Zugangsdaten fehlen",
                       disabled: "Deaktiviert",
                       expired: "Abgelaufen",

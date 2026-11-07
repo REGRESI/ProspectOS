@@ -193,7 +193,6 @@ export function Social({
         }
       />
       <div className="provider-notice">
-        <span className="linkedin-mark">in</span>
         <div>
           <strong>
             {linkedin?.status === "connected"

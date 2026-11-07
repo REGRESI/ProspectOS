@@ -196,7 +196,7 @@ export function DiscoveryWorkbench(props: JourneyProps) {
   }
   const running = !!job && ["queued", "running", "retry"].includes(job.status);
   const provider = integrations.data?.items.find(
-    (i) => i.name === "Lead Discovery",
+    (i) => i.name === "Firmensuche mit Lizenz",
   );
   return (
     <>

@@ -157,13 +157,13 @@ def publish_readiness(db, ws, member) -> dict:
     checks = [
         {
             "key": "flag",
-            "label": "LINKEDIN_PUBLISHING_APPROVED=true",
+            "label": "Posten freigeschaltet",
             "ok": os.getenv("LINKEDIN_PUBLISHING_APPROVED") == "true",
             "next": "In .env LINKEDIN_PUBLISHING_APPROVED=true setzen und API neu starten.",
         },
         {
             "key": "api_version",
-            "label": "LinkedIn-API-Version gesetzt",
+            "label": "LinkedIn-Schnittstelle eingestellt",
             "ok": bool(os.getenv("LINKEDIN_API_VERSION")),
             "next": "LINKEDIN_API_VERSION (z. B. 202610) in .env eintragen.",
         },
@@ -175,19 +175,19 @@ def publish_readiness(db, ws, member) -> dict:
         },
         {
             "key": "scope",
-            "label": "Posting-Berechtigung w_member_social",
+            "label": "LinkedIn erlaubt das Posten",
             "ok": bool(connection and "w_member_social" in (connection.scopes or [])),
             "next": "In der LinkedIn-App das Produkt „Share on LinkedIn“ aktivieren und neu verbinden.",
         },
         {
             "key": "role",
-            "label": "Rolle Owner/Admin",
+            "label": "Du bist Inhaber oder Admin",
             "ok": member.role in ("owner", "admin"),
             "next": "Ein Owner/Admin muss veröffentlichen.",
         },
         {
             "key": "workspace",
-            "label": "Produktiver Workspace (kein Demo)",
+            "label": "Echter Workspace, kein Demo",
             "ok": not credentials.is_demo(db, ws),
             "next": "Im Workspace „CleanStar“ arbeiten.",
         },

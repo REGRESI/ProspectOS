@@ -18,8 +18,12 @@ test("durable discovery job → attributed import; missing AI credentials fail h
   await expect(page.getByText("succeeded", { exact: true })).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole("heading", { name: "Demo-Unternehmen 1 (synthetisch)" })).toBeVisible();
   await page.getByRole("button", { name: "Ergebnisse mit Herkunft übernehmen" }).click();
-  await page.getByRole("navigation").getByRole("button", { name: "Kontakte", exact: true }).click();
-  await expect(page.getByText("5 Kontakte · Seite 1 von 1")).toBeVisible();
+  await expect(page.getByRole("status")).toBeVisible();
+  // The import may still be committing; open the list until it has landed.
+  await expect(async () => {
+    await page.goto("/contacts");
+    await expect(page.getByText("5 Kontakte · Seite 1 von 1")).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
   await page.goto("/intelligence");
   const integrations=await (await page.request.get(`/api/v1/workspaces/${ws.id}/integrations`)).json();
   if (integrations.items.some((item:{name:string;status:string})=>item.name==="KI-Text"&&item.status==="configured")) return;

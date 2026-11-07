@@ -174,3 +174,31 @@ E-mail excluded. Handover: docs/HANDOVER_2026-11-06.md.
 | Tests | — | Backend 210 passed; frontend lint/typecheck/unit 22; `cleanstar.spec.ts` 6/6 |
 
 Disabled/deferred: mailbox and e-mail sending (Google account pending); North Data (no key); API publishing waits for the user's first probe post.
+
+## Costs, test isolation, design — 2026-11-07 (branch `claude/cleanstar-costs-design`)
+
+Implemented:
+- **Actual AI costs:**
+  - Reservations (cost caps) are held only while a call runs. Afterwards the ledger books the actual cost in micro-USD, from the response's `usage` field and the price table.
+  - Image prices are new env settings: `IMAGE_TEXT_INPUT_USD_PER_MILLION`, `IMAGE_IMAGE_INPUT_USD_PER_MILLION`, `IMAGE_OUTPUT_USD_PER_MILLION`.
+  - Unknown outcomes and missing usage are booked as `estimated`.
+  - Old bookings were corrected with `python -m app.costs --apply`: November went from 12.22 to 0.16 USD; 16 bookings remain estimated.
+  - The UI shows "Verbraucht" and "Reserviert" separately.
+  - Migration 0019.
+- **Isolated browser tests:**
+  - `docker-compose.e2e.yml` runs as its own compose project with a tmpfs database and no provider keys, torn down after each run.
+  - `infra/scripts/e2e.sh` starts it; Playwright refuses to run against the dev stack.
+  - 86 test workspaces were deleted from the real database (after a dump). Only "CleanStar" and "Demo" remain.
+- **Workspace lifecycle:**
+  - Rename, archive, and delete (typed name; not the open or the last workspace).
+  - The purge function is tenant-bound (migration 0020).
+  - Archived workspaces get no autopilot runs.
+  - The demo opens only via the Demo switch.
+- **Design system and navigation:**
+  - Five areas with tabs; Heute is the start page.
+  - Firmen and Kontakte are tables with server-side sort.
+  - Plain German copy.
+  - Report: `docs/design/README.md`.
+
+Demo-only: synthetic discovery, raw-data views, legacy modules (menu "Mehr (Demo)").
+Not reworked yet: studio editor, Zielgruppe and Mein Angebot forms, campaign and company detail layouts (they inherit the design tokens only).

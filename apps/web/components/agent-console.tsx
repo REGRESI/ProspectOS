@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
-import { Bot, CheckCircle2, Circle, Loader2, Play, XCircle } from "lucide-react";
+import { CheckCircle2, Circle, Loader2, Play, XCircle } from "lucide-react";
 import { request } from "@/lib/api";
 import { useData } from "@/lib/use-data";
 import { Badge, ErrorNote, Heading, Spinner } from "./ui";
@@ -69,19 +69,21 @@ export function AgentConsole({ base, write, onNavigate }: { base: string; write:
         description="Findet jeden Morgen neue Firmen und bereitet die Texte für „Heute“ vor. Gesendet wird nichts ohne dich."
       />
       <ErrorNote message={error} />
-      <form className="panel pad agent-form" onSubmit={plan}>
+      <AutopilotCard base={base} write={write} />
+      <form className="card agent-form" onSubmit={plan}>
+        <h2>Einmaliger Auftrag</h2>
+        <p className="muted small">Beschreibe in einem Satz, was passieren soll. Du siehst Plan und Kosten, bevor etwas startet.</p>
         <label>
           Auftrag
           <textarea rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} />
         </label>
         <div className="form-actions">
-          <button className="button primary" disabled={busy || instruction.length < 5}>
-            {busy ? <Spinner /> : <><Bot size={15} /> Plan erstellen</>}
+          <button className="button secondary" disabled={busy || instruction.length < 5}>
+            {busy ? <Spinner /> : "Plan erstellen"}
           </button>
         </div>
       </form>
       {run && <RunView run={run} write={write} onUpdate={(r) => { setRun(r); setRevision((v) => v + 1); }} onNavigate={onNavigate} />}
-      <AutopilotCard base={base} write={write} />
       {history.data && history.data.items.length > 0 && (
         <section className="panel pad">
           <h2>Letzte Aufträge</h2>
@@ -249,20 +251,20 @@ function AutopilotCard({ base, write }: { base: string; write: Write }) {
   const area = f.place.trim().toLowerCase();
   const rotating = area === "ortenaukreis" || area === "ortenau";
   return (
-    <section className="panel pad" data-testid="autopilot">
-      <h2>Morgen-Autopilot</h2>
+    <section className="card autopilot-card" data-testid="autopilot">
+      <h2>Jeden Morgen</h2>
       <p className="muted">
-        Findet täglich neue Firmen, prüft Website und Impressum, bewertet und bereitet die Texte in „Heute“ vor. Du bestätigst nur noch: Anfragen, E-Mails und Posts bleiben freigabepflichtig.
+        Sucht neue Firmen, liest Website und Impressum, bewertet sie und bereitet die Texte in „Heute“ vor. Senden und Posten bleibt bei dir.
         {data?.last_run_on && ` Letzter Lauf: ${data.last_run_on}.`}
       </p>
       <div className="planner-form">
         <label>Gebiet<input value={f.place} onChange={(e) => setForm({ ...f, place: e.target.value })} /></label>
-        <label>Radius km<input type="number" min={1} max={50} value={f.radius_km} onChange={(e) => setForm({ ...f, radius_km: Number(e.target.value) })} /></label>
-        <label>Neue Firmen/Tag<input type="number" min={5} max={200} value={f.new_companies} onChange={(e) => setForm({ ...f, new_companies: Number(e.target.value) })} /></label>
-        <label>Recherchen/Tag<input type="number" min={0} max={100} value={f.research} onChange={(e) => setForm({ ...f, research: Number(e.target.value) })} /></label>
-        <label>KI-Profile/Tag<input type="number" min={0} max={50} value={f.profiles} onChange={(e) => setForm({ ...f, profiles: Number(e.target.value) })} /></label>
+        <label>Umkreis in km<input type="number" min={1} max={50} value={f.radius_km} onChange={(e) => setForm({ ...f, radius_km: Number(e.target.value) })} /></label>
+        <label>Neue Firmen pro Tag<input type="number" min={5} max={200} value={f.new_companies} onChange={(e) => setForm({ ...f, new_companies: Number(e.target.value) })} /></label>
+        <label>Websites lesen pro Tag<input type="number" min={0} max={100} value={f.research} onChange={(e) => setForm({ ...f, research: Number(e.target.value) })} /></label>
+        <label>KI-Firmenprofile pro Tag<input type="number" min={0} max={50} value={f.profiles} onChange={(e) => setForm({ ...f, profiles: Number(e.target.value) })} /></label>
         <label>Budget pro Lauf (USD)<input type="number" min={0} max={50} step={0.1} value={f.budget} onChange={(e) => setForm({ ...f, budget: Number(e.target.value) })} /></label>
-        <label>Uhrzeit (ab)<input type="number" min={0} max={23} value={f.hour} onChange={(e) => setForm({ ...f, hour: Number(e.target.value) })} /></label>
+        <label>Startet ab (Uhr)<input type="number" min={0} max={23} value={f.hour} onChange={(e) => setForm({ ...f, hour: Number(e.target.value) })} /></label>
       </div>
       {rotating && (
         <p className="muted small">
