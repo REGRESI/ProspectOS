@@ -415,6 +415,11 @@ def _execute_one(ws):
             elif job.kind == "research" and job.payload.get("mode") == "site":
                 # Read-only website fetches; run outside the transaction.
                 context = None
+            elif job.kind == "profile_check":
+                from app.profile_check import prepare as prepare_profiles
+
+                # Read-only Brave searches; run outside the transaction (never linkedin.com).
+                context = prepare_profiles(db, job)
             elif job.kind in (
                 "ai",
                 "outreach_ai",
@@ -469,6 +474,10 @@ def _execute_one(ws):
 
             job.payload = {**job.payload, **context}
             result, usage = sync_mailbox(job), None
+        elif job.kind == "profile_check":
+            from app.profile_check import run as run_profiles
+
+            result, usage = run_profiles(context), None
         elif job.kind == "research":
             from app.providers.site_research import research_site
 
@@ -514,6 +523,10 @@ def _execute_one(ws):
                 from app.today import finalize_reply_analysis
 
                 result = finalize_reply_analysis(db, current, result)
+            if current.kind == "profile_check":
+                from app.profile_check import finalize as finalize_profiles
+
+                result = finalize_profiles(db, current, result)
             if current.kind == "content_plan":
                 from app.content_plan import finalize_plan
 

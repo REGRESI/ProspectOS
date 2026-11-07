@@ -39,17 +39,16 @@ def _item(key, label, light, status, next_step, link="/settings/integrations", d
     }
 
 
-def linkedin(db, ws) -> dict:
-    from app.platform_models import Connection
+def linkedin(db, ws, user_id=None) -> dict:
 
     app_ok = bool(
         credentials.get("LINKEDIN_CLIENT_ID")
         and credentials.get("LINKEDIN_CLIENT_SECRET")
         and os.getenv("LINKEDIN_REDIRECT_URI")
     )
-    connection = db.scalar(
-        select(Connection).where(Connection.workspace_id == ws, Connection.provider == "linkedin")
-    )
+    from app.social import linkedin_connection
+
+    connection = linkedin_connection(db, ws, user_id)
     live = bool(connection and connection.expires_at > now())
     can_post = bool(live and "w_member_social" in (connection.scopes or []))
     flag = os.getenv("LINKEDIN_PUBLISHING_APPROVED") == "true"
@@ -277,7 +276,7 @@ def writing_style(db, ws) -> dict:
     )
 
 
-def setup_check(db, ws) -> dict:
+def setup_check(db, ws, user_id=None) -> dict:
     if credentials.is_demo(db, ws):
         items = [
             _item(
@@ -291,7 +290,7 @@ def setup_check(db, ws) -> dict:
         ]
         return {"items": items, "summary": {"green": 0, "yellow": 0, "red": 0, "off": 1}}
     items = [
-        linkedin(db, ws),
+        linkedin(db, ws, user_id),
         llm(db, ws),
         image(db, ws),
         osm(),
@@ -306,4 +305,4 @@ def setup_check(db, ws) -> dict:
 def register_setup_routes(app, db_session, scope):
     @app.get("/v1/workspaces/{ws}/setup-check")
     def check(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
-        return setup_check(db, ws)
+        return setup_check(db, ws, member.user_id)

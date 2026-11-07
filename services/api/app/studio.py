@@ -118,7 +118,10 @@ def voice_snapshot(db, ws, voice_id, record):
 
 
 def writing_prompt(controls, voice):
+    from app.voice_learning import rules_prompt
+
     # Examples guide rhythm and tone only. They are never factual sources or reusable copy.
+    voice_data = {k: v for k, v in voice.items() if k not in ("rules", "inspirations", "dismissed")}
     return (
         "Schreibe einen deutschen LinkedIn-Entwurf. Natürliches Sprachtempo, konkrete direkte "
         "Sprache, kurze mobile Absätze. Keine Konzernfloskeln, keine erfundenen Erlebnisse, "
@@ -130,7 +133,8 @@ def writing_prompt(controls, voice):
         "ergänzende Tonwünsche gelten nur, soweit sie mit dem Profil kompatibel sind. "
         "Text ohne Markdown-Titel, maximal 3000 Zeichen.\n"
         + "Stilprofil (Snapshot): "
-        + json.dumps(voice, ensure_ascii=False)
+        + json.dumps(voice_data, ensure_ascii=False)
+        + rules_prompt(voice)
         + "\nBeitragsregeln (explizite Auswahl überschreibt Profil; Profilverbote gelten immer): "
         + json.dumps(controls.model_dump(exclude={"factual_notes", "text"}), ensure_ascii=False)
         + "\nHook nur wenn hook=true; Abschlussfrage nur wenn end_question=true und CTA erlaubt. "
@@ -195,7 +199,10 @@ def register_studio_routes(app, db_session, scope, record, paginate, audit):
         item = record(db, VoiceProfile, ws, voice_id, True)
         if item.version != body.version:
             raise HTTPException(409, "Schreibprofil wurde zwischenzeitlich geändert.")
-        item.name, item.settings = body.name, body.model_dump(exclude={"version"})
+        from app.voice_learning import LEARNED_KEYS
+
+        learned = {k: v for k, v in (item.settings or {}).items() if k in LEARNED_KEYS}
+        item.name, item.settings = body.name, body.model_dump(exclude={"version"}) | learned
         item.version += 1
         audit(db, ws, member.user_id, "voice_updated", "Schreibprofil versioniert aktualisiert")
         return voice_output(item)

@@ -23,6 +23,7 @@ def connect(admin, ws, user, scopes=("openid", "profile", "w_member_social")):
         Connection(
             workspace_id=ws,
             provider="linkedin",
+            user_id=user,
             encrypted_token=Fernet(key).encrypt(b"synthetic-token").decode(),
             author_urn="urn:li:person:synthetic",
             scopes=list(scopes),

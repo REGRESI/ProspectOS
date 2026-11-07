@@ -32,12 +32,20 @@ def cipher():
         ) from None
 
 
+def linkedin_connection(db, ws, user_id, lock=False):
+    """Each user has an own LinkedIn connection; posts go out through the author's."""
+    stmt = select(Connection).where(
+        Connection.workspace_id == ws,
+        Connection.provider == "linkedin",
+        Connection.user_id == user_id,
+    )
+    return db.scalar(stmt.with_for_update() if lock else stmt)
+
+
 def publication_context(db, ws, post, member):
     if member.role not in ("owner", "admin"):
         raise HTTPException(403, "Only owner/admin may authorize publication.")
-    connection = db.scalar(
-        select(Connection).where(Connection.workspace_id == ws, Connection.provider == "linkedin")
-    )
+    connection = linkedin_connection(db, ws, post.author_id)
     if (
         not connection
         or connection.expires_at <= now()
@@ -151,9 +159,7 @@ PROBE_CAPTION = (
 
 def publish_readiness(db, ws, member) -> dict:
     """Every condition for an official LinkedIn post, each with a clear next step."""
-    connection = db.scalar(
-        select(Connection).where(Connection.workspace_id == ws, Connection.provider == "linkedin")
-    )
+    connection = linkedin_connection(db, ws, member.user_id)
     checks = [
         {
             "key": "flag",
@@ -347,13 +353,11 @@ def register_social_routes(app, db_session, current_auth, scope, record, audit):
         except ProviderError as exc:
             db.commit()
             return fail("token_" + exc.code)
-        stored = db.scalar(
-            select(Connection)
-            .where(Connection.workspace_id == item.workspace_id, Connection.provider == "linkedin")
-            .with_for_update()
-        )
+        stored = linkedin_connection(db, item.workspace_id, item.user_id, lock=True)
         if not stored:
-            stored = Connection(workspace_id=item.workspace_id, provider="linkedin")
+            stored = Connection(
+                workspace_id=item.workspace_id, provider="linkedin", user_id=item.user_id
+            )
             db.add(stored)
         try:
             stored.encrypted_token = cipher().encrypt(connection.access_token.encode()).decode()
@@ -374,11 +378,7 @@ def register_social_routes(app, db_session, current_auth, scope, record, audit):
     @app.post("/v1/workspaces/{ws}/integrations/linkedin/disconnect")
     def disconnect(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
         admin(member)
-        item = db.scalar(
-            select(Connection)
-            .where(Connection.workspace_id == ws, Connection.provider == "linkedin")
-            .with_for_update()
-        )
+        item = linkedin_connection(db, ws, member.user_id, lock=True)
         if item:
             db.delete(item)
         # Deletion stops new dispatch. An already dispatched provider call cannot be recalled.

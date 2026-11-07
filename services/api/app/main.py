@@ -381,6 +381,9 @@ def contact_output(contact, company, icp):
         "company_id": contact.company_id,
         "score": score(contact, company, icp),
         "outreach_stage": contact.outreach_stage or "new",
+        "linkedin_status": contact.linkedin_status or "unchecked",
+        "linkedin_reason": contact.linkedin_reason or "",
+        "owner_id": contact.owner_id,
     }
 
 
@@ -906,26 +909,32 @@ def change_deal(
 def post_output(p):
     from sqlalchemy.orm import object_session
 
+    from app.content_strategy import post_strategy
+
     db = object_session(p)
     assets = (
         list(db.scalars(select(PostMedia.asset_id).where(PostMedia.post_id == p.id))) if db else []
     )
-    return {
-        key: getattr(p, key)
-        for key in (
-            "id",
-            "brand_id",
-            "provider_post_id",
-            "publish_enabled",
-            "caption",
-            "alt_text",
-            "state",
-            "version",
-            "approved_revision",
-            "scheduled_at",
-            "created_at",
-        )
-    } | {"asset_ids": assets, "studio_context": p.studio_context}
+    return (
+        {
+            key: getattr(p, key)
+            for key in (
+                "id",
+                "brand_id",
+                "provider_post_id",
+                "publish_enabled",
+                "caption",
+                "alt_text",
+                "state",
+                "version",
+                "approved_revision",
+                "scheduled_at",
+                "created_at",
+            )
+        }
+        | {"asset_ids": assets, "studio_context": p.studio_context, "author_id": p.author_id}
+        | post_strategy(p)
+    )
 
 
 @app.get("/v1/workspaces/{ws}/social/posts")
@@ -953,6 +962,10 @@ def create_post(
     db: Session = Depends(db_session, scope="function"),
 ):
     validate_post_refs(db, ws, body)
+    if body.campaign_id:
+        from app.content_strategy import ContentCampaign as Campaign
+
+        record(db, Campaign, ws, body.campaign_id)
     if "studio_context" not in body.model_fields_set:
         body.studio_context.image_mode = "manual" if body.asset_ids else "none"
     p = Post(workspace_id=ws, author_id=member.user_id, **body.model_dump(exclude={"asset_ids"}))
@@ -977,6 +990,18 @@ def edit_post(
     if p.state == "publishing":
         raise HTTPException(409, "Publication in progress; wait for provider reconciliation.")
     validate_post_refs(db, ws, body, previous=p)
+    from app.content_strategy import STRATEGY_FIELDS
+    from app.content_strategy import ContentCampaign as Campaign
+    from app.voice_learning import record_edit
+
+    # Every change to a draft is kept (original and the user's version) for the profile.
+    record_edit(db, ws, member.user_id, "post", p.id, p.caption, body.caption)
+    if body.campaign_id and "campaign_id" in body.model_fields_set:
+        record(db, Campaign, ws, body.campaign_id)
+    for field in STRATEGY_FIELDS & body.model_fields_set:
+        setattr(p, field, getattr(body, field))
+    if (p.studio_context or {}).get("placeholder") and not body.caption.startswith("(Text folgt)"):
+        p.studio_context = {k: v for k, v in (p.studio_context or {}).items() if k != "placeholder"}
     p.caption, p.alt_text, p.brand_id = body.caption, body.alt_text, body.brand_id
     if "studio_context" in body.model_fields_set:
         p.studio_context = body.studio_context.model_dump()
@@ -1133,6 +1158,7 @@ def integrations(ws: str, member=Depends(scope), db=Depends(db_session, scope="f
         select(Connection).where(
             Connection.workspace_id == ws,
             Connection.provider == "linkedin",
+            Connection.user_id == member.user_id,
             Connection.expires_at > now(),
         )
     )
@@ -1433,3 +1459,19 @@ register_content_apply(app, db_session, scope, record, audit)
 from app.agent import register_agent_routes  # noqa: E402
 
 register_agent_routes(app, db_session, scope, record, audit)
+
+from app.profile_check import register_profile_routes  # noqa: E402
+
+register_profile_routes(app, db_session, scope, audit)
+
+from app.content_strategy import register_strategy_routes  # noqa: E402
+
+register_strategy_routes(app, db_session, scope, record, audit)
+
+from app.voice_learning import register_voice_learning_routes  # noqa: E402
+
+register_voice_learning_routes(app, db_session, scope, record, audit)
+
+from app.team import register_team_routes  # noqa: E402
+
+register_team_routes(app, db_session, scope, audit)

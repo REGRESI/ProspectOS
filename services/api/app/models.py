@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     JSON,
     BigInteger,
+    Date,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -66,6 +67,7 @@ class Company(TenantMixin, Base):
     location: Mapped[str] = mapped_column(String(240), default="")
     industry: Mapped[str] = mapped_column(String(120), default="")
     source: Mapped[str] = mapped_column(String(100), default="user_entry")
+    role_search_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     __table_args__ = (
         UniqueConstraint("workspace_id", "id"),
         UniqueConstraint("workspace_id", "identity"),
@@ -92,12 +94,25 @@ class Contact(TenantMixin, Base):
     outreach_stage_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Profile check: unchecked, verified (automatic, reason stored), confirmed (by a user),
+    # unsure (not used), not_found. Only the URL and an own-words reason are stored.
+    linkedin_status: Mapped[str] = mapped_column(String(20), default="unchecked")
+    linkedin_reason: Mapped[str] = mapped_column(String(300), default="")
+    linkedin_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    owner_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     __table_args__ = (
         UniqueConstraint("workspace_id", "id"),
         UniqueConstraint("workspace_id", "linkedin_url"),
         UniqueConstraint("workspace_id", "import_key"),
         ForeignKeyConstraint(
             ["workspace_id", "company_id"], ["companies.workspace_id", "companies.id"]
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "owner_id"],
+            ["memberships.workspace_id", "memberships.user_id"],
+            name="contact_owner_member",
         ),
         Index("contact_workspace_name", "workspace_id", "last_name", "first_name"),
     )
@@ -138,6 +153,25 @@ class Deal(TenantMixin, Base):
     )
 
 
+class ContentCampaign(TenantMixin, Base):
+    """Content campaign with start, end and goal (app.content_strategy)."""
+
+    __tablename__ = "content_campaigns"
+    name: Mapped[str] = mapped_column(String(160))
+    goal: Mapped[str] = mapped_column(String(20))
+    audience: Mapped[str] = mapped_column(String(30))
+    description: Mapped[str] = mapped_column(String(1000), default="")
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
+    created_by: Mapped[str] = mapped_column(String(36))
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "created_by"], ["memberships.workspace_id", "memberships.user_id"]
+        ),
+    )
+
+
 class Post(TenantMixin, Base):
     __tablename__ = "social_posts"
     __table_args__ = (
@@ -146,6 +180,11 @@ class Post(TenantMixin, Base):
             ["workspace_id", "brand_id"],
             ["brands.workspace_id", "brands.id"],
             name="post_brand_tenant",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "campaign_id"],
+            ["content_campaigns.workspace_id", "content_campaigns.id"],
+            name="post_campaign_tenant",
         ),
     )
     brand_id: Mapped[str | None] = mapped_column(String(36))
@@ -160,6 +199,14 @@ class Post(TenantMixin, Base):
     approved_revision: Mapped[int | None]
     author_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Content strategy: goal, audience, approach A/B/C, pillar, campaign, planned day.
+    goal: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    audience: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    approach: Mapped[str | None] = mapped_column(String(1), nullable=True)
+    pillar: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    topic: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    campaign_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    planned_for: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class Draft(TenantMixin, Base):

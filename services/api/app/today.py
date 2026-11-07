@@ -41,11 +41,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app import credentials, style
+from app.content_strategy import due_metrics
 from app.db import Base, now
 from app.journeys import CompanyFact, ICPProfile, ManualActivity
 from app.linkedin_channel import LinkedInAction, _crm_on_accept, _log, limits, usage
 from app.models import Company, Contact, TenantMixin
 from app.platform_models import Suppression, Task
+from app.profile_check import has_profile
 
 NOTE_LIMIT = 200
 PROFESSION = re.compile(
@@ -353,9 +355,9 @@ def set_stage(contact: Contact, stage: str, *, forward_only: bool = True) -> boo
     return True
 
 
-def daily(db, ws, items=None) -> dict:
+def daily(db, ws, items=None, actor_id=None) -> dict:
     limit = get_settings(db, ws).daily_limit
-    sent = usage(db, ws)["connection_requests_last_24h"]
+    sent = usage(db, ws, actor_id)["connection_requests_last_24h"]
     queued = sum(
         1 for i in (items or []) if i.kind == "connect" and i.state in ("pending", "approved")
     )
@@ -425,8 +427,12 @@ def item_output(db, ws, item: QueueItem) -> dict:
         "company": {"id": company.id, "name": company.name, "location": company.location}
         if company
         else None,
-        "profile_url": contact.linkedin_url or search_link(contact, company),
-        "profile_confirmed": bool(contact.linkedin_url),
+        # Only verified or confirmed profiles reach "Heute"; never a people-search link.
+        "profile_url": contact.linkedin_url if has_profile(contact) else None,
+        "profile_confirmed": has_profile(contact),
+        "profile_status": contact.linkedin_status,
+        "profile_reason": contact.linkedin_reason
+        or ("Von dir bestätigt" if contact.linkedin_url else ""),
         "reason": item.reason,
         "sources": item.sources,
         "note": item.note,
@@ -555,6 +561,21 @@ def build_queue(db, ws, member_id, sender: Sender) -> dict:
         else:
             old.day = day
     db.flush()
+    # New connection requests need a verified profile. Open ones without it leave the list.
+    for item in db.scalars(
+        select(QueueItem).where(
+            QueueItem.workspace_id == ws,
+            QueueItem.day == day,
+            QueueItem.kind == "connect",
+            QueueItem.state.in_(["pending", "approved"]),
+        )
+    ):
+        contact = db.scalar(
+            select(Contact).where(Contact.workspace_id == ws, Contact.id == item.contact_id)
+        )
+        if not contact or not has_profile(contact):
+            item.state = "skipped"
+    db.flush()
     refreshed = _refresh_open(db, ws, day, sender)
     existing = {
         (i.contact_id, i.kind): i
@@ -632,7 +653,7 @@ def build_queue(db, ws, member_id, sender: Sender) -> dict:
             elif len(messages) == 2 and first <= now() - timedelta(days=FOLLOWUP_DAYS["followup2"]):
                 add(contact, company, "followup2")
     # 2) New connection requests from the ranking, within the daily limit (5–10).
-    lim, used = limits(), usage(db, ws)
+    lim, used = limits(), usage(db, ws, member_id)
     daily_limit = min(get_settings(db, ws).daily_limit, lim["connection_requests_per_day"])
     queued_connects = sum(
         1 for (_, k), i in existing.items() if k == "connect" and i.state in ("pending", "approved")
@@ -682,7 +703,7 @@ def build_queue(db, ws, member_id, sender: Sender) -> dict:
         for contact in by_company[company.id]:
             if capacity <= 0:
                 break
-            if _actions(db, ws, contact.id):
+            if not has_profile(contact) or _actions(db, ws, contact.id):
                 continue
             if add(contact, company, "connect", rank):
                 capacity -= 1
@@ -935,6 +956,9 @@ def register_today_routes(app, db_session, scope, record, audit):
         if clash:
             raise HTTPException(409, "Dieses Profil ist bereits einem anderen Kontakt zugeordnet.")
         contact.linkedin_url = url
+        contact.linkedin_status = "confirmed"
+        contact.linkedin_reason = "Von dir bestätigt"
+        contact.linkedin_checked_at = now()
         contact.version += 1
         audit(
             db,
@@ -974,10 +998,21 @@ def register_today_routes(app, db_session, scope, record, audit):
             "items": [item_output(db, ws, i) for i in items],
             "checks": checks(db, ws),
             "limits": limits(),
-            "usage": usage(db, ws),
-            "daily": daily(db, ws, items),
+            "usage": usage(db, ws, member.user_id),
+            "daily": daily(db, ws, items, member.user_id),
             "settings": settings_output(get_settings(db, ws)),
             "stages": STAGES,
+            "profile_check": {
+                "unchecked": db.scalar(
+                    select(func.count(Contact.id)).where(
+                        Contact.workspace_id == ws,
+                        Contact.linkedin_status == "unchecked",
+                        Contact.linkedin_url.is_(None),
+                    )
+                ),
+                "available": bool(credentials.get("BRAVE_SEARCH_API_KEY")),
+            },
+            "metrics_due": due_metrics(db, ws, member.user_id),
             "stats": {
                 "pending": sum(i.state == "pending" for i in items),
                 "approved": sum(i.state == "approved" for i in items),
@@ -1024,9 +1059,14 @@ def register_today_routes(app, db_session, scope, record, audit):
         item = record(db, QueueItem, ws, entity_id, True)
         if item.state == "sent":
             raise HTTPException(409, "Bereits gesendet.")
+        from app.voice_learning import record_edit
+
         for field in ("note", "message", "followup"):
             value = getattr(body, field)
             if value is not None:
+                record_edit(
+                    db, ws, member.user_id, "outreach", item.id, getattr(item, field), value
+                )
                 setattr(item, field, value)
         # Edited content needs a fresh approval.
         if item.state == "approved":
@@ -1065,7 +1105,11 @@ def register_today_routes(app, db_session, scope, record, audit):
         ):
             raise HTTPException(409, "Kontakt steht auf der Sperrliste.")
         contact = record(db, Contact, ws, item.contact_id, True)
-        lim, used = limits(), usage(db, ws)
+        if item.kind == "connect" and not has_profile(contact):
+            raise HTTPException(409, "Für diesen Kontakt gibt es kein geprüftes LinkedIn-Profil.")
+        # Contacts belong to the member who sends the first request.
+        contact.owner_id = contact.owner_id or member.user_id
+        lim, used = limits(), usage(db, ws, member.user_id)
         action = "connection_request" if item.kind == "connect" else "message"
         day_limit = min(get_settings(db, ws).daily_limit, lim["connection_requests_per_day"])
         if action == "connection_request" and (

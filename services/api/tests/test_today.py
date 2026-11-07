@@ -20,6 +20,18 @@ SENDER = {
 }
 
 
+def give_profiles(admin, ws):
+    """Synthetic verified LinkedIn profiles (as the Brave check would store them)."""
+    for contact in admin.scalars(
+        select(Contact).where(Contact.workspace_id == ws, Contact.linkedin_url.is_(None))
+    ):
+        slug = f"{contact.first_name}-{contact.last_name}".casefold().replace(" ", "-")
+        contact.linkedin_url = f"https://www.linkedin.com/in/synthetisch-{slug}/"
+        contact.linkedin_status = "verified"
+        contact.linkedin_reason = "Name und Firma stimmen im Suchtreffer überein"
+    admin.commit()
+
+
 def seed(admin, ws, n=3):
     ids = []
     for i in range(n):
@@ -64,6 +76,9 @@ def test_full_day_flow(context, admin, monkeypatch):
     created = client.post(f"{w}/contacts/from-impressum", json={}).json()["created"]
     assert created == 6
     assert client.post(f"{w}/contacts/from-impressum", json={}).json()["created"] == 0  # idempotent
+    # Without a verified LinkedIn profile nobody reaches "Heute".
+    assert client.post(f"{w}/today/build", json=SENDER).json()["created"]["connect"] == 0
+    give_profiles(admin, ws)
     built = client.post(f"{w}/today/build", json=SENDER).json()
     assert built["created"]["connect"] == 4  # daily pacing limit
     day = client.get(f"{w}/today").json()
@@ -71,10 +86,10 @@ def test_full_day_flow(context, admin, monkeypatch):
     assert len(items) == 4 and all(i["state"] == "pending" for i in items)
     first = items[0]
     assert len(first["note"]) <= 200 and first["note_limit"] == 200
-    assert first["profile_url"].startswith(
-        "https://www.linkedin.com/search/results/people/?keywords="
-    )
-    assert not first["profile_confirmed"]
+    # The button opens the verified profile directly, never a people search.
+    assert first["profile_url"].startswith("https://www.linkedin.com/in/synthetisch-")
+    assert first["profile_confirmed"] and first["profile_status"] == "verified"
+    assert first["profile_reason"] == "Name und Firma stimmen im Suchtreffer überein"
     assert "Rang 1" in first["reason"] and any(s.endswith("/impressum") for s in first["sources"])
     assert "Nico Test" in first["message"]
     # Rebuild is idempotent for the same day.

@@ -235,7 +235,8 @@ def action_output(item):
     }
 
 
-def usage(db, ws):
+def usage(db, ws, actor_id=None):
+    """Counts per workspace, or per user (each user sends from their own LinkedIn account)."""
     day = now() - timedelta(days=1)
     week = now() - timedelta(days=7)
     counted = LinkedInAction.state.not_in(["not_sent", "cancelled"])
@@ -247,6 +248,7 @@ def usage(db, ws):
                 LinkedInAction.action == action,
                 LinkedInAction.created_at >= since,
                 counted,
+                *([LinkedInAction.actor_id == actor_id] if actor_id else []),
             )
         )
 

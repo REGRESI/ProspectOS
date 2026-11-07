@@ -260,6 +260,7 @@ def connected_post(c, ws, user, monkeypatch):
             Connection(
                 workspace_id=ws,
                 provider="linkedin",
+                user_id=user,
                 encrypted_token=Fernet(key).encrypt(b"fake-test-token").decode(),
                 author_urn="urn:li:person:test",
                 scopes=["w_member_social"],

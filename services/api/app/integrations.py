@@ -15,7 +15,7 @@ from sqlalchemy import select
 
 from app import credentials
 from app.db import now
-from app.platform_models import Connection, IntegrationCredential
+from app.platform_models import IntegrationCredential
 from app.providers.ai import ProviderError, request_json
 
 
@@ -272,17 +272,15 @@ def register_integration_routes(app, db_session, scope, audit):
         if provider not in credentials.PROVIDERS:
             raise HTTPException(404, "Unbekannte Integration.")
 
-    def linkedin_connection(db, ws):
-        return db.scalar(
-            select(Connection).where(
-                Connection.workspace_id == ws, Connection.provider == "linkedin"
-            )
-        )
+    def linkedin_connection(db, ws, user_id):
+        from app.social import linkedin_connection as per_user
+
+        return per_user(db, ws, user_id)
 
     @app.get("/v1/workspaces/{ws}/integrations/credentials")
     def list_integrations(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
         owner_admin(member)
-        connection = linkedin_connection(db, ws)
+        connection = linkedin_connection(db, ws, member.user_id)
         return {
             "encryption_ready": credentials.encryption_ready(),
             "items": [describe(db, ws, p, connection) for p in credentials.PROVIDERS],
@@ -339,7 +337,10 @@ def register_integration_routes(app, db_session, scope, audit):
         if body.test:
             with credentials.override(stored):
                 test = run_test(db, ws, provider, member.user_id)
-        return {"item": describe(db, ws, provider, linkedin_connection(db, ws)), "test": test}
+        return {
+            "item": describe(db, ws, provider, linkedin_connection(db, ws, member.user_id)),
+            "test": test,
+        }
 
     @app.post("/v1/workspaces/{ws}/integrations/credentials/{provider}/test")
     def test_integration(
@@ -357,7 +358,10 @@ def register_integration_routes(app, db_session, scope, audit):
             "integration_tested",
             f"Integration {provider}: {test['status']}",
         )
-        return {"item": describe(db, ws, provider, linkedin_connection(db, ws)), "test": test}
+        return {
+            "item": describe(db, ws, provider, linkedin_connection(db, ws, member.user_id)),
+            "test": test,
+        }
 
     @app.delete("/v1/workspaces/{ws}/integrations/credentials/{provider}")
     def delete_integration(
@@ -370,4 +374,4 @@ def register_integration_routes(app, db_session, scope, audit):
             db.delete(item)
             db.flush()
         audit(db, ws, member.user_id, "integration_removed", f"Integration {provider} removed")
-        return {"item": describe(db, ws, provider, linkedin_connection(db, ws))}
+        return {"item": describe(db, ws, provider, linkedin_connection(db, ws, member.user_id))}

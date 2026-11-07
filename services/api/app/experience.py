@@ -5,6 +5,7 @@ import json
 import os
 from io import BytesIO
 from types import SimpleNamespace
+from typing import Literal
 
 from fastapi import Depends, HTTPException
 from PIL import Image
@@ -74,6 +75,10 @@ class SocialGeneration(WritingControls):
     post_type: str = Field(default="Fachbeitrag", max_length=100)
     instructions: str = Field(default="", max_length=1000)
     variants: int = Field(default=3, ge=3, le=3)
+    # Strategy: chosen before every post. Versions A/B/C differ in approach.
+    goal: Literal["reach", "trust", "leads", "partners", "hiring"] | None = None
+    audience_key: Literal["ortenau_ceo", "founders_cleaning", "ai_entrepreneurs"] | None = None
+    pillar: str = Field(default="", max_length=120)
 
 
 class ImageGeneration(Strict):
@@ -256,21 +261,36 @@ def external_generation(job):
         }, result
     results = []
     input_tokens = output_tokens = cost = 0
-    angles = (
-        ["Gezielte Überarbeitung: " + job.payload["action"]]
-        if job.payload.get("purpose") == "social_refinement"
-        else [
+    from app.content_strategy import APPROACHES, approach_prompt, split_why
+
+    strategy = job.payload.get("strategy")
+    approaches = [None]
+    if job.payload.get("purpose") == "social_refinement":
+        angles = ["Gezielte Überarbeitung: " + job.payload["action"]]
+    elif strategy is not None:
+        # A provocative thesis, B personal story, C useful tip with numbers.
+        approaches = list(APPROACHES)
+        angles = [
+            approach_prompt(key, strategy.get("goal"), strategy.get("audience"))
+            for key in approaches
+        ]
+    else:
+        angles = [
             "Persönlich: eine ehrliche Beobachtung, keine erfundene Geschichte",
             "Direkt und meinungsstark: klare These und begründeter Standpunkt",
             "Fachlich und praxisnah: konkrete Schritte, keine erfundenen Zahlen",
         ]
-    )
     for index, angle in enumerate(angles):
+        approach = approaches[index] if index < len(approaches) else None
         output = generate_text(
             job.payload["prompt"] + "\nVariante " + str(index + 1) + ": " + angle,
             job.payload.get("sources", []),
         )
-        text = shape_text(output.text, job.payload.get("constraints", {}))
+        why = ""
+        raw = output.text
+        if approach:
+            raw, why = split_why(raw, approach, strategy.get("goal"))
+        text = shape_text(raw, job.payload.get("constraints", {}))
         if not text:
             from app.providers.ai import ProviderError
 
@@ -279,7 +299,9 @@ def external_generation(job):
         results.append(
             {
                 "text": text,
-                "angle": angle,
+                "angle": APPROACHES[approach]["label"] if approach else angle,
+                "approach": approach,
+                "why": why,
                 "hook": lines[0] if lines else "",
                 "cta": lines[-1] if len(lines) > 1 else "",
                 "citations": output.citations,
@@ -583,10 +605,17 @@ def register_experience_routes(
         member=Depends(scope),
         db=Depends(db_session, scope="function"),
     ):
+        from app.content_strategy import audience_label, goal_label, prompt_hint
         from app.platform_routes import job_output
+        from app.voice_learning import personal_profile, snapshot_extras
 
         text_requirements()
-        voice = voice_snapshot(db, ws, body.voice_profile_id, record)
+        if not body.voice_profile_id:
+            own = personal_profile(db, ws, member.user_id)
+            body.voice_profile_id = own.id if own else None
+        voice = voice_snapshot(db, ws, body.voice_profile_id, record) | snapshot_extras(
+            db, ws, member.user_id
+        )
         sources = []
         if body.brand_id:
             brand = record(db, Brand, ws, body.brand_id)
@@ -597,7 +626,13 @@ def register_experience_routes(
                 }
             ]
         prompt = f"Thema: {body.topic}\nZielgruppe: {body.audience}\nTonalität: {body.tone}\nZiel: {body.objective}\nFormat: {body.post_type}\nRevisionswünsche: {body.instructions}\nSchreibe einen LinkedIn-Entwurf unter Beachtung der ausgewählten Hook- und CTA-Regeln. Keine erfundenen Kundenbelege, Statistiken oder Geschäftszahlen. Fehlende Fakten als unbekannt behandeln."
-        prompt = writing_prompt(body, voice) + "\n" + prompt
+        if body.goal or body.audience_key or body.pillar:
+            prompt += (
+                f"\nZiel des Beitrags: {goal_label(body.goal) or body.objective}. "
+                f"Zielgruppe: {audience_label(body.audience_key) or body.audience}. "
+                f"Themensäule: {body.pillar or 'frei'}."
+            )
+        prompt = writing_prompt(body, voice) + "\n" + prompt + prompt_hint(db, ws)
         if body.factual_notes:
             sources.append({"id": "user_facts", "text": body.factual_notes})
         if len(prompt) > 11500:
@@ -613,6 +648,12 @@ def register_experience_routes(
                 "sources": sources,
                 "reservation_minor": reservation,
                 "purpose": "social_variants",
+                "strategy": {
+                    "goal": body.goal,
+                    "audience": body.audience_key,
+                    "pillar": body.pillar,
+                    "topic": body.topic,
+                },
                 "voice_snapshot": voice,
                 "constraints": constraints_for(body, voice),
                 "parameters": body.model_dump(),
@@ -909,21 +950,18 @@ def register_experience_routes(
         )
 
 
-def provider_test(provider, db, ws):
+def provider_test(provider, db, ws, user_id=None):
     """Read-only checks. Reachability does not imply permission to generate, send or publish."""
     from urllib.parse import quote, urlsplit
 
-    from app.platform_models import Connection
     from app.providers.ai import ProviderError, request_json
     from app.social import cipher
 
     missing = []
     if provider == "linkedin":
-        connection = db.scalar(
-            select(Connection).where(
-                Connection.workspace_id == ws, Connection.provider == "linkedin"
-            )
-        )
+        from app.social import linkedin_connection
+
+        connection = linkedin_connection(db, ws, user_id)
         if not connection or connection.expires_at <= now():
             return {
                 "status": "not_connected",
@@ -1044,7 +1082,7 @@ def register_provider_tests(app, db_session, scope, audit):
         if member.role not in ("owner", "admin"):
             raise HTTPException(403, "Owner/admin required.")
         try:
-            result = provider_test(provider, db, ws)
+            result = provider_test(provider, db, ws, member.user_id)
         except ProviderError as exc:
             result = {
                 "status": "unavailable",

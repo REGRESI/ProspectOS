@@ -53,6 +53,8 @@ def test_autopilot_ortenau_run_prepares_texts_for_approval(context, admin, monke
     monkeypatch.setenv("OSM_DISCOVERY_ENABLED", "true")
     monkeypatch.setenv("OSM_CONTACT", "test@example.invalid")
     monkeypatch.setenv("RESEARCH_ENABLED", "true")
+    # Stand-in for the Brave check: every Impressum contact counts as verified here.
+    monkeypatch.setattr("app.today.has_profile", lambda contact: True)
     monkeypatch.setattr(osm_mod(), "search_places", fake_places)
     monkeypatch.setattr(
         osm_mod(),

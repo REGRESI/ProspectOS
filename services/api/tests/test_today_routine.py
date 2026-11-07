@@ -10,7 +10,7 @@ from app.db import now
 from app.linkedin_channel import LinkedInAction
 from app.models import Contact
 from app.today import QueueItem
-from tests.test_today import seed
+from tests.test_today import give_profiles, seed
 
 
 def setup(client, admin, ws, n=6):
@@ -18,6 +18,7 @@ def setup(client, admin, ws, n=6):
     w = f"/v1/workspaces/{ws}"
     client.post(f"{w}/icp-profiles/from-template", json={"template": "office_cleaning_ortenau"})
     client.post(f"{w}/contacts/from-impressum", json={})
+    give_profiles(admin, ws)
     return w
 
 

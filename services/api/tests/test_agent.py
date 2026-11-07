@@ -116,7 +116,8 @@ def test_agent_run_end_to_end_and_autopilot(context, admin, monkeypatch):
     assert done["results"]["contacts_created"] == 3
     campaign = admin.get(Campaign, done["results"]["campaign_id"])
     assert campaign is not None
-    assert len(admin.scalars(select(QueueItem).where(QueueItem.workspace_id == ws)).all()) == 3
+    # Impressum contacts have no verified LinkedIn profile yet: they do not reach "Heute".
+    assert len(admin.scalars(select(QueueItem).where(QueueItem.workspace_id == ws)).all()) == 0
     assert len(admin.scalars(select(Company).where(Company.workspace_id == ws)).all()) == 3
     assert len(admin.scalars(select(Contact).where(Contact.workspace_id == ws)).all()) == 3
 

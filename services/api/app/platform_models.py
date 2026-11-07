@@ -213,7 +213,17 @@ class Connection(TenantMixin, Base):
     author_urn: Mapped[str] = mapped_column(String(300))
     scopes: Mapped[list] = mapped_column(JSON, default=list)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    __table_args__ = (UniqueConstraint("workspace_id", "provider"),)
+    # One LinkedIn connection per user (migration 0021).
+    user_id: Mapped[str] = mapped_column(String(36))
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "provider", "user_id"),
+        ForeignKeyConstraint(
+            ["workspace_id", "user_id"],
+            ["memberships.workspace_id", "memberships.user_id"],
+            name="connection_member",
+            ondelete="CASCADE",
+        ),
+    )
 
 
 class OAuthState(Base):

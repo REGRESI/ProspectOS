@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -98,6 +98,14 @@ class PostInput(Strict):
     asset_ids: list[str] = Field(default_factory=list, max_length=1)
     caption: str = Field(min_length=1, max_length=3000)
     alt_text: str = Field(default="", max_length=1000)
+    # Content strategy (app.content_strategy): goal, audience, approach A/B/C, pillar.
+    goal: Literal["reach", "trust", "leads", "partners", "hiring"] | None = None
+    audience: Literal["ortenau_ceo", "founders_cleaning", "ai_entrepreneurs"] | None = None
+    approach: Literal["A", "B", "C"] | None = None
+    pillar: str | None = Field(default=None, max_length=120)
+    topic: str | None = Field(default=None, max_length=300)
+    campaign_id: str | None = Field(default=None, max_length=36)
+    planned_for: date | None = None
 
 
 class PostPatch(PostInput):
