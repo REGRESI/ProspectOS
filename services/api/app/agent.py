@@ -876,6 +876,7 @@ def register_agent_routes(app, db_session, scope, record, audit):
         budget = {
             "workspace_budget_minor": account.ai_budget_minor,
             "spent_minor": account.ai_spent_minor,
+            "spent_usd": (account.ai_spent_micro or 0) / 1e6,
             "reserved_minor": account.ai_reserved_minor,
             "period": account.period,
         }

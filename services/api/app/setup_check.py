@@ -132,13 +132,24 @@ def image(db, ws) -> dict:
             "Fehlt: " + ", ".join(req["requirements"]),
             "Bildmodell unter Integrationen und IMAGE_MAX_COST_USD_CENTS in .env setzen.",
         )
+    from app.costs import image_prices
+
+    if not image_prices():
+        return _item(
+            "image",
+            "KI-Bilder",
+            "yellow",
+            "Bildpreise fehlen, Kosten werden zur Obergrenze geschätzt",
+            "IMAGE_TEXT_INPUT_USD_PER_MILLION und IMAGE_OUTPUT_USD_PER_MILLION in .env eintragen.",
+        )
     tested = _tested(db, ws, "openai")
     light = "green" if tested == "connected" else "yellow"
     return _item(
         "image",
         "KI-Bilder",
         light,
-        f"Bereit ({credentials.get('IMAGE_MODEL')}, max. {req['max_cost_minor']} ct pro Bild)",
+        f"Bereit ({credentials.get('IMAGE_MODEL')}, gebucht wird der echte Preis, "
+        f"reserviert max. {req['max_cost_minor']} ct pro Bild)",
         "Bild zu einem Plan-Post erzeugen und prüfen."
         if light == "green"
         else "OpenAI-Verbindung testen.",

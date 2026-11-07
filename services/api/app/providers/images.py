@@ -15,6 +15,10 @@ class ImageProvider(Protocol):
 
 
 class OpenAIImages:
+    # Normalised `usage` block of the last response (None when the provider sent none);
+    # the ledger books the actual cost from it instead of the reservation.
+    last_usage: dict | None = None
+
     def generate(self, prompt: str, *, aspect_ratio="square", client=None) -> bytes:
         key = os.getenv("IMAGE_API_KEY") or credentials.get("LLM_API_KEY")
         model = credentials.get("IMAGE_MODEL")
@@ -63,6 +67,9 @@ class OpenAIImages:
             payload = base64.b64decode(encoded, validate=True)
             if not payload or len(payload) > 5 * 1024 * 1024:
                 raise ValueError()
-            return payload
         except (KeyError, IndexError, TypeError, ValueError, binascii.Error):
             raise ProviderError("invalid_image_output", ambiguous=True) from None
+        from app.costs import image_usage
+
+        self.last_usage = image_usage(data)
+        return payload

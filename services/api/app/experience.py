@@ -232,18 +232,21 @@ def external_generation(job):
     from app.providers.ai import generate_text
 
     if job.kind == "social_image":
+        from app.costs import image_settlement
         from app.providers.images import OpenAIImages
 
+        provider = OpenAIImages()
         if job.payload.get("aspect_ratio", "square") == "square":
-            payload = OpenAIImages().generate(job.payload["prompt"])
+            payload = provider.generate(job.payload["prompt"])
         else:
-            payload = OpenAIImages().generate(
+            payload = provider.generate(
                 job.payload["prompt"], aspect_ratio=job.payload["aspect_ratio"]
             )
-        return {"image_bytes": payload}, SimpleNamespace(
-            input_tokens=0,
-            output_tokens=0,
-            estimated_cost_microunits=job.payload["reservation_minor"] * 10000,
+        # Actual cost from the response's usage field; the reservation only if it is missing.
+        return {"image_bytes": payload}, image_settlement(
+            getattr(provider, "last_usage", None),
+            job.payload["reservation_minor"],
+            job.payload.get("model", ""),
         )
     if job.kind == "social_reply":
         result = generate_text(job.payload["prompt"], job.payload.get("sources", []))
@@ -344,7 +347,7 @@ def finalize_generation(db, job, result):
         "provider": "openai_images",
         "review_required": True,
         "estimated_max_cost_minor": job.payload["reservation_minor"],
-        "notice": "Echte Anbieterausgabe privat gespeichert. Vor Bibliotheksübernahme prüfen; Kosten sind die konfigurierte Obergrenze, keine Anbieterrechnung.",
+        "notice": "Echte Anbieterausgabe privat gespeichert. Vor Bibliotheksübernahme prüfen. Gebucht werden die tatsächlichen Kosten laut Anbieterantwort; die Obergrenze war nur reserviert.",
     }
 
 
@@ -648,9 +651,11 @@ def register_experience_routes(
             raise HTTPException(422, "Rechte und Anbieterbedingungen bestätigen.")
         remaining(db, ws, "assets")
         brand = record(db, Brand, ws, body.brand_id) if body.brand_id else None
+        from app.jobs import over_budget
+
         account = usage_account(db, ws)
         cost = status["max_cost_minor"]
-        if account.ai_spent_minor + account.ai_reserved_minor + cost > account.ai_budget_minor:
+        if over_budget(account, cost):
             raise HTTPException(402, "Workspace-KI-Budget überschritten.")
         account.ai_reserved_minor += cost
         prompt = (

@@ -51,7 +51,18 @@ def usage_account(db, ws):
     if account.period != period and account.ai_reserved_minor == 0:
         account.period = period
         account.ai_spent_minor = 0
+        account.ai_spent_micro = 0
     return account
+
+
+def over_budget(account, extra_minor: int) -> bool:
+    """Budget counts the actual spend; held reservations only block concurrent overspend."""
+    from app.costs import MICRO_PER_MINOR
+
+    used = (account.ai_spent_micro or 0) + (
+        account.ai_reserved_minor + extra_minor
+    ) * MICRO_PER_MINOR
+    return used > account.ai_budget_minor * MICRO_PER_MINOR
 
 
 def reserve_ai(db, ws, prompt, multiplier=1):
@@ -71,22 +82,33 @@ def reserve_ai(db, ws, prompt, multiplier=1):
         max(1, math.ceil((bound * input_price + maximum * output_price) / 10000)) * multiplier
     )
     account = usage_account(db, ws)
-    if account.ai_spent_minor + account.ai_reserved_minor + reserved > account.ai_budget_minor:
+    if over_budget(account, reserved):
         raise HTTPException(402, "Workspace AI budget exceeded.")
     account.ai_reserved_minor += reserved
     return reserved
 
 
-def settle_ai(db, job, cost=0, usage=None):
+def settle_ai(db, job, cost_micro=0, usage=None, *, estimated=None):
+    """Release the reservation and book the actual cost (micro-USD) once per job.
+
+    `estimated` marks a booked value that is not the provider-reported cost (unknown
+    outcome, missing usage field); by default it is taken from the usage object.
+    """
+    from app.costs import to_minor
+
     reservation = job.payload.get("reservation_minor", 0)
     if not reservation:
         return
     existing = db.scalar(select(UsageEvent).where(UsageEvent.job_id == job.id))
     if existing:
         return
+    if estimated is None:
+        estimated = bool(getattr(usage, "estimated", False))
     account = usage_account(db, job.workspace_id)
     account.ai_reserved_minor = max(0, account.ai_reserved_minor - reservation)
-    account.ai_spent_minor += cost
+    account.ai_spent_micro = (account.ai_spent_micro or 0) + cost_micro
+    account.ai_spent_minor = to_minor(account.ai_spent_micro)
+    details = dict(getattr(usage, "details", None) or {})
     db.add(
         UsageEvent(
             workspace_id=job.workspace_id,
@@ -94,9 +116,19 @@ def settle_ai(db, job, cost=0, usage=None):
             provider="openai_images" if job.kind == "social_image" else "openai_compatible",
             input_tokens=getattr(usage, "input_tokens", 0),
             output_tokens=getattr(usage, "output_tokens", 0),
-            cost_minor=cost,
+            cost_minor=to_minor(cost_micro),
+            cost_micro=cost_micro,
+            reserved_minor=reservation,
+            estimated=estimated,
+            model=(getattr(usage, "model", "") or job.payload.get("model") or "")[:120],
+            details=details,
         )
     )
+
+
+def charge_reservation(db, job):
+    """Unknown outcome after dispatch: book the cap as estimated, never as free."""
+    settle_ai(db, job, job.payload.get("reservation_minor", 0) * 10_000, estimated=True)
 
 
 def claim(ws):
@@ -112,7 +144,7 @@ def claim(ws):
                 job.status = "ambiguous"
                 job.last_error = "lease_expired_after_dispatch"
                 # Charge reserved maximum when outcome is unknown, never treat as free.
-                settle_ai(db, job, job.payload.get("reservation_minor", 0))
+                charge_reservation(db, job)
             else:
                 job.status = "retry" if job.attempts < job.max_attempts else "failed"
                 job.last_error = "lease_expired"
@@ -219,8 +251,7 @@ def dispatch(db, job):
         from app.providers.ai import generate_text
 
         result = generate_text(job.payload["prompt"], job.payload.get("sources", []))
-        cost = math.ceil(result.estimated_cost_microunits / 10000)
-        settle_ai(db, job, cost, result)
+        settle_ai(db, job, result.estimated_cost_microunits, result)
         return result.model_dump(mode="json") | {
             "verified": False,
             "purpose": job.payload["purpose"],
@@ -495,7 +526,7 @@ def _execute_one(ws):
             current.result = result
             current.last_error = None
             if usage:
-                settle_ai(db, current, math.ceil(usage.estimated_cost_microunits / 10000), usage)
+                settle_ai(db, current, usage.estimated_cost_microunits, usage)
             if current.kind == "email":
                 from app.models import Draft
 
@@ -552,11 +583,10 @@ def _execute_one(ws):
             job.last_error = code
             job.available_at = now() + timedelta(seconds=min(300, 2**job.attempts * 5))
             if job.status in ("failed", "ambiguous"):
-                settle_ai(
-                    db,
-                    job,
-                    job.payload.get("reservation_minor", 0) if job.side_effect_started else 0,
-                )
+                if job.side_effect_started:
+                    charge_reservation(db, job)
+                else:
+                    settle_ai(db, job)
             if job.kind == "email":
                 from app.models import Draft
 

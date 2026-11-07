@@ -4,6 +4,8 @@ from datetime import datetime
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
+    Boolean,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -11,6 +13,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base, now
@@ -99,6 +102,8 @@ class UsageAccount(TenantMixin, Base):
     ai_budget_minor: Mapped[int] = mapped_column(default=500)
     ai_spent_minor: Mapped[int] = mapped_column(default=0)
     ai_reserved_minor: Mapped[int] = mapped_column(default=0)
+    # Exact actual spend in micro-USD; ai_spent_minor is its rounded-up mirror.
+    ai_spent_micro: Mapped[int] = mapped_column(BigInteger, default=0)
     period: Mapped[str] = mapped_column(String(7), default=lambda: now().strftime("%Y-%m"))
     __table_args__ = (UniqueConstraint("workspace_id"),)
 
@@ -110,6 +115,14 @@ class UsageEvent(TenantMixin, Base):
     input_tokens: Mapped[int] = mapped_column(default=0)
     output_tokens: Mapped[int] = mapped_column(default=0)
     cost_minor: Mapped[int] = mapped_column(default=0)
+    # Actual cost (micro-USD) from the provider's usage field and the price table.
+    cost_micro: Mapped[int] = mapped_column(BigInteger, default=0)
+    # The cost cap held while the call ran; released when the actual cost is booked.
+    reserved_minor: Mapped[int] = mapped_column(default=0)
+    # True when the actual cost is unknown (no usage field, unknown outcome, old booking).
+    estimated: Mapped[bool] = mapped_column(Boolean, default=False)
+    model: Mapped[str] = mapped_column(String(120), default="")
+    details: Mapped[dict] = mapped_column(JSONB, default=dict)
     __table_args__ = (
         UniqueConstraint("workspace_id", "job_id"),
         ForeignKeyConstraint(["workspace_id", "job_id"], ["jobs.workspace_id", "jobs.id"]),

@@ -958,7 +958,19 @@ export function Operations({
     ai_spent_minor: number;
     ai_budget_minor: number;
     ai_reserved_minor: number;
+    spent_usd: number;
+    spent_estimated_usd: number;
+    reserved_usd: number;
+    budget_usd: number;
+    available_usd: number;
   }>(`${base}/usage`, revision);
+  const money = (v: number) =>
+    new Intl.NumberFormat("de-DE", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: v > 0 && v < 1 ? 4 : 2,
+    }).format(v);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function budget(event: FormEvent<HTMLFormElement>) {
@@ -994,22 +1006,23 @@ export function Operations({
       <ErrorNote message={error || usage.error || jobs.error} />
       <div className="usage-grid">
         <section className="panel usage-card">
-          <span>Verbrauchtes KI-Budget</span>
-          <strong>{usage.data ? new Intl.NumberFormat("de-DE",{style:"currency",currency:"USD"}).format(usage.data.ai_spent_minor / 100) : "—"}</strong>
-          <small>Vom Backend erfasste Kosten</small>
+          <span>Verbraucht</span>
+          <strong>{usage.data ? money(usage.data.spent_usd) : "—"}</strong>
+          <small>
+            Tatsächliche Kosten laut Anbieter
+            {usage.data && usage.data.spent_estimated_usd > 0
+              ? `, davon ${money(usage.data.spent_estimated_usd)} geschätzt`
+              : ""}
+          </small>
         </section>
         <section className="panel usage-card">
-          <span>Für Aufträge reserviert</span>
-          <strong>
-            {usage.data ? new Intl.NumberFormat("de-DE",{style:"currency",currency:"USD"}).format(usage.data.ai_reserved_minor / 100) : "—"}
-          </strong>
-          <small>Noch nicht abgeschlossene Aufträge</small>
+          <span>Reserviert</span>
+          <strong>{usage.data ? money(usage.data.reserved_usd) : "—"}</strong>
+          <small>Obergrenze laufender Aufrufe, wird danach freigegeben</small>
         </section>
         <section className="panel usage-card">
-          <span>Workspace-Budget</span>
-          <strong>
-            {usage.data ? new Intl.NumberFormat("de-DE",{style:"currency",currency:"USD"}).format(usage.data.ai_budget_minor / 100) : "—"}
-          </strong>
+          <span>Budget</span>
+          <strong>{usage.data ? money(usage.data.budget_usd) : "—"}</strong>
           <small>Konfigurierter Kostenrahmen</small>
         </section>
       </div>

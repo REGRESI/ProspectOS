@@ -214,7 +214,7 @@ type Autopilot = {
   last_run_on: string | null;
   next_area?: string;
   plan: { place: string; radius_km: number; companies: number; research: number; profiles?: number; budget_minor?: number } | null;
-  budget: { workspace_budget_minor: number; spent_minor: number; reserved_minor: number; period: string };
+  budget: { workspace_budget_minor: number; spent_minor: number; spent_usd?: number; reserved_minor: number; period: string };
   rotation: string[];
   recent?: { id: string; status: string; place: string; created_at: string; ledger: Ledger }[];
 };
@@ -272,7 +272,7 @@ function AutopilotCard({ base, write }: { base: string; write: Write }) {
       )}
       {data && (
         <p className="muted small" data-testid="autopilot-budget">
-          KI-Budget {data.budget.period}: {usd(data.budget.spent_minor)} von {usd(data.budget.workspace_budget_minor)} verbraucht
+          KI-Budget {data.budget.period}: {(data.budget.spent_usd ?? data.budget.spent_minor / 100).toLocaleString("de-DE", { style: "currency", currency: "USD", maximumFractionDigits: 4 })} von {usd(data.budget.workspace_budget_minor)} verbraucht
           {data.budget.reserved_minor ? `, ${usd(data.budget.reserved_minor)} reserviert` : ""}. Reicht das Budget nicht, lässt der Autopilot die KI-Profile weg; kostenlose Schritte laufen weiter.
         </p>
       )}

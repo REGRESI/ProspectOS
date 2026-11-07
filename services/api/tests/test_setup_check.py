@@ -16,6 +16,8 @@ KEYS = (
     "IMAGE_MODEL",
     "IMAGE_API_KEY",
     "IMAGE_MAX_COST_USD_CENTS",
+    "IMAGE_TEXT_INPUT_USD_PER_MILLION",
+    "IMAGE_OUTPUT_USD_PER_MILLION",
     "OSM_DISCOVERY_ENABLED",
     "OSM_CONTACT",
     "OSM_EXTRACT_PATH",
@@ -54,6 +56,11 @@ def test_lights_and_next_steps(context, monkeypatch, tmp_path):
     assert lights["linkedin"]["light"] == "yellow" and "verbinden" in lights["linkedin"]["next"]
     assert lights["osm"]["light"] == "green"
     assert lights["brave"]["light"] == "yellow"  # configured, not tested
+    monkeypatch.setenv("IMAGE_MODEL", "synthetic-image")
+    monkeypatch.setenv("LLM_API_KEY", "synthetic-key")
+    monkeypatch.setenv("IMAGE_MAX_COST_USD_CENTS", "100")
+    image = {i["key"]: i for i in client.get(f"/v1/workspaces/{ws}/setup-check").json()["items"]}
+    assert "Bildpreise fehlen" in image["image"]["status"]
     with Session(admin_engine) as db, db.begin():
         db.get(Workspace, other).kind = "demo"
     demo = client.get(f"/v1/workspaces/{other}/setup-check").json()

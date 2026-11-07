@@ -516,6 +516,7 @@ def register_platform_routes(app, db_session, scope, record, paginate, audit):
 
     @app.get("/v1/workspaces/{ws}/usage")
     def usage(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
+        from app.costs import summary
         from app.platform_models import UsageAccount
 
         item = db.scalar(select(UsageAccount).where(UsageAccount.workspace_id == ws))
@@ -526,14 +527,49 @@ def register_platform_routes(app, db_session, scope, record, paginate, audit):
                 "ai_reserved_minor": 0,
                 "period": now().strftime("%Y-%m"),
                 "currency": "USD",
+            } | summary(None, db, ws)
+        return (
+            {
+                k: getattr(item, k)
+                for k in ("ai_budget_minor", "ai_spent_minor", "ai_reserved_minor", "period")
             }
-        return {
-            k: getattr(item, k)
-            for k in ("ai_budget_minor", "ai_spent_minor", "ai_reserved_minor", "period")
-        } | {
-            "currency": "USD",
-            "notice": "Konfigurierte Tokenpreise; geschätzte Kosten, keine Anbieterrechnung.",
-        }
+            | summary(item, db, ws)
+            | {
+                "notice": "Verbraucht = tatsächliche Kosten laut Anbieterantwort und Preistabelle. "
+                "Reserviert = Obergrenze laufender Aufrufe, wird danach freigegeben.",
+            }
+        )
+
+    @app.get("/v1/workspaces/{ws}/usage/events")
+    def usage_events(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
+        from app.platform_models import UsageEvent
+
+        out = []
+        for event in db.execute(
+            select(UsageEvent, Job.kind)
+            .join(
+                Job, (Job.id == UsageEvent.job_id) & (Job.workspace_id == UsageEvent.workspace_id)
+            )
+            .where(UsageEvent.workspace_id == ws)
+            .order_by(UsageEvent.created_at.desc())
+            .limit(50)
+        ):
+            e, kind = event
+            out.append(
+                {
+                    "id": e.id,
+                    "job_kind": kind,
+                    "provider": e.provider,
+                    "model": e.model,
+                    "input_tokens": e.input_tokens,
+                    "output_tokens": e.output_tokens,
+                    "cost_usd": e.cost_micro / 1e6,
+                    "reserved_usd": e.reserved_minor / 100,
+                    "estimated": e.estimated,
+                    "created_at": e.created_at.isoformat(),
+                }
+            )
+        return {"items": out}
 
     @app.put("/v1/workspaces/{ws}/usage/budget")
     def set_budget(
