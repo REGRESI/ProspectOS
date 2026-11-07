@@ -258,3 +258,17 @@
   .setup-item { grid-template-columns: 16px 1fr; }
   .setup-item > button { grid-column: 2; justify-self: start; }
 }
+
+/* Workspaces admin + demo switch (Phase 2) */
+.row-actions { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; }
+.align-right { text-align: right; }
+.button.danger { color: var(--danger, #b42318); }
+.button.danger:not(.ghost) { background: var(--danger, #b42318); color: #fff; border-color: transparent; }
+.link-button { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+.demo-switch { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px; border: 1px solid var(--line, #e4e4e7); border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.demo-switch strong { display: block; font-size: 13px; }
+.demo-switch small { color: var(--muted, #71717a); font-size: 12px; }
+.demo-switch-track { width: 28px; height: 16px; border-radius: 8px; background: var(--line, #d4d4d8); position: relative; flex: none; }
+.demo-switch-track span { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: left .15s; }
+.demo-switch.on .demo-switch-track { background: var(--accent, #2563eb); }
+.demo-switch.on .demo-switch-track span { left: 14px; }

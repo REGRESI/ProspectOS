@@ -9,6 +9,6 @@
     "typecheck": "pnpm --filter @prospectos/web typecheck",
     "test": "pnpm --filter @prospectos/web test",
     "build": "pnpm --filter @prospectos/web build",
-    "test:e2e": "pnpm --filter @prospectos/web exec playwright test"
+    "test:e2e": "infra/scripts/e2e.sh"
   }
 }

@@ -125,11 +125,11 @@ def main():
             db.add(user)
             db.flush()
         production = ensure_production(db, user)
-        for slug, name in [
-            ("cleanstar-demo", "CleanStar · Demo"),
-            ("studio-demo", "Studio · Demo"),
-        ]:
-            if db.scalar(select(Workspace).where(Workspace.slug == slug)):
+        # One demo workspace only, named "Demo" (opened via the Demo switch, never default).
+        for slug, name in [("cleanstar-demo", "Demo")]:
+            existing = db.scalar(select(Workspace).where(Workspace.slug == slug))
+            if existing:
+                existing.name, existing.kind = name, "demo"
                 continue
             ws = Workspace(name=name, slug=slug, kind="demo")
             db.add(ws)

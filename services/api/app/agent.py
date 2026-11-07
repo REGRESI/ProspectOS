@@ -735,7 +735,8 @@ def autopilot_tick() -> int:
     started = 0
     local = datetime.now(TZ)
     with SessionLocal() as db:
-        workspaces = list(db.scalars(select(Workspace.id)))
+        # Archived workspaces are paused: no autopilot runs.
+        workspaces = list(db.scalars(select(Workspace.id).where(Workspace.archived_at.is_(None))))
     for ws in workspaces:
         with SessionLocal() as db, db.begin():
             db.execute(text("SELECT set_config('app.workspace_id', :ws, true)"), {"ws": ws})

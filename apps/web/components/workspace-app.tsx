@@ -18,6 +18,7 @@ import { AssetLibrary, BrandProfiles, TaskNotes, Campaigns, Operations, Outreach
 import { request, ApiError } from "@/lib/api";
 import type { Session, Workspace } from "@/lib/api";
 import { Logo, navigation, titles } from "./workspace-nav";
+import { WorkspacesAdmin } from "./workspaces-admin";
 import { Audiences, Companies, Contacts, ImportModal, Overview } from "./workspace-contacts";
 import { Audit, Discovery, Integrations, Pipeline } from "./workspace-modules";
 
@@ -63,6 +64,26 @@ export default function WorkspaceApp() {
     }
   }, [route, session?.user.id]);
   const refresh = () => setRevision((v) => v + 1);
+  // After login always the production workspace; demo only via the Demo switch.
+  const defaultWorkspace = (s: Session) =>
+    s.workspaces.find((w) => w.kind === "production" && !w.archived) ||
+    s.workspaces.find((w) => w.kind !== "demo" && !w.archived) ||
+    s.workspaces[0] ||
+    null;
+  const reloadSession = async () => {
+    const s = await request<Session>("/v1/me");
+    setSession(s);
+    setWorkspace((current) => s.workspaces.find((w) => w.id === current?.id) || defaultWorkspace(s));
+  };
+  const switchTo = (w: Workspace | null) => {
+    if (!w) return;
+    setImportOpen(false);
+    try {
+      sessionStorage.setItem("prospectos.workspace", w.id);
+    } catch {}
+    setWorkspace(w);
+    refresh();
+  };
   const notify = (message: string) => {
     setToast(message);
     setTimeout(() => setToast(""), 5000);
@@ -83,10 +104,9 @@ export default function WorkspaceApp() {
             setSession(s);
             setWorkspace(
               s.workspaces.find(
-                (w) => w.id === sessionStorage.getItem("prospectos.workspace"),
-              ) ||
-                s.workspaces[0] ||
-                null,
+                (w) =>
+                  w.id === sessionStorage.getItem("prospectos.workspace") && !w.archived,
+              ) || defaultWorkspace(s),
             );
           }
         })
@@ -148,8 +168,11 @@ export default function WorkspaceApp() {
         },
       );
       setSession(s);
-      setWorkspace(s.workspaces[0]);
-      router.replace("/overview");
+      try {
+        sessionStorage.removeItem("prospectos.workspace");
+      } catch {}
+      setWorkspace(defaultWorkspace(s));
+      router.replace("/today");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -323,19 +346,16 @@ export default function WorkspaceApp() {
                 setWorkspaceOpen(true);
                 return;
               }
-              setImportOpen(false);
-              sessionStorage.setItem("prospectos.workspace", e.target.value);
-              setWorkspace(
-                session.workspaces.find((w) => w.id === e.target.value) || null,
-              );
-              refresh();
+              switchTo(session.workspaces.find((w) => w.id === e.target.value) || null);
             }}
           >
-            {session.workspaces.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.kind === "demo" ? `${w.name.replace(/\s*·\s*Demo$/, "")} (Demo, nur Beispiel)` : w.name}
-              </option>
-            ))}
+            {session.workspaces
+              .filter((w) => !w.archived && (w.kind !== "demo" || w.id === workspace?.id))
+              .map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.kind === "demo" ? `${w.name} (nur Beispiel)` : w.name}
+                </option>
+              ))}
             <option value="__new">+ Workspace erstellen</option>
           </select>
           <ChevronsUpDown size={14} />
@@ -368,19 +388,29 @@ export default function WorkspaceApp() {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="local-card">
-            <span className="status-dot" />
-            <strong>
-              {authConfig?.demo_enabled
-                ? "Lokaler Demo-Modus"
-                : "Geschützter Workspace"}
-            </strong>
-            <p>
-              {authConfig?.demo_enabled
-                ? "Synthetische Daten. Echte Workflows."
-                : "Sitzung mit geprüftem Kontozugriff."}
-            </p>
-          </div>
+          {session.workspaces.some((w) => w.kind === "demo") && (
+            <button
+              className={`demo-switch ${workspace?.kind === "demo" ? "on" : ""}`}
+              role="switch"
+              aria-checked={workspace?.kind === "demo"}
+              data-testid="demo-switch"
+              onClick={() =>
+                switchTo(
+                  workspace?.kind === "demo"
+                    ? defaultWorkspace(session)
+                    : session.workspaces.find((w) => w.kind === "demo") || null,
+                )
+              }
+            >
+              <span className="demo-switch-track" aria-hidden="true">
+                <span />
+              </span>
+              <span>
+                <strong>Demo ansehen</strong>
+                <small>Nur Beispieldaten</small>
+              </span>
+            </button>
+          )}
           <button
             className="user-menu"
             onClick={async () => {
@@ -465,11 +495,11 @@ export default function WorkspaceApp() {
         <main className="main-content" key={workspace?.id}>
           {workspace?.kind === "demo" && (
             <p className="demo-banner" role="note" data-testid="demo-banner">
-              <strong>Demo-Workspace.</strong> Nur synthetische Beispieldaten, keine echten
-              Zugangsdaten, nichts geht nach außen. Für echte Arbeit oben links
-              {session.workspaces.some((w) => w.kind === "production")
-                ? ` „${session.workspaces.find((w) => w.kind === "production")?.name}“ wählen.`
-                : " einen produktiven Workspace wählen."}
+              <strong>Demo-Workspace.</strong> Nur Beispieldaten, keine echten Zugangsdaten,
+              nichts geht nach außen.{" "}
+              <button className="link-button" onClick={() => switchTo(defaultWorkspace(session))}>
+                Zurück zu {defaultWorkspace(session)?.name || "deinem Workspace"}
+              </button>
             </p>
           )}
           {workspace ? (
@@ -672,6 +702,14 @@ export default function WorkspaceApp() {
                 <Integrations base={base} write={write} />
               )}
               {route === "/settings/setup" && <SetupCheck base={base} onNavigate={go} />}
+              {route === "/settings/workspaces" && (
+                <WorkspacesAdmin
+                  session={session}
+                  active={workspace}
+                  notify={notify}
+                  onSessionChange={reloadSession}
+                />
+              )}
               {route === "/audit" && <Audit base={base} />}
               {route === "/outreach/legacy" && (
                 <OutreachDrafts

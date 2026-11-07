@@ -8,7 +8,7 @@ test("voice examples → gallery modes → preview → save/reload → revision 
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Demo-Workspace öffnen" }).click();
-  await expect(page).toHaveURL(/overview/);
+  await expect(page).toHaveURL(/today/);
   const me = await (await page.request.get("/api/v1/me")).json();
   const headers = { "X-CSRF-Token": me.csrf_token };
   const created = await page.request.post("/api/v1/workspaces", {

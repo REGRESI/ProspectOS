@@ -4,6 +4,7 @@ export type Workspace = {
   slug: string;
   role: string;
   kind?: "production" | "standard" | "demo";
+  archived?: boolean;
 };
 export type Session = {
   user: { id: string; name: string; email: string };

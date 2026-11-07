@@ -26,7 +26,8 @@ test.afterEach(() => expect(browserErrors).toEqual([]));
 async function login(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Demo-Workspace öffnen" }).click();
-  await expect(page).toHaveURL(/overview/);
+  await expect(page).toHaveURL(/today/);
+  await page.goto("/overview");
   await expect(page.locator(".stat-card").first()).not.toContainText("—");
 }
 async function nav(page: Page, label: string) {

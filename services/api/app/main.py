@@ -233,12 +233,22 @@ def auth_payload(db, auth):
     ).all()
     # Production first (default after login), then user-created, demo examples last.
     order = {"production": 0, "standard": 1, "demo": 2}
-    workspaces = sorted(workspaces, key=lambda r: (order.get(r[0].kind, 1), r[0].name))
+    workspaces = sorted(
+        workspaces,
+        key=lambda r: (r[0].archived_at is not None, order.get(r[0].kind, 1), r[0].name),
+    )
     return {
         "user": {"id": user.id, "name": user.name, "email": user.email},
         "csrf_token": auth.csrf_token,
         "workspaces": [
-            {"id": w.id, "name": w.name, "slug": w.slug, "role": role, "kind": w.kind}
+            {
+                "id": w.id,
+                "name": w.name,
+                "slug": w.slug,
+                "role": role,
+                "kind": w.kind,
+                "archived": w.archived_at is not None,
+            }
             for w, role in workspaces
         ],
     }
@@ -257,7 +267,8 @@ def login(
     attempts = login_attempts[key]
     while attempts and attempts[0] < time.monotonic() - 60:
         attempts.popleft()
-    if len(attempts) >= 10:
+    # 10 per minute; the isolated E2E stack raises it because every spec signs in.
+    if len(attempts) >= int(os.getenv("LOGIN_ATTEMPTS_PER_MINUTE", "10")):
         raise HTTPException(429, "Zu viele Anmeldeversuche. Bitte eine Minute warten.")
     attempts.append(time.monotonic())
     user = db.scalar(select(User).where(User.email == body.email.lower()))
@@ -324,6 +335,7 @@ def new_workspace(
         "slug": workspace.slug,
         "role": "owner",
         "kind": workspace.kind,
+        "archived": False,
     }
 
 
@@ -1383,6 +1395,10 @@ register_style_routes(app, db_session, scope, audit)
 from app.setup_check import register_setup_routes  # noqa: E402
 
 register_setup_routes(app, db_session, scope)
+
+from app.workspace_admin import register_workspace_admin_routes  # noqa: E402
+
+register_workspace_admin_routes(app, db_session, scope, audit)
 
 from app.email_outreach import register_email_routes  # noqa: E402
 

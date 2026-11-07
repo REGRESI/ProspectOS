@@ -2,7 +2,8 @@ import { test, expect, Page } from "@playwright/test";
 async function login(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Demo-Workspace öffnen" }).click();
-  await expect(page).toHaveURL(/overview/);
+  await expect(page).toHaveURL(/today/);
+  await page.goto("/overview");
   await expect(
     page.getByRole("heading", { name: /auf gute Verbindungen/ }),
   ).toBeVisible();

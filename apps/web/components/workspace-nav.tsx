@@ -57,6 +57,7 @@ export const navigation: {
     items: [
       { path: "/settings/setup", label: "Setup-Check", icon: ShieldCheck },
       { path: "/settings/workspace", label: "Workspace-Einrichtung", icon: Building2 },
+      { path: "/settings/workspaces", label: "Workspaces", icon: Building2 },
       { path: "/settings/integrations", label: "Integrationen", icon: Link2 },
       { path: "/settings/team", label: "Team & Rollen", icon: Users },
       { path: "/settings/billing", label: "Abo & Ressourcen", icon: BookOpen },
@@ -67,6 +68,7 @@ export const navigation: {
 
 export const titles: Record<string, string> = {
   "/settings/setup": "Setup-Check",
+  "/settings/workspaces": "Workspaces",
   "/settings/workspace": "Workspace-Einrichtung",
   "/settings/team": "Team & Rollen",
   "/settings/billing": "Abo & Ressourcen",

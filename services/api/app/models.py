@@ -40,6 +40,8 @@ class Workspace(Base):
     slug: Mapped[str] = mapped_column(String(100), unique=True)
     # production: real work · standard: user-created · demo: synthetic example only
     kind: Mapped[str] = mapped_column(String(20), default="standard")
+    # Hidden from the picker; data untouched. Set via Settings → Workspaces.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Membership(Base):

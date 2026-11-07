@@ -1,0 +1,93 @@
+# Isolated stack for browser tests (Playwright). Own compose project, own network, own
+# throw-away database on tmpfs: tests never reach the development/production database.
+# No provider keys are passed, so nothing paid or external is ever called.
+#
+#   infra/scripts/e2e.sh            # start, run all specs, tear down (data is gone)
+#
+# Images are the ones built by the main stack (docker compose build api web).
+name: prospectos-e2e
+
+x-env: &env
+  APP_ENV: development
+  AUTH_PROVIDER: demo
+  DATABASE_URL: postgresql+psycopg://prospectos_app:e2e_app@db:5432/prospectos
+  COOKIE_SECURE: "false"
+  ASSET_ROOT: /var/lib/prospectos/assets
+  APP_BASE_URL: http://localhost:3100
+  PUBLIC_WEB_URL: http://localhost:3100
+  TOKEN_ENCRYPTION_KEY: ${E2E_TOKEN_ENCRYPTION_KEY:-}
+  LINKEDIN_PUBLISHING_APPROVED: "false"
+  LINKEDIN_CLIENT_ID: e2e-synthetic-client
+  LINKEDIN_CLIENT_SECRET: e2e-synthetic-secret
+  LINKEDIN_REDIRECT_URI: http://localhost:3100/v1/integrations/linkedin/callback
+  LINKEDIN_SIMULATOR_ENABLED: "true"
+  LINKEDIN_SIM_DELAY_SECONDS: "2"
+  OSM_DISCOVERY_ENABLED: "false"
+  RESEARCH_ENABLED: "false"
+  EMAIL_SEND_ENABLED: "false"
+  STYLE_SAMPLES_PATH: /nonexistent/meine-texte.md
+  E2E_STACK: "true"
+  LOGIN_ATTEMPTS_PER_MINUTE: "500"
+
+services:
+  db:
+    image: postgres:16.11-bookworm
+    environment:
+      POSTGRES_USER: prospectos
+      POSTGRES_PASSWORD: e2e_admin
+      POSTGRES_DB: prospectos
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prospectos -d prospectos"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  migrate:
+    image: prospectos-api
+    environment:
+      APP_ENV: development
+      DATABASE_ADMIN_URL: postgresql+psycopg://prospectos:e2e_admin@db:5432/prospectos
+      DB_APP_PASSWORD: e2e_app
+      DEMO_PASSWORD: ProspectDemo!2026
+    # Fresh schema plus the synthetic demo seed (CleanStar + Demo workspaces).
+    command: ["sh", "-c", "python -m app.migrate && python -m app.seed"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+  api:
+    image: prospectos-api
+    environment: *env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    tmpfs:
+      - /var/lib/prospectos/assets:uid=10001,gid=10001,mode=0700
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+  worker:
+    image: prospectos-api
+    environment: *env
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  web:
+    image: prospectos-web
+    environment:
+      API_URL: http://api:8000
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3100:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 5s
+      retries: 20

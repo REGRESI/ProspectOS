@@ -4,12 +4,12 @@ let sessionCookies: Awaited<
 > = [];
 test.beforeAll(async ({ browser }) => {
   const context = await browser.newContext({
-    baseURL: process.env.E2E_BASE_URL || "http://127.0.0.1:3000",
+    baseURL: process.env.E2E_BASE_URL || "http://localhost:3100",
   });
   const page = await context.newPage();
   await page.goto("/");
   await page.getByRole("button", { name: "Demo-Workspace öffnen" }).click();
-  await expect(page).toHaveURL(/overview/);
+  await expect(page).toHaveURL(/today/);
   sessionCookies = await context.cookies();
   await context.close();
 });

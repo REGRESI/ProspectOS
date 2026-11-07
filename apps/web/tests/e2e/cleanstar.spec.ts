@@ -7,11 +7,11 @@ import { test, expect, Page } from "@playwright/test";
  */
 let sessionCookies: Awaited<ReturnType<import("@playwright/test").BrowserContext["cookies"]>> = [];
 test.beforeAll(async ({ browser }) => {
-  const context = await browser.newContext({ baseURL: process.env.E2E_BASE_URL || "http://127.0.0.1:3000" });
+  const context = await browser.newContext({ baseURL: process.env.E2E_BASE_URL || "http://localhost:3100" });
   const page = await context.newPage();
   await page.goto("/");
   await page.getByRole("button", { name: "Demo-Workspace öffnen" }).click();
-  await expect(page).toHaveURL(/overview/);
+  await expect(page).toHaveURL(/today/);
   sessionCookies = await context.cookies();
   await context.close();
 });
@@ -152,13 +152,13 @@ test("agent shows plan and cost before anything runs", async ({ page }) => {
 });
 
 test("LinkedIn OAuth return shows a clear message on the Integrations page", async ({ browser }) => {
-  // LinkedIn returns to APP_BASE_URL (http://localhost:3000); the session cookie must live on
+  // LinkedIn returns to APP_BASE_URL (http://localhost:<port>); the session cookie must live on
   // that exact host, so this test signs in on localhost instead of 127.0.0.1.
-  const context = await browser.newContext({ baseURL: "http://localhost:3000" });
+  const context = await browser.newContext({ baseURL: process.env.E2E_BASE_URL || "http://localhost:3100" });
   const page = await context.newPage();
   await page.goto("/");
   await page.getByRole("button", { name: "Demo-Workspace öffnen" }).click();
-  await expect(page).toHaveURL(/overview/);
+  await expect(page).toHaveURL(/today/);
   // The registered redirect URL (no /api prefix) is proxied to the backend and redirects back.
   await page.goto("/v1/integrations/linkedin/callback?state=abgelaufen&code=x");
   await expect(page).toHaveURL(/\/settings\/integrations\?linkedin_error=invalid_state/);
@@ -187,8 +187,43 @@ test("setup check shows one light per integration; demo workspace is labelled; p
   const demo = me.workspaces.find((w: { kind?: string }) => w.kind === "demo");
   expect(me.workspaces[0].kind).toBe("production");
   expect(ws.kind).toBe("standard");
-  if (demo) {
-    await page.getByLabel("Workspace", { exact: true }).selectOption(demo.id);
-    await expect(page.getByTestId("demo-banner")).toContainText("Demo-Workspace");
-  }
+  expect(demo).toBeTruthy();
+  // Demo is not in the picker; it opens only through the marked switch.
+  await expect(
+    page.getByLabel("Workspace", { exact: true }).locator(`option[value="${demo.id}"]`),
+  ).toHaveCount(0);
+  await page.getByTestId("demo-switch").click();
+  await expect(page.getByTestId("demo-banner")).toContainText("Demo-Workspace");
+  await page.getByTestId("demo-switch").click();
+  await expect(page.getByTestId("demo-banner")).toHaveCount(0);
+});
+
+test("workspaces: rename, archive and delete only with the typed name", async ({ page }) => {
+  const { ws } = await setup(page);
+  const me = await (await page.request.get("/api/v1/me")).json();
+  const production = me.workspaces.find((w: { kind?: string }) => w.kind === "production");
+  // Open the production workspace so the test workspace can be deleted.
+  await page.getByLabel("Workspace", { exact: true }).selectOption(production.id);
+  await page.goto("/settings/workspaces");
+  const row = page.getByTestId(`workspace-row-${ws.slug}`);
+  await row.getByRole("button", { name: "Umbenennen" }).click();
+  await page.getByLabel("Neuer Name").fill(`${ws.name} neu`);
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await expect(row).toContainText(`${ws.name} neu`);
+  await row.getByRole("button", { name: "Archivieren" }).click();
+  await expect(row).toContainText("Archiviert");
+  await row.getByRole("button", { name: "Wiederherstellen" }).click();
+  await expect(row).toContainText("Aktiv");
+  // The open workspace cannot be deleted.
+  await expect(
+    page.getByTestId(`workspace-row-${production.slug}`).getByRole("button", { name: "Löschen" }),
+  ).toBeDisabled();
+  await row.getByRole("button", { name: "Löschen" }).click();
+  const confirm = page.getByRole("button", { name: "Endgültig löschen" });
+  await expect(confirm).toBeDisabled();
+  await page.getByLabel("Name zur Bestätigung").fill("falsch");
+  await expect(confirm).toBeDisabled();
+  await page.getByLabel("Name zur Bestätigung").fill(`${ws.name} neu`);
+  await confirm.click();
+  await expect(page.getByTestId(`workspace-row-${ws.slug}`)).toHaveCount(0);
 });

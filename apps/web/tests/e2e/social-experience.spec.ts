@@ -2,7 +2,7 @@ import { test, expect, Page } from "@playwright/test";
 async function login(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Demo-Workspace öffnen" }).click();
-  await expect(page).toHaveURL(/overview/);
+  await expect(page).toHaveURL(/today/);
   const me = await (await page.request.get("/api/v1/me")).json();
   const created = await page.request.post("/api/v1/workspaces", {
     headers: { "X-CSRF-Token": me.csrf_token },
