@@ -109,3 +109,264 @@
 .info-note.warning svg {
   vertical-align: -2px;
 }
+
+/* M2: campaign builder and due steps */
+.recipe-panel .panel-head {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.recipe-audience {
+  min-width: 180px;
+}
+.recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+  padding: 0 var(--space-5) var(--space-5);
+}
+.recipe-card {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+.recipe-card h3 {
+  margin: 0;
+  font-size: var(--font-md);
+  text-wrap: balance;
+}
+.recipe-card p {
+  margin: 0;
+  color: var(--secondary);
+  font-size: var(--font-sm);
+}
+.recipe-card .button {
+  justify-self: start;
+}
+.recipe-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.recipe-steps li {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  font-size: var(--font-xs);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--secondary);
+}
+.flow-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+  margin-top: var(--space-4);
+}
+.flow-list {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+.flow-list h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-md);
+}
+.flow-list-item {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.flow-list-item.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.flow-list-item small {
+  color: var(--secondary);
+}
+.flow-editor {
+  min-width: 0;
+}
+.flow-run-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.flow-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-5);
+  display: grid;
+  gap: 0;
+}
+.flow-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+}
+.flow-step::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 32px;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+.flow-step:last-child::before {
+  display: none;
+}
+.flow-step-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--line);
+}
+.flow-step.kind-wait .flow-step-icon,
+.flow-step.kind-condition .flow-step-icon {
+  background: var(--surface-alt);
+  color: var(--secondary);
+}
+.flow-step.kind-letter .flow-step-icon {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.flow-step-body {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  background: var(--surface);
+  min-width: 0;
+}
+.flow-step.kind-wait .flow-step-body,
+.flow-step.kind-condition .flow-step-body {
+  background: var(--surface-alt);
+  border-style: dashed;
+}
+.flow-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.flow-step-tools {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 2px;
+}
+.flow-step-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
+}
+.flow-step-fields .span-2 {
+  grid-column: 1 / -1;
+}
+.flow-branches {
+  display: contents;
+}
+.flow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 var(--space-5) var(--space-5);
+}
+.flow-stopped {
+  padding: 0 var(--space-5) var(--space-5);
+  color: var(--secondary);
+}
+.flow-tasks {
+  margin-bottom: var(--space-5);
+}
+.flow-task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.flow-task-list li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.flow-task-list li.blocked {
+  background: var(--surface-alt);
+}
+.flow-task-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.flow-task-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.flow-task-main small {
+  color: var(--secondary);
+}
+.flow-task-blocked {
+  color: var(--amber) !important;
+}
+.flow-task-body {
+  margin: var(--space-1) 0 0;
+  white-space: pre-wrap;
+  font-size: var(--font-sm);
+}
+.flow-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
+.flow-task-phone {
+  font-variant-numeric: tabular-nums;
+  align-self: center;
+}
+@media (max-width: 860px) {
+  .flow-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .flow-task-list li {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+  .flow-task-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}

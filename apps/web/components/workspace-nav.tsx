@@ -36,6 +36,7 @@ export const sections: Section[] = [
     icon: Users,
     tabs: [
       { path: "/contacts", label: "Alle Kontakte" },
+      { path: "/flows", label: "Ansprache" },
       { path: "/contacts/quality", label: "Datenqualität" },
       { path: "/contacts/email", label: "E-Mail-Kampagne" },
       { path: "/contacts/advanced", label: "Auswahl und Listen" },

@@ -1,6 +1,7 @@
 "use client";
 import { TopCandidates } from "./top-candidates";
 import { OutreachSettingsPage, TodayView } from "./today-view";
+import { FlowBuilderPage } from "./flow-builder";
 import { SetupCheck } from "./setup-check";
 import { AgentConsole } from "./agent-console";
 import { ContentPlanner } from "./content-planner";
@@ -510,6 +511,7 @@ export default function WorkspaceApp() {
                 />
               )}
               {route === "/today" && <TodayView base={base} write={write} onNavigate={go} />}
+              {route === "/flows" && <FlowBuilderPage base={base} write={write} notify={notify} />}
               {route === "/settings/outreach" && <OutreachSettingsPage base={base} write={write} notify={notify} />}
               {route === "/agent" && (
                 <AgentConsole base={base} write={write} onNavigate={go} />

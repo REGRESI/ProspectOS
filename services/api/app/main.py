@@ -1482,3 +1482,7 @@ register_team_routes(app, db_session, scope, audit)
 from app.multichannel import register_multichannel_routes  # noqa: E402
 
 register_multichannel_routes(app, db_session, scope, record, audit)
+
+from app.flows import register_flow_routes  # noqa: E402
+
+register_flow_routes(app, db_session, scope, record, audit)

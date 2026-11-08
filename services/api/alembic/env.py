@@ -5,6 +5,7 @@ from sqlalchemy import create_engine
 from alembic import context
 from app import (
     experience,  # noqa: F401
+    flows,  # noqa: F401
     identity,  # noqa: F401
     journeys,  # noqa: F401
     linkedin_channel,  # noqa: F401

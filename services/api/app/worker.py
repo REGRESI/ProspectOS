@@ -31,6 +31,14 @@ def main():
         if time.monotonic() - last_tick > 600:
             last_tick = time.monotonic()
             try:
+                from app.flows import tick_all
+
+                advanced = tick_all()
+                if advanced:
+                    logging.info("flow_runs_advanced=%s", advanced)
+            except Exception:
+                logging.error("flow_tick_failed")
+            try:
                 started = autopilot_tick()
                 if started:
                     logging.info("autopilot_runs_started=%s", started)

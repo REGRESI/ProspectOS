@@ -89,3 +89,42 @@ test("M1: channel switch shows one route, sources and permissions; an objection 
   const channels = await (await page.request.get(`${ctx.base}/contacts/${leo.id}/channels`)).json();
   expect(Object.values(channels.permissions).every((p) => !(p as { allowed: boolean }).allowed)).toBe(true);
 });
+
+test("M2: campaign from a recipe in one click; due steps appear in Heute; edits apply from the next step", async ({ page }) => {
+  const ctx = await setup(page, "E2E V3 Ansprache");
+  await seedPeople(page, ctx);
+  const started = Date.now();
+  await page.goto("/flows");
+  const recipes = page.getByTestId("recipes");
+  await recipes
+    .locator(".recipe-card", { hasText: "Büro Ortenau mit LinkedIn" })
+    .getByRole("button", { name: "Starten" })
+    .click();
+  await expect(page.getByRole("status").filter({ hasText: "2 Kontakte gestartet" })).toBeVisible();
+  expect(Date.now() - started).toBeLessThan(120_000);
+  await expect(page.getByTestId("flow-step-0")).toContainText("LinkedIn-Aufgabe");
+  await expect(page.getByTestId("flow-step-0")).toContainText("1 offen");
+  await page.screenshot({ path: "test-results/v3-m2-builder.png", fullPage: true });
+
+  // Edit a later step of the running campaign and save.
+  const step = page.getByTestId("flow-step-3");
+  await step.getByLabel("Aufgabe").fill("Nachricht nach Annahme (geändert)");
+  await page.getByRole("button", { name: "Ablauf speichern" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Ablauf gespeichert" })).toBeVisible();
+  const flow = await (await page.request.get(`${ctx.base}/flow-campaigns`)).json();
+  const detail = await (await page.request.get(`${ctx.base}/campaigns/${flow.items[0].id}/flow`)).json();
+  expect(detail.steps.find((s: { position: number }) => s.position === 30).title).toBe("Nachricht nach Annahme (geändert)");
+
+  // Heute: one LinkedIn task (Lina) and one letter task (Leo), each person exactly one path.
+  await page.goto("/today");
+  const tasks = page.getByTestId("flow-tasks");
+  await expect(tasks.getByTestId("flow-task-Lina Fiktiv")).toContainText("Vernetzen");
+  await expect(tasks.getByTestId("flow-task-Leo Fiktiv")).toContainText("Persönlichen Brief");
+  await page.screenshot({ path: "test-results/v3-m2-heute.png", fullPage: true });
+  await tasks.getByTestId("flow-task-Leo Fiktiv").getByRole("button", { name: "Erledigt" }).click();
+  await expect(tasks.getByTestId("flow-task-Leo Fiktiv")).toHaveCount(0);
+  await page.setViewportSize({ width: 375, height: 800 });
+  await noOverflow(page);
+  await page.goto("/flows");
+  await noOverflow(page);
+});

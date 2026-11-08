@@ -1,4 +1,5 @@
 "use client";
+import { FlowTasksSection } from "./flow-builder";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Copy,
@@ -290,6 +291,8 @@ export function TodayView({
       </div>
 
       <StyleNotice base={base} write={write} compact />
+
+      <FlowTasksSection base={base} write={write} />
 
       {d && d.profile_check.unchecked > 0 && (
         <p className="notice-line" data-testid="profile-check-notice">
