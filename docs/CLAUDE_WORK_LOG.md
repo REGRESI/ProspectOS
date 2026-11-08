@@ -203,3 +203,22 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
 - Final: backend 259 passed; E2E 34 passed / 3 skipped; V3 E2E 7/7 after the last change.
 - Blockers: no Docker daemon here (worked around); attaching `REGRESI/cleanstar-rebrand` denied (repo copy of brand assets used); no external network for OSM/Brave/LinkedIn/OpenAI; nothing tested with real data.
 - Next: live checklist in HANDOVER_V3.md on the Mac; decisions on server, Supabase, print service, cold e-mail.
+
+## 2026-11-08 — M9 (branch `claude/v3-m9-connectors`)
+
+- **M9a–c** (`6f2590f`, `ff1a358`):
+  - External outreach tools at the user's own risk, behind a product switch and an owner-confirmed risk text (audited).
+  - Adapters for HeyReach, Waalaxy, La Growth Machine, Expandi, lemlist and a generic signed webhook.
+  - Handoffs via the job queue with blockers rechecked at dispatch; inbound hooks feed the reaction logic; pause or a manual stop task; "Externes Tool" route and builder step.
+  - Vendor endpoints read from their public docs (verified vs. unverified in `docs/CONNECTORS.md`). Migration 0027.
+- **M9d/e** (`45e071f`):
+  - `python -m app.register_gap` and a Quellen card; role-address letters "An die Geschäftsführung" with a visit task.
+  - Art. 14 notice on the first letter per company (migration 0028); rule-based names from company names.
+  - Website finder (Brave plus Impressum, name and address must match); professional registers as links only.
+- **M9f** (`ad39e66`):
+  - Dripify references from dripify.com (environment host added with approval); 4 blind scoring rounds by fresh sub-agents.
+  - UI fixes. Goal "equal everywhere" not reached; documented in `docs/design/BENCHMARK.md`.
+- Found and fixed: contacts in a running campaign also got daily-queue proposals (double contact risk).
+- Final E2E run: a 375 px overflow from wider small buttons. Fixed by letting long button labels wrap on phones.
+- Final: backend 299 passed; web lint/typecheck/22 unit tests; E2E 36 passed / 3 skipped.
+- Not verified: every vendor adapter (mock-only), tool prices, register URLs, the Brave website finder against the live web.

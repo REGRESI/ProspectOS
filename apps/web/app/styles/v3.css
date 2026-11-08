@@ -922,3 +922,9 @@ table[data-testid="contacts-table"] .stage-cell.tone-neutral select.stage-select
 .inbox-side .form-grid label { gap: 6px; }
 .inbox-side .form-grid .button { justify-self: start; }
 .flow-step-fields > .flow-lanes { grid-column: 1 / -1; }
+/* Grid/flex children holding a .table-scroll must be allowed to shrink, or a wide table
+   widens the whole page on phones instead of scrolling inside its container. */
+@media (max-width: 600px) {
+  /* Long button labels wrap instead of widening the page. */
+  .button { max-width: 100%; white-space: normal; height: auto; text-align: center; line-height: 1.25; padding-top: 6px; padding-bottom: 6px; }
+}
