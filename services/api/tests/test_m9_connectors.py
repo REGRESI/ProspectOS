@@ -383,3 +383,17 @@ def test_campaign_step_hands_over_and_skips_manual_linkedin(context, admin, tool
     tasks = admin.scalars(select(FlowTask).where(FlowTask.contact_id == contact.id)).all()
     assert [t.kind for t in tasks] == ["tool_handoff"] and tasks[0].state == "done"
     assert connectors.active_handoff(admin, ws, contact.id).state == "handed_over"
+
+
+def test_switching_route_away_from_tool_pauses_in_tool(context, admin, tools):
+    client, (ws, *_), _ = context
+    enable(client, ws)
+    connect(client, ws)
+    contact = verified(client, admin, ws)
+    handoff = handed_over(client, admin, ws, contact)
+    moved = client.put(w(ws, f"/contacts/{contact.id}/route"), json={"route": "linkedin"})
+    assert moved.status_code == 200, moved.text
+    drain(admin, ws)
+    admin.expire_all()
+    assert admin.get(Handoff, handoff.id).state == "paused"
+    assert any("/leads/pause/" in r.url.path for r in tools)

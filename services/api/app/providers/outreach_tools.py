@@ -142,7 +142,7 @@ class HeyReach(Adapter):
         id="heyreach",
         label="HeyReach",
         docs="https://documenter.getpostman.com/view/23808049/2sA2xb5F75",
-        price_hint="laut Anbieter ab 79 $ pro Sender und Monat",
+        price_hint="ca. 79 $ pro LinkedIn-Konto und Monat (unverifiziert, beim Anbieter prüfen)",
         can=[
             "Kontakte in eine gestartete Kampagne schicken",
             "Kontakt in der Kampagne stoppen",
@@ -271,7 +271,7 @@ class Lemlist(Adapter):
         id="lemlist",
         label="lemlist",
         docs="https://developer.lemlist.com/",
-        price_hint="Preise laut lemlist.com; API in allen Tarifen mit API-Key",
+        price_hint="Tarif mit LinkedIn-Schritten nötig; Preis unverifiziert, beim Anbieter prüfen",
         can=[
             "Kontakt in eine Kampagne anlegen",
             "Kontakt pausieren",
@@ -378,7 +378,7 @@ class Waalaxy(Adapter):
         id="waalaxy",
         label="Waalaxy",
         docs="https://docs.waalaxy.com/introduction",
-        price_hint="laut Anbieter 0 bis 99 € pro Monat",
+        price_hint="ca. 0 bis 99 € pro Monat (unverifiziert, beim Anbieter prüfen)",
         can=["Kontakte in eine Liste und Kampagne importieren", "Kampagnen und Listen anzeigen"],
         cannot=[
             "Kontakt pausieren (in der Doku nicht beschrieben)",
@@ -437,7 +437,7 @@ class LaGrowthMachine(Adapter):
         id="lgm",
         label="La Growth Machine",
         docs="https://help.lagrowthmachine.com/en/articles/8276597-how-can-i-use-la-growth-machine-s-api-to-automate-my-workflows",
-        price_hint="API erst ab dem Pro-Tarif (laut Anbieter 60 bis 120 € pro Identität)",
+        price_hint="API erst ab dem Pro-Tarif (laut Hilfe-Seite); Preis unverifiziert, beim Anbieter prüfen",
         can=["Leads anlegen und einer Audience zuordnen"],
         cannot=[
             "Schlüssel vorab prüfen (kein Test-Endpunkt dokumentiert)",
@@ -500,7 +500,7 @@ class Expandi(Adapter):
         id="expandi",
         label="Expandi",
         docs="https://help.expandi.io/en/articles/5405654-reversed-webhooks-api",
-        price_hint="laut Anbieter 99 $ pro Monat (79 $ jährlich)",
+        price_hint="ca. 99 $ pro Monat (unverifiziert, beim Anbieter prüfen)",
         can=[
             "Kontakte über die Kampagnen-URL („reversed webhook“) hinzufügen",
             "Kontakt pausieren, sobald ein Ereignis die Kampagnen-Kontakt-ID geliefert hat",

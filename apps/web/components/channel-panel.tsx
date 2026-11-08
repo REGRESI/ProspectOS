@@ -6,11 +6,12 @@ import { useData } from "@/lib/use-data";
 import { Badge, ErrorNote, Spinner } from "./ui";
 import type { JourneyProps } from "./journey-types";
 import { ReactionForm } from "./inbox";
+import type { Overview } from "./connectors-page";
 
 type Permission = { allowed: boolean; basis: string | null; reason: string | null };
 export type Channels = {
   contact_id: string;
-  route: "linkedin" | "letter" | "none";
+  route: "linkedin" | "letter" | "tool" | "none";
   route_label: string;
   route_reason: string;
   route_mode: "auto" | "manual";
@@ -142,6 +143,20 @@ export function ChannelPanel(
         </div>
       </section>
 
+      <HandoffBox
+        base={base}
+        contactId={contactId}
+        revision={revision + local}
+        linkedinAllowed={c.permissions.linkedin.allowed}
+        busy={busy}
+        onHandoff={(tool, target) =>
+          run(
+            () => write(`/contacts/${contactId}/handoff`, { tool, target }),
+            "Übergabe gestartet. Der Kontakt erscheint nicht mehr in Heute.",
+          )
+        }
+      />
+
       {c.objection && (
         <p className="info-note warning" role="status">
           <Ban size={15} /> Widerspruch vom {dateTime(c.objection.at)}: {c.objection.reason}. Alle
@@ -263,5 +278,115 @@ export function ChannelPanel(
         </details>
       )}
     </div>
+  );
+}
+
+type HandoffItem = {
+  id: string;
+  tool: string;
+  tool_label: string;
+  target: string;
+  state: string;
+  last_event: string;
+  error: string;
+  created_at: string;
+};
+const handoffStates: Record<string, [string, string]> = {
+  queued: ["wird übergeben", "amber"],
+  handed_over: ["im Tool", "green"],
+  replied: ["geantwortet", "purple"],
+  stopping: ["wird gestoppt", "amber"],
+  paused: ["im Tool pausiert", "neutral"],
+  stopped: ["im Tool von Hand stoppen", "red"],
+  failed: ["fehlgeschlagen", "red"],
+  ambiguous: ["unklar, im Tool prüfen", "red"],
+};
+
+/** M9: hand a contact with a verified LinkedIn profile to a connected external tool. */
+function HandoffBox({
+  base,
+  contactId,
+  revision,
+  linkedinAllowed,
+  busy,
+  onHandoff,
+}: {
+  base: string;
+  contactId: string;
+  revision: number;
+  linkedinAllowed: boolean;
+  busy: boolean;
+  onHandoff: (tool: string, target: string) => void;
+}) {
+  const overview = useData<Overview>(`${base}/connectors`, revision);
+  const handoffs = useData<{ items: HandoffItem[] }>(
+    `${base}/handoffs?contact_id=${contactId}`,
+    revision,
+  );
+  const [tool, setTool] = useState("");
+  const [target, setTarget] = useState("");
+  const view = overview.data;
+  if (!view || !view.available || !view.enabled) return null;
+  const ready = view.tools.filter((t) => t.configured && t.active);
+  const items = handoffs.data?.items || [];
+  return (
+    <section className="handoff-box" data-testid="handoff-box">
+      <h3 className="channel-heading">Externes Tool (eigene Gefahr)</h3>
+      {items.length > 0 && (
+        <ul className="point-list">
+          {items.map((h) => {
+            const [label, tone] = handoffStates[h.state] || [h.state, "neutral"];
+            return (
+              <li key={h.id}>
+                <strong>{h.tool_label}</strong> · {h.target}{" "}
+                <Badge tone={tone}>{label}</Badge>
+                {h.last_event && <small className="muted"> · zuletzt: {h.last_event}</small>}
+                {h.error && <small className="muted"> · {h.error}</small>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {!linkedinAllowed ? (
+        <p className="muted small-print">Nur Kontakte mit geprüftem LinkedIn-Profil können übergeben werden.</p>
+      ) : ready.length === 0 ? (
+        <p className="muted small-print">Kein Tool verbunden. Einstellungen → Anschlüsse.</p>
+      ) : (
+        <form
+          className="handoff-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (tool && target.trim()) onHandoff(tool, target.trim());
+          }}
+        >
+          <label>
+            Tool
+            <select value={tool} onChange={(e) => setTool(e.target.value)} aria-label="Tool">
+              <option value="">Auswählen</option>
+              {ready.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Ziel-Kampagne im Tool
+            <input
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              placeholder={tool === "expandi" ? "Webhook-URL der Kampagne" : "Kampagnen-ID"}
+              aria-label="Ziel-Kampagne"
+            />
+          </label>
+          <button className="button secondary small" disabled={busy || !tool || !target.trim()}>
+            An Tool übergeben
+          </button>
+        </form>
+      )}
+      <p className="muted small-print">
+        Übergeben werden nur Name, Firma, Position und LinkedIn-URL; E-Mail nur mit Rechtsgrundlage.
+      </p>
+    </section>
   );
 }

@@ -634,6 +634,12 @@ def register_multichannel_routes(app, db_session, scope, record, audit):
     ):
         authoring(member)
         contact = record(db, Contact, ws, entity_id, True)
+        if body.route != "tool" and contact.channel_route == "tool":
+            # Leaving the tool route: pause the contact in the tool (or create a stop task)
+            # before any manual step can start, so nobody is contacted twice.
+            from app.connectors import stop_in_tools
+
+            stop_in_tools(db, ws, contact.id, "Weg von Hand geändert")
         if body.route == "auto":
             contact.route_mode = "auto"
             apply_route(db, ws, contact, sync_points(db, ws, contact))

@@ -6,6 +6,7 @@ import { InboxPage } from "./inbox";
 import { StartPage } from "./start-page";
 import { SourcesPage } from "./sources-page";
 import { LettersPage } from "./letters-page";
+import { ConnectorsPage } from "./connectors-page";
 import { SetupCheck } from "./setup-check";
 import { AgentConsole } from "./agent-console";
 import { ContentPlanner } from "./content-planner";
@@ -522,6 +523,7 @@ export default function WorkspaceApp() {
               {route === "/letters" && (
                 <LettersPage base={base} write={write} notify={notify} csrf={session.csrf_token} />
               )}
+              {route === "/settings/connectors" && <ConnectorsPage base={base} write={write} notify={notify} />}
               {route === "/settings/outreach" && <OutreachSettingsPage base={base} write={write} notify={notify} />}
               {route === "/agent" && (
                 <AgentConsole base={base} write={write} onNavigate={go} />

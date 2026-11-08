@@ -272,3 +272,28 @@ Kalte Erst-E-Mails (Schalter je Workspace, Owner, mit Rechtsberatungs-Notiz; Ver
 ### Zurückgestellt
 
 Automatischer E-Mail-Schritt im Baukasten (er erzeugt eine Aufgabe; Versand weiter über die E-Mail-Kampagne), öffentlicher Webhook für Website-Anfragen, Karten-/Routenansicht für Besuche, Leistungsmappe als PDF, Druckdienst-Adapter, Abrechnung/Gratis-Tarif (laut Bauplan nicht in V3).
+
+## M9 Externe Outreach-Tools und Datenlücken — 2026-11-08 (`claude/v3-m9-connectors`)
+
+Details und Quellen je Anbieter: [CONNECTORS.md](CONNECTORS.md). Migration 0027 (additiv, RLS +
+zusammengesetzte Mandanten-Fremdschlüssel auf `connector_settings`, `outreach_connectors`,
+`connector_handoffs`, `connector_events`).
+
+### Implementiert und getestet (synthetische Daten, alle HTTP-Aufrufe gemockt)
+
+| Bereich | Verhalten |
+| --- | --- |
+| Anschluss-Rahmen (M9a) | Produktschalter `EXTERNAL_OUTREACH_TOOLS_ENABLED` (aus), Owner-Bestätigung mit genauem Risikotext, Verlaufseintrag mit Name/Zeit/Text, jederzeit ausschaltbar, Schlüssel verschlüsselt und maskiert, Verbindungstest je Tool, Ampel im Status |
+| Adapter (M9b) | HeyReach, Waalaxy, La Growth Machine, Expandi, lemlist, allgemeiner Webhook (signiert, frisch); Preis-, Doku- und Kann/Kann-nicht-Angaben in der Oberfläche |
+| Einbindung (M9c) | Weg „Externes Tool“ nur mit geprüftem LinkedIn, Prüfungen vor jeder Übergabe und beim Versand, nur nötige Felder, Schritt „An Tool übergeben“ im Baukasten, keine manuellen LinkedIn-Aufgaben danach, Rückmeldungen in die Reaktionslogik, Pause oder Aufgabe „In <Tool> stoppen“, Tempo zählt Tool-Einladungen |
+
+### Nur gegen Mocks / nicht live geprüft
+
+Alle fünf Anbieter-Adapter (kein echtes Konto, keine echte API erreicht). Unverifiziert laut
+CONNECTORS.md: HeyReach-Host und Webhook-Inhalt, Expandi-Webhook-Feldnamen, Waalaxy-Pause und
+-Webhooks, La-Growth-Machine-Test, -Pause und -Webhooks. Preisangaben sind ungeprüft.
+
+### Abgeschaltet
+
+Externe Tools insgesamt (Produktschalter aus, je Workspace aus). ProspectOS sendet weiterhin selbst
+keine LinkedIn-Einladungen oder -Nachrichten.

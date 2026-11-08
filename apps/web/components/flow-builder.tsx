@@ -7,6 +7,7 @@ import {
   Check,
   Footprints,
   GitBranch,
+  Plug,
   Hourglass,
   Link2,
   Mail,
@@ -23,7 +24,15 @@ import { Badge, Empty, ErrorNote, Heading, Spinner } from "./ui";
 import { useOptionalData } from "./journey-shared";
 import type { Write } from "./growth-modules";
 
-type StepKind = "linkedin_task" | "letter" | "call_task" | "visit_task" | "email" | "wait" | "condition";
+type StepKind =
+  | "linkedin_task"
+  | "letter"
+  | "call_task"
+  | "visit_task"
+  | "email"
+  | "wait"
+  | "condition"
+  | "tool_handoff";
 type Step = {
   position: number;
   kind: StepKind;
@@ -31,7 +40,7 @@ type Step = {
   wait_days: number;
   title: string;
   template: string;
-  config: { if_reaction?: "stop" | number; if_none?: "next" | number };
+  config: { if_reaction?: "stop" | number; if_none?: "next" | number; tool?: string; target?: string };
   open_tasks?: number;
   waiting?: number;
 };
@@ -71,6 +80,7 @@ export const stepIcons: Record<StepKind, LucideIcon> = {
   email: Mail,
   wait: Hourglass,
   condition: GitBranch,
+  tool_handoff: Plug,
 };
 const kindLabels: Record<StepKind, string> = {
   linkedin_task: "LinkedIn-Aufgabe",
@@ -80,7 +90,16 @@ const kindLabels: Record<StepKind, string> = {
   email: "E-Mail",
   wait: "Warten",
   condition: "Bedingung",
+  tool_handoff: "An Tool übergeben",
 };
+const toolOptions = [
+  ["heyreach", "HeyReach"],
+  ["waalaxy", "Waalaxy"],
+  ["lgm", "La Growth Machine"],
+  ["expandi", "Expandi"],
+  ["lemlist", "lemlist"],
+  ["webhook", "Allgemeiner Webhook"],
+] as const;
 const routeLabels = { any: "alle Wege", linkedin: "nur LinkedIn-Weg", letter: "nur Brief-Weg" };
 
 /** Due campaign steps for "Heute". Every step is done by a person and checked off here. */
@@ -211,6 +230,35 @@ function StepCard({
                 onChange={(e) => onChange({ ...step, wait_days: Number(e.target.value) })}
               />
             </label>
+          ) : step.kind === "tool_handoff" ? (
+            <div className="flow-branches">
+              <label>
+                Tool
+                <select
+                  value={step.config.tool || ""}
+                  onChange={(e) => onChange({ ...step, config: { ...step.config, tool: e.target.value } })}
+                >
+                  <option value="">Auswählen</option>
+                  {toolOptions.map(([id, label]) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Ziel-Kampagne im Tool
+                <input
+                  value={step.config.target || ""}
+                  placeholder="Kampagnen-ID oder Webhook-URL"
+                  onChange={(e) => onChange({ ...step, config: { ...step.config, target: e.target.value } })}
+                />
+              </label>
+              <small className="muted">
+                Nur Kontakte mit geprüftem LinkedIn-Profil, ohne Widerspruch und ohne anderen aktiven Weg.
+                Danach keine manuellen LinkedIn-Aufgaben mehr.
+              </small>
+            </div>
           ) : step.kind === "condition" ? (
             <div className="flow-branches">
               <label>
@@ -343,7 +391,9 @@ export function FlowBuilderPage({
                 typeof s.config.if_reaction === "number" ? (map.get(s.config.if_reaction) ?? "stop") : "stop",
               if_none: typeof s.config.if_none === "number" ? (map.get(s.config.if_none) ?? "next") : "next",
             }
-          : {},
+          : s.kind === "tool_handoff"
+            ? s.config
+            : {},
     }));
   };
   const save = () =>
@@ -359,7 +409,7 @@ export function FlowBuilderPage({
               wait_days,
               title,
               template,
-              config: kind === "condition" ? config : {},
+              config: kind === "condition" || kind === "tool_handoff" ? config : {},
             })),
           },
           "PUT",
@@ -522,7 +572,12 @@ export function FlowBuilderPage({
                             wait_days: kind === "wait" ? 3 : 0,
                             title: kind === "wait" || kind === "condition" ? "" : kindLabels[kind],
                             template: "",
-                            config: kind === "condition" ? { if_reaction: "stop", if_none: "next" } : {},
+                            config:
+                              kind === "condition"
+                                ? { if_reaction: "stop", if_none: "next" }
+                                : kind === "tool_handoff"
+                                  ? { tool: "", target: "" }
+                                  : {},
                           },
                         ]);
                       }}

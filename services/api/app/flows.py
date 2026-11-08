@@ -510,7 +510,9 @@ def task_output(db, task: FlowTask, contact: Contact | None = None, company=None
     return {
         "id": task.id,
         "kind": task.kind,
-        "kind_label": STEP_KINDS.get(task.kind, "Termin vereinbaren"),
+        "kind_label": {**STEP_KINDS, "tool_stop_task": "Im Tool stoppen"}.get(
+            task.kind, "Termin vereinbaren"
+        ),
         "title": task.title,
         "body": task.body,
         "due_at": task.due_at,

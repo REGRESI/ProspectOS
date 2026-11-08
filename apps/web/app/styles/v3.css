@@ -767,3 +767,57 @@
 .source-notice {
   margin-top: var(--space-3);
 }
+
+/* M9: Anschlüsse (external outreach tools, own risk) */
+.connector-switch {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4);
+  border-left: 4px solid var(--amber);
+}
+.connector-switch.on { border-left-color: var(--red); }
+.connector-switch-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.connector-switch-text { flex: 1; min-width: 0; }
+.connector-switch-text h2 { margin: 0 0 var(--space-1); font-size: var(--font-md); }
+.connector-switch-text p { margin: 0 0 var(--space-1); color: var(--secondary); font-size: var(--font-sm); }
+.connector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.connector-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); }
+.connector-head { display: flex; justify-content: space-between; gap: var(--space-2); align-items: center; }
+.connector-head h3 { margin: 0; font-size: var(--font-md); }
+.connector-price { margin: 0; font-size: var(--font-sm); color: var(--secondary); }
+.connector-lists { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); flex: 1; }
+.connector-lists h4 { margin: 0 0 var(--space-1); font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--secondary); }
+.connector-lists ul { margin: 0; padding-left: 1.1em; font-size: var(--font-sm); }
+.connector-lists li { margin-bottom: 2px; }
+.connector-lists .cannot li::marker { color: var(--red); }
+.connector-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; border-top: 1px solid var(--line); padding-top: var(--space-3); }
+.connector-actions a { display: inline-flex; gap: 4px; align-items: center; }
+.connector-risk { display: flex; flex-direction: column; gap: var(--space-3); }
+.connector-risk-text { margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius); background: var(--red-soft); color: var(--text); font-weight: 600; line-height: 1.5; }
+.connector-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.connector-form label { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--font-sm); font-weight: 600; }
+.connector-form .check-row, .connector-risk .check-row { flex-direction: row; align-items: center; gap: var(--space-2); font-weight: 400; }
+.connector-hook { display: block; padding: var(--space-3); border-radius: var(--radius-sm); background: var(--surface-alt); word-break: break-all; font-size: var(--font-sm); }
+.handoff-box { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.handoff-row { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: end; }
+.handoff-row label { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--font-sm); }
+@media (max-width: 600px) {
+  .connector-switch { flex-wrap: wrap; }
+  .connector-lists { grid-template-columns: 1fr; }
+}

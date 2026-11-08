@@ -80,6 +80,7 @@ export const sections: Section[] = [
       { path: "/audiences", label: "Zielgruppe" },
       { path: "/settings/workspace", label: "Mein Angebot" },
       { path: "/settings/integrations", label: "Verbindungen" },
+      { path: "/settings/connectors", label: "Anschlüsse" },
       { path: "/operations", label: "Kosten" },
       { path: "/settings/workspaces", label: "Workspaces" },
       { path: "/settings/team", label: "Team" },
