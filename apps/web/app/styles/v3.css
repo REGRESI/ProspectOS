@@ -548,3 +548,98 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* M5: team pace */
+.team-pace {
+  margin-bottom: var(--space-5);
+}
+.team-distribute {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.pace-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+.pace-list > li {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.pace-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.pace-meters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+.pace-meter {
+  display: grid;
+  gap: var(--space-1);
+}
+.pace-meter-label,
+.pace-rate {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--font-sm);
+  color: var(--secondary);
+  font-variant-numeric: tabular-nums;
+}
+.pace-meter-label strong,
+.pace-rate strong {
+  color: var(--text);
+}
+.pace-meter-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.pace-meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+.pace-meter-fill.near {
+  background: var(--amber);
+}
+.pace-meter-fill.full {
+  background: var(--red);
+}
+.pace-stale summary {
+  color: var(--amber);
+  cursor: pointer;
+}
+.pace-stale ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+}
+.pace-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: flex-end;
+}
+.pace-settings label {
+  width: 110px;
+}
+.pace-settings .pace-territory {
+  flex: 1 1 220px;
+  width: auto;
+}
+.pace-settings .checkbox-line {
+  width: auto;
+}

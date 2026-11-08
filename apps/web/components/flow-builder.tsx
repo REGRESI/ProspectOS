@@ -89,7 +89,7 @@ export function FlowTasksSection({ base, write }: { base: string; write: Write }
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const data = useData<{ items: FlowTask[]; counts: { open: number; blocked: number } }>(
-    `${base}/flow-tasks?due=today`,
+    `${base}/flow-tasks?due=today&mine=true`,
     revision,
   );
   async function act(id: string, action: "done" | "skip") {

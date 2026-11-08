@@ -153,7 +153,8 @@ export function TodayView({
   const [profileFor, setProfileFor] = useState<Item | null>(null);
   const [replyFor, setReplyFor] = useState<Check | null>(null);
   const started = useRef<Record<string, number>>({});
-  const data = useData<Today>(`${base}/today`, revision);
+  // Team mode: own contacts plus unassigned ones.
+  const data = useData<Today>(`${base}/today?mine=true`, revision);
   const pipeline = useData<{ counts: Record<Stage, number>; items: unknown[] }>(
     `${base}/today/pipeline`,
     revision,

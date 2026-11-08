@@ -1,4 +1,5 @@
 "use client";
+import { TeamPace } from "./team-pace";
 import { FormEvent, useEffect, useState } from "react";
 import { request } from "@/lib/api";
 import { useData } from "@/lib/use-data";
@@ -77,6 +78,7 @@ export function TeamPage({
         )}
       </Heading>
       <ErrorNote message={error || localError} />
+      <TeamPace base={base} write={write} notify={notify} myRole={myRole} />
       {link && (
         <div className="notice-box" data-testid="invite-link">
           <p>

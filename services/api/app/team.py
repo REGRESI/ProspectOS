@@ -221,6 +221,23 @@ def register_team_routes(app, db_session, scope, audit):
             select(Contact).where(Contact.workspace_id == ws, Contact.owner_id == user_id)
         ):
             contact.owner_id = None
+        # Every other nullable reference to this membership (task assignee, approver,
+        # status changes) is cleared so history stays and removal never fails.
+        from sqlalchemy import update
+
+        from app.db import Base
+
+        for table in Base.metadata.sorted_tables:
+            for fk in table.foreign_key_constraints:
+                if fk.referred_table.name != "memberships" or len(fk.columns) != 2:
+                    continue
+                cols = [c for c in fk.columns if c.name != "workspace_id"]
+                if len(cols) == 1 and cols[0].nullable and table.name != "contacts":
+                    db.execute(
+                        update(table)
+                        .where(table.c.workspace_id == ws, cols[0] == user_id)
+                        .values({cols[0].name: None})
+                    )
         db.flush()
         db.delete(target)
         audit(db, ws, member.user_id, "member_removed", "Mitglied entfernt")

@@ -985,13 +985,17 @@ def register_today_routes(app, db_session, scope, record, audit):
         return result
 
     @app.get("/v1/workspaces/{ws}/today")
-    def today(ws: str, member=Depends(scope), db=Depends(db_session, scope="function")):
+    def today(
+        ws: str, mine: bool = False, member=Depends(scope), db=Depends(db_session, scope="function")
+    ):
         day = today_key()
-        items = db.scalars(
-            select(QueueItem)
-            .where(QueueItem.workspace_id == ws, QueueItem.day == day)
-            .order_by(QueueItem.position)
-        ).all()
+        stmt = select(QueueItem).where(QueueItem.workspace_id == ws, QueueItem.day == day)
+        if mine:
+            # Team mode: own contacts plus unassigned ones; never someone else's.
+            stmt = stmt.join(Contact, Contact.id == QueueItem.contact_id).where(
+                (Contact.owner_id == member.user_id) | (Contact.owner_id.is_(None))
+            )
+        items = db.scalars(stmt.order_by(QueueItem.position)).all()
         sent = [i for i in items if i.state == "sent" and i.elapsed_ms is not None]
         return {
             "day": day,
@@ -1107,7 +1111,13 @@ def register_today_routes(app, db_session, scope, record, audit):
         contact = record(db, Contact, ws, item.contact_id, True)
         if item.kind == "connect" and not has_profile(contact):
             raise HTTPException(409, "Für diesen Kontakt gibt es kein geprüftes LinkedIn-Profil.")
-        # Contacts belong to the member who sends the first request.
+        # Contacts belong to the member who sends the first request; never to two people.
+        if contact.owner_id and contact.owner_id != member.user_id:
+            raise HTTPException(409, "Dieser Kontakt ist einer anderen Person im Team zugeordnet.")
+        if item.kind == "connect":
+            from app.team_mode import check_personal_limit
+
+            check_personal_limit(db, ws, member.user_id)
         contact.owner_id = contact.owner_id or member.user_id
         lim, used = limits(), usage(db, ws, member.user_id)
         action = "connection_request" if item.kind == "connect" else "message"

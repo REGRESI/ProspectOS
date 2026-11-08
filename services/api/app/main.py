@@ -1494,3 +1494,7 @@ register_reaction_routes(app, db_session, scope, record, audit)
 from app.letters import register_letter_routes  # noqa: E402
 
 register_letter_routes(app, db_session, scope, record, audit)
+
+from app.team_mode import register_team_mode_routes  # noqa: E402
+
+register_team_mode_routes(app, db_session, scope, record, audit)

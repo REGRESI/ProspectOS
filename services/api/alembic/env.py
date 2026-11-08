@@ -14,6 +14,7 @@ from app import (
     reactions,  # noqa: F401
     sales_agent,  # noqa: F401
     studio,  # noqa: F401
+    team_mode,  # noqa: F401
 )
 from app.models import Base
 

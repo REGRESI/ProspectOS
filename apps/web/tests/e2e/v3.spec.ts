@@ -18,7 +18,7 @@ test.beforeEach(async ({ context }) => {
   await context.addCookies(sessionCookies);
 });
 
-type Ctx = { base: string; headers: Record<string, string> };
+type Ctx = { base: string; headers: Record<string, string>; wsId: string };
 
 async function setup(page: Page, name = "E2E V3"): Promise<Ctx> {
   await page.goto("/");
@@ -30,7 +30,7 @@ async function setup(page: Page, name = "E2E V3"): Promise<Ctx> {
   ).json();
   await page.reload();
   await page.getByLabel("Workspace", { exact: true }).selectOption(ws.id);
-  return { base: `/api/v1/workspaces/${ws.id}`, headers };
+  return { base: `/api/v1/workspaces/${ws.id}`, headers, wsId: ws.id };
 }
 
 /** One contact with a confirmed LinkedIn profile and one that only has a postal address. */
@@ -230,4 +230,61 @@ test("M4: ten letters as one print PDF with labels; a scan creates a call task",
   await expect(page.getByTestId("flow-tasks").getByTestId("flow-task-Person0 Fiktiv")).toContainText(
     "Anrufen und Termin vereinbaren",
   );
+});
+
+test("M5: two people work in parallel without sharing a contact", async ({ page, browser }) => {
+  const ctx = await setup(page, "E2E V3 Team");
+  for (let i = 0; i < 4; i++) {
+    const c = await (
+      await page.request.post(`${ctx.base}/contacts`, {
+        headers: ctx.headers,
+        data: { first_name: `Team${i}`, last_name: "Fiktiv", company: `Fiktive Firma Team ${i}` },
+      })
+    ).json();
+    await page.request.post(`${ctx.base}/companies/${c.company_id}/facts`, {
+      headers: ctx.headers,
+      data: { field: "Adresse (Impressum)", value: `Teamweg ${i + 1}, 77933 Lahr`, source_url: "https://fiktiv.example.test/impressum" },
+    });
+  }
+  await page.request.post(`${ctx.base}/channels/refresh`, { headers: ctx.headers });
+
+  // Invite Lino and let him register in a separate browser context.
+  await page.goto("/settings/team");
+  await page.getByRole("button", { name: "Person einladen" }).click();
+  const email = `lino.v3.${Date.now()}@example.test`;
+  await page.getByRole("dialog").getByLabel("E-Mail-Adresse").fill(email);
+  await page.getByRole("dialog").getByLabel("Rolle").selectOption("member");
+  await page.getByRole("dialog").getByRole("button", { name: "Link erstellen" }).click();
+  const link = await page.getByLabel("Einladungslink").inputValue();
+  const guest = await browser.newContext({ baseURL: process.env.E2E_BASE_URL || "http://localhost:3100" });
+  const g = await guest.newPage();
+  await g.goto(link.replace(/^https?:\/\/[^/]+/, ""));
+  await g.getByLabel("Dein Name").fill("Lino Fiktiv");
+  await g.getByLabel("Passwort (mindestens 10 Zeichen)").fill("LangesPasswort2026");
+  await g.getByLabel("Passwort wiederholen").fill("LangesPasswort2026");
+  await g.getByRole("button", { name: "Konto anlegen und beitreten" }).click();
+  await expect(g).toHaveURL(/today/);
+
+  // Owner distributes round robin, then starts a letter campaign for everyone.
+  await page.reload();
+  const pace = page.getByTestId("team-pace");
+  await expect(pace).toContainText("4 Kontakte ohne Zuständigkeit");
+  await pace.getByRole("button", { name: "Abwechselnd verteilen" }).click();
+  await expect(pace).toContainText("0 Kontakte ohne Zuständigkeit");
+  await expect(pace.getByTestId("pace-Lino Fiktiv")).toContainText("2 Kontakte");
+  await page.screenshot({ path: "test-results/v3-m5-team.png", fullPage: true });
+  await page.request.post(`${ctx.base}/campaigns/from-recipe`, {
+    headers: ctx.headers,
+    data: { recipe: "letter_only", audience: "letter" },
+  });
+
+  const ownerTasks = await (await page.request.get(`${ctx.base}/flow-tasks?due=all&mine=true`)).json();
+  const linoTasks = await (await g.request.get(`/api/v1/workspaces/${ctx.wsId}/flow-tasks?due=all&mine=true`)).json();
+  const names = (r: { items: { contact: { name: string } }[] }) => r.items.map((t) => t.contact.name);
+  expect(ownerTasks.items).toHaveLength(2);
+  expect(linoTasks.items).toHaveLength(2);
+  expect(names(ownerTasks).filter((n: string) => names(linoTasks).includes(n))).toEqual([]);
+  await g.goto("/today");
+  await expect(g.getByTestId("flow-tasks").locator("li")).toHaveCount(2);
+  await guest.close();
 });

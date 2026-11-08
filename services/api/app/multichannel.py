@@ -110,7 +110,7 @@ class ContactMerge(TenantMixin, Base):
     merged_contact_id: Mapped[str] = mapped_column(String(36))
     reason: Mapped[str] = mapped_column(String(500))
     details: Mapped[dict] = mapped_column(JSON, default=dict)
-    actor_id: Mapped[str] = mapped_column(String(36))
+    actor_id: Mapped[str | None] = mapped_column(String(36))
     __table_args__ = (
         ForeignKeyConstraint(
             ["workspace_id", "kept_contact_id"],
