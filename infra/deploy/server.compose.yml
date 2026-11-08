@@ -1,0 +1,62 @@
+# Single EU server: own PostgreSQL + Caddy (automatic HTTPS) on top of
+# infra/docker/production.compose.yml. Used by infra/deploy/setup-server.sh:
+#
+#   docker compose --env-file /opt/prospectos/server.env \
+#     -f infra/docker/production.compose.yml -f infra/deploy/server.compose.yml up -d
+#
+# Secrets live only in /opt/prospectos/server.env (chmod 600, never in Git).
+services:
+  db:
+    image: postgres:16.11-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: prospectos
+      POSTGRES_DB: prospectos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in server.env}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?Set DB_APP_PASSWORD in server.env}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prospectos -d prospectos"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    # No published port: only the containers on this network reach the database.
+  migrate:
+    environment:
+      APP_ENV: production
+      DATABASE_ADMIN_URL: postgresql+psycopg://prospectos:${POSTGRES_PASSWORD}@db:5432/prospectos
+    depends_on:
+      db:
+        condition: service_healthy
+  api:
+    environment:
+      DATABASE_URL: postgresql+psycopg://prospectos_app:${DB_APP_PASSWORD}@db:5432/prospectos
+  worker:
+    environment:
+      DATABASE_URL: postgresql+psycopg://prospectos_app:${DB_APP_PASSWORD}@db:5432/prospectos
+  web:
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+  caddy:
+    image: caddy:2.8.4
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in server.env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in server.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  pg_data:
+  caddy_data:
+  caddy_config:
