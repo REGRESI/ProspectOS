@@ -329,3 +329,22 @@ test("M6: a new user goes through the guided start to the first task in Heute in
   await page.goto("/start");
   await noOverflow(page);
 });
+
+test("M8: every source shows hits, contact rate, verified LinkedIn rate and errors", async ({ page }) => {
+  const ctx = await setup(page, "E2E V3 Quellen");
+  await page.request.post(`${ctx.base}/contacts`, {
+    headers: ctx.headers,
+    data: { first_name: "Quelle", last_name: "Fiktiv", company: "Fiktive Firma Quelle" },
+  });
+  await page.goto("/sources");
+  const table = page.getByTestId("sources");
+  for (const id of ["osm", "northdata", "impressum", "csv", "brave", "manual"]) {
+    await expect(table.getByTestId(`source-${id}`)).toBeVisible();
+  }
+  await expect(table.getByTestId("source-osm")).toContainText("nicht eingerichtet");
+  await expect(table.getByTestId("source-manual")).toContainText("1");
+  await expect(page.getByText("handelsregister.de direkt")).toBeVisible();
+  await page.screenshot({ path: "test-results/v3-m8-sources.png", fullPage: true });
+  await page.setViewportSize({ width: 375, height: 800 });
+  await noOverflow(page);
+});

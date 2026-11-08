@@ -819,3 +819,38 @@ def _stop_today_queue(db, ws, contact_id, reason):
 
 
 STOP_HOOKS = {"email": _stop_scheduled_email, "today": _stop_today_queue}
+
+
+def refresh_all_workspaces() -> dict:
+    """CLI: recompute contact points and routes in every workspace.
+
+    docker compose exec api python -m app.multichannel
+    """
+    from app.db import SessionLocal
+    from app.jobs import tenant
+    from app.models import Workspace
+
+    with SessionLocal() as db:
+        workspaces = list(db.execute(select(Workspace.id, Workspace.name)))
+    result = {}
+    for ws, name in workspaces:
+        with SessionLocal() as db, db.begin():
+            tenant(db, ws)
+            for contact in db.scalars(select(Contact).where(Contact.workspace_id == ws)):
+                apply_route(db, ws, contact, sync_points(db, ws, contact))
+            result[name] = dict(
+                db.execute(
+                    select(Contact.channel_route, func.count())
+                    .where(Contact.workspace_id == ws)
+                    .group_by(Contact.channel_route)
+                ).all()
+            )
+    return result
+
+
+if __name__ == "__main__":
+    for workspace, routes in refresh_all_workspaces().items():
+        print(
+            f"{workspace}: "
+            + ", ".join(f"{ROUTES.get(k, k)} {v}" for k, v in sorted(routes.items()))
+        )

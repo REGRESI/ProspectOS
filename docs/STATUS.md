@@ -244,3 +244,31 @@ Not built / deferred:
 - Sending invitation emails: no system mailer exists.
 - Separate "Heute" lists per user: the queue is shared, and the limits are counted per user.
 - Website screenshots are uploaded by hand; ProspectOS does not capture them.
+
+## V3 Multichannel — 2026-11-08 (`claude/v3-multichannel`)
+
+Plan: [PLAN_V3.md](PLAN_V3.md) · Übergabe: [HANDOVER_V3.md](HANDOVER_V3.md) · Server: [DEPLOY.md](DEPLOY.md). Migrationen 0022–0026, additiv, RLS und zusammengesetzte Mandanten-Fremdschlüssel auf allen neuen Tabellen (Ausnahme mit Absicht: `ref_codes` hat RLS ohne FORCE, damit die SECURITY-DEFINER-Funktion `resolve_ref_code` öffentliche QR-Scans auflösen kann; sie liefert nur IDs).
+
+### Implementiert und getestet (synthetische Daten, isolierte Datenbank)
+
+| Bereich | Verhalten |
+| --- | --- |
+| Kontakt-Kern (M1) | Kontaktwege mit Quelle/Datum, Kanal-Weiche LinkedIn/Brief/kein Weg, manuelle Wahl, Berechtigung je Kanal, Widerspruch sperrt alles und stoppt Schritte, Duplikate zusammenführen mit Begründung, CLI `python -m app.multichannel` |
+| Baukasten (M2) | Schritte, Weg-Filter, Läufe mit Cursor (Änderungen ab nächstem Schritt), Bedingungen, gesperrte Aufgaben mit Grund, drei Rezepte, Worker-Takt, Heute-Abschnitt |
+| Reaktionen (M3) | IMAP-Antwort, LinkedIn-Klick, QR-Scan, Anfrage-Code, Anruf; Stopp auf allen Kanälen, Telefon-Rechtsgrundlage „konkretes Interesse“, Folgeaufgabe, Posteingang |
+| Brief (M4) | DIN 5008 Form B, CleanStar-Logo und OFL-Schriften, QR je Firma, Freigabe vor Druck, Sammel-PDF, Etiketten 3474, Druck schließt Kampagnenaufgaben |
+| Team (M5) | Verteilung abwechselnd/Gebiet, ein Zuständiger je Kontakt, Heute „meins“, persönliche Limits beim Abhaken erzwungen, Annahmequote, alte offene Einladungen |
+| Start (M6) | Fünf Schritte aus echten Daten abgeleitet, Hinweis in Heute |
+| Quellen (M8) | Register mit Bereitschaft und Qualitätsbericht je Quelle |
+
+### Nur gegen Mocks / nicht live geprüft
+
+IMAP-Postfach, QR-Scan über das Internet, Ausdruck auf Papier, Caddy/HTTPS, Supabase-Login auf dem Server, rclone-Upload, echte CleanStar-Daten. Backup-Format und Wiederherstellung sind lokal geprüft (`infra/scripts/test-backup-restore.sh`).
+
+### Abgeschaltet
+
+Kalte Erst-E-Mails (Schalter je Workspace, Owner, mit Rechtsberatungs-Notiz; Versand prüft Rechtsgrundlage weiterhin). Druck-und-Versand-Dienst (nur Optionen gelistet). Offizieller LinkedIn-Kanal für Einladungen/Nachrichten (keine allgemein verfügbare API). Handelsregister-Anbieter außer North Data (nur recherchiert).
+
+### Zurückgestellt
+
+Automatischer E-Mail-Schritt im Baukasten (er erzeugt eine Aufgabe; Versand weiter über die E-Mail-Kampagne), öffentlicher Webhook für Website-Anfragen, Karten-/Routenansicht für Besuche, Leistungsmappe als PDF, Druckdienst-Adapter, Abrechnung/Gratis-Tarif (laut Bauplan nicht in V3).

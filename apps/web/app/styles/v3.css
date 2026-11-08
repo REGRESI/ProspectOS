@@ -741,3 +741,29 @@
     padding-left: var(--space-4);
   }
 }
+
+/* M8: sources */
+.source-panel {
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.source-panel h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-md);
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.source-table td.num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.source-start {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--accent);
+  font-size: var(--font-sm);
+}
+.source-notice {
+  margin-top: var(--space-3);
+}

@@ -35,6 +35,7 @@ export const sections: Section[] = [
       { path: "/leads/top", label: "Beste Treffer" },
       { path: "/companies", label: "Alle Firmen" },
       { path: "/discover", label: "Firmen finden" },
+      { path: "/sources", label: "Quellen" },
     ],
     prefixes: ["/companies/"],
   },

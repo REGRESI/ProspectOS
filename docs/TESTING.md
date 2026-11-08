@@ -91,3 +91,15 @@ Observed on `claude/inspiring-meitner-vf8sut` at `6783e85`, local PostgreSQL 16 
 - Playwright `pnpm test:e2e` with `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium`: **15 passed** (12 baseline + 3 new: OSM source disclosure, evidence → draft → approval → simulated connect/message/reply → CRM, manual handoff with outcomes and 375 px overflow check).
 
 OSM and LLM HTTP calls are transport-mocked or injected; no live OpenStreetMap, LLM or LinkedIn request was made. The OSM hosts were denied by the environment network policy.
+
+## V3 Multichannel — 2026-11-08
+
+Branch `claude/v3-multichannel`. Cloud session without Docker: the isolated E2E stack was reproduced by `infra/scripts/e2e-local.sh` (throw-away database, same environment as `docker-compose.e2e.yml`, web built against the E2E API).
+
+- Backend `validate_database.py` (migrate → downgrade base → migrate → seed ×2 → pytest): **259 passed** (232 before V3 + 27 new in `tests/test_v3_*.py` and the extended mail test).
+- `ruff check`, `ruff format --check`, `pnpm lint`, `pnpm typecheck`: clean. `pnpm test`: 22 passed.
+- Full E2E: **34 passed, 3 skipped** (27 existing + 7 V3 specs; the skipped ones are the opt-in design screenshot specs). V3 spec rerun after the last UI change: 7/7.
+- Backup/restore: `infra/scripts/test-backup-restore.sh` → 76 tables identical, migration 0026, RLS and `resolve_ref_code` present after restore.
+- Letter PDF rendered and inspected (`docs/design/v3/v3-m4-brief-beispiel.png`); not printed on paper.
+
+Not tested here: real IMAP mailbox, public QR scans over the internet, printing, Caddy/HTTPS, Supabase login, rclone upload, real CleanStar data.

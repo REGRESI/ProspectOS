@@ -192,3 +192,14 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
 - **M4** (this commit): DIN 5008 form B letter PDF (reportlab) in CleanStar look (logo, Instrument Sans/Serif from the repo's OFL fonts, brand blue), QR code per company, batch print PDF of approved letters only, Zweckform 3474 labels, mark printed completes the campaign's letter tasks; print-and-mail service off (options listed, nothing called). Migration 0025. New deps: reportlab, fonttools, brotli.
 - Attaching `REGRESI/cleanstar-rebrand` was denied in this session; the brand assets already copied into this repo (`apps/web/public/brand/cleanstar`) were used instead.
 - Full E2E on the local isolated stack after M3: **30 passed, 3 skipped** (design-screenshot specs). V3 E2E after M4: 4/4. Backend **253 passed**.
+
+## 2026-11-08 — V3 M5–M8 and handover
+
+- **M5** (`5a07f5c`): distribution round robin/territory, one owner per contact enforced when marking sent, Heute/tasks "mine", personal limits (default 15/day), acceptance rate, invitations open > 21 days; member removal clears nullable references. Migration 0026.
+- **M6** (`cddfb5e`): guided start in five steps derived from real data; Heute banner; E2E to first task timed < 5 min.
+- **M7** (`261069e`): `infra/deploy/` (server compose with own PostgreSQL and Caddy, setup script, age-encrypted rclone backup, restore with switch), `docs/DEPLOY.md`; restore proven locally.
+- **M8** (this commit): source registry and per-source quality report, register-data options researched (vendor pages; to be checked before activation), CLI `python -m app.multichannel` to recompute routes, "Wege neu berechnen" button.
+- Docs: `docs/HANDOVER_V3.md`, STATUS V3 section, TESTING V3 section.
+- Final: backend 259 passed; E2E 34 passed / 3 skipped; V3 E2E 7/7 after the last change.
+- Blockers: no Docker daemon here (worked around); attaching `REGRESI/cleanstar-rebrand` denied (repo copy of brand assets used); no external network for OSM/Brave/LinkedIn/OpenAI; nothing tested with real data.
+- Next: live checklist in HANDOVER_V3.md on the Mac; decisions on server, Supabase, print service, cold e-mail.

@@ -1502,3 +1502,7 @@ register_team_mode_routes(app, db_session, scope, record, audit)
 from app.onboarding_v3 import register_onboarding_v3_routes  # noqa: E402
 
 register_onboarding_v3_routes(app, db_session, scope, audit)
+
+from app.sources import register_source_routes  # noqa: E402
+
+register_source_routes(app, db_session, scope)

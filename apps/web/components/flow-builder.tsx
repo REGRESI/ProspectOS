@@ -384,6 +384,18 @@ export function FlowBuilderPage({
                 : " "}
             </p>
           </div>
+          <button
+            className="button ghost small"
+            disabled={busy}
+            onClick={() =>
+              run(
+                () => write<{ changed: number }>("/channels/refresh"),
+                (r) => `Wege neu berechnet (${r.changed} geändert).`,
+              )
+            }
+          >
+            Wege neu berechnen
+          </button>
           <label className="recipe-audience">
             Für wen
             <select value={audience} onChange={(e) => setAudience(e.target.value)}>
