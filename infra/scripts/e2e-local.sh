@@ -78,6 +78,11 @@ fi
 (cd services/api && env APP_ENV=development DATABASE_ADMIN_URL="$admin_base/$db" \
   DB_APP_PASSWORD=prospectos_app_dev DEMO_PASSWORD='ProspectDemo!2026' \
   uv run sh -c 'python -m app.migrate && python -m app.seed') >"$logs/migrate.log" 2>&1
+if [[ "${E2E_DESIGN_FIXTURE:-}" == "1" ]]; then
+  # Synthetic screenshot data (docs/design); refuses to run outside an E2E stack.
+  (cd services/api && env APP_ENV=development E2E_STACK=true DATABASE_URL="$admin_base/$db" \
+    DATABASE_ADMIN_URL="$admin_base/$db" uv run python -m app.design_fixture) >>"$logs/migrate.log" 2>&1
+fi
 
 (cd services/api && exec setsid env -u DATABASE_ADMIN_URL "${common[@]}" DATABASE_URL="$runtime_url" \
   uv run uvicorn app.main:app --host 127.0.0.1 --port 8100 --no-access-log) >"$logs/api.log" 2>&1 &

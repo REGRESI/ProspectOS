@@ -192,3 +192,40 @@ def test_recipe_with_audience_picks_routed_contacts_once(context, admin):
     assert second["started"]["started"] == 1
     listing = client.get(w(ws, "/flow-campaigns")).json()["items"]
     assert len(listing) == 2 and all(sum(c["runs"].values()) == 1 for c in listing)
+
+
+def test_daily_queue_skips_contacts_in_a_running_campaign(context, admin):
+    from app.today import QueueItem, build_queue, sender_for
+
+    client, (ws, *_), user_id = context
+    linked, _ = two_contacts(client, admin, ws)
+    tenant(admin, ws)
+    build_queue(admin, ws, user_id, sender_for(admin, ws))
+    admin.commit()
+    proposed = admin.scalars(
+        select(QueueItem).where(QueueItem.workspace_id == ws, QueueItem.contact_id == linked.id)
+    ).all()
+    assert proposed and all(i.state == "pending" for i in proposed)
+    client.post(
+        w(ws, "/campaigns/from-recipe"),
+        json={"recipe": "office_linkedin", "contact_ids": [linked.id]},
+    )
+    admin.expire_all()
+    # Joining the campaign withdrew the proposal; a new build does not propose it again.
+    assert {
+        i.state
+        for i in admin.scalars(
+            select(QueueItem).where(QueueItem.workspace_id == ws, QueueItem.contact_id == linked.id)
+        )
+    } == {"skipped"}
+    tenant(admin, ws)
+    build_queue(admin, ws, user_id, sender_for(admin, ws))
+    admin.flush()
+    assert not admin.scalars(
+        select(QueueItem).where(
+            QueueItem.workspace_id == ws,
+            QueueItem.contact_id == linked.id,
+            QueueItem.state != "skipped",
+        )
+    ).all()
+    admin.rollback()

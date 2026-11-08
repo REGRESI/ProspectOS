@@ -13,6 +13,9 @@ const pages: [string, string][] = (process.env.DESIGN_SHOTS_PAGES || "")
   .filter(Boolean)
   .map((p) => p.split("=") as [string, string]);
 
+// Pages whose desktop shot is full page too (e.g. the builder editor below the fold).
+const full = (process.env.DESIGN_SHOTS_FULL || "").split(",").filter(Boolean);
+
 async function login(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Demo-Workspace öffnen" }).click();
@@ -41,7 +44,7 @@ for (const theme of ["light", "dark"] as const) {
         await page.waitForTimeout(300);
         await page.screenshot({
           path: `${dir}/${name}-${label}${theme === "dark" ? "-dark" : ""}.png`,
-          fullPage: label === "mobile",
+          fullPage: label === "mobile" || full.includes(name),
         });
       }
     });

@@ -604,6 +604,17 @@ def build_queue(db, ws, member_id, sender: Sender) -> dict:
             select(Contact.id).where(Contact.workspace_id == ws, Contact.channel_route == "tool")
         )
     )
+    # Contacts in a running campaign get their LinkedIn steps from the campaign (Fällige
+    # Schritte), never a second proposal from the daily queue.
+    from app.flows import FlowRun
+
+    suppressed |= set(
+        db.scalars(
+            select(FlowRun.contact_id).where(
+                FlowRun.workspace_id == ws, FlowRun.state.in_(["active", "waiting"])
+            )
+        )
+    )
     position = len(existing)
     created = {"connect": 0, "message": 0, "followup": 0, "followup2": 0}
 

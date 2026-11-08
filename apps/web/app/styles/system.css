@@ -176,7 +176,7 @@ kbd {
 .button.ghost:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
 .button.danger:not(.ghost) { background: var(--danger); color: #fff; }
 .button.ghost.danger { color: var(--danger); }
-.button.small { height: 28px; min-height: 28px; padding: 0 var(--space-2); font-size: var(--font-xs); }
+.button.small { height: 32px; min-height: 32px; padding: 0 var(--space-3); font-size: 0.8125rem; font-weight: 500; }
 .icon-button { width: 32px; height: 32px; border-radius: var(--radius-sm); color: var(--secondary); }
 .icon-button:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
 .text-button { color: var(--accent); font-size: var(--font-sm); font-weight: 500; }
@@ -215,10 +215,10 @@ label { font-size: var(--font-sm); color: var(--secondary); font-weight: 500; }
   border: 0;
   gap: 6px;
 }
-.badge.green, .badge.amber, .badge.red, .badge.purple, .badge.blue {
-  background: var(--surface-alt);
-  color: var(--secondary);
-}
+.badge.green { background: var(--green-soft); color: var(--green); }
+.badge.amber { background: var(--amber-soft); color: var(--amber); }
+.badge.red { background: var(--red-soft); color: var(--red); }
+.badge.purple, .badge.blue { background: var(--accent-soft); color: var(--accent); }
 .badge.green::before, .badge.amber::before, .badge.red::before, .badge.blue::before, .badge.purple::before, .badge.dot::before {
   content: "";
   width: 6px;

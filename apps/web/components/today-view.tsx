@@ -239,7 +239,7 @@ export function TodayView({
   const mainAction =
     d && d.stats.pending > 0 ? (
       <button
-        className="button primary"
+        className="button secondary today-bulk"
         disabled={!!busy}
         onClick={() => act("approve", () => write("/today/approve", { all_pending: true }))}
       >
@@ -292,9 +292,6 @@ export function TodayView({
         </section>
       </div>
 
-      <StyleNotice base={base} write={write} compact />
-
-      <StartBanner base={base} onNavigate={onNavigate} />
       <FlowTasksSection base={base} write={write} />
 
       {d && d.profile_check.unchecked > 0 && (
@@ -477,6 +474,10 @@ export function TodayView({
           }}
         />
       )}
+      <div className="today-hints">
+        <StartBanner base={base} onNavigate={onNavigate} />
+        <StyleNotice base={base} write={write} compact />
+      </div>
     </div>
   );
 }
@@ -596,13 +597,13 @@ function TodayCard({
           </span>
           <span className="today-tags">
             <Badge>{kindLabel[item.kind]}</Badge>
-            <Badge tone={item.state === "approved" ? "green" : "dot"}>
+            <Badge tone={item.state === "approved" ? "green" : "amber"}>
               {item.state === "approved" ? "freigegeben" : "zu prüfen"}
             </Badge>
           </span>
           <span className="row-actions" onClick={(e) => e.preventDefault()}>
             {item.state === "pending" ? (
-              <button className="button secondary small" disabled={!!busy || changed} onClick={onApprove}>
+              <button className="button primary small" disabled={!!busy || changed} onClick={onApprove}>
                 Freigeben
               </button>
             ) : (
@@ -633,7 +634,7 @@ function TodayCard({
                 {text.length} / {limit}
               </small>
             </span>
-            <textarea rows={field === "note" ? 3 : 6} value={text} maxLength={limit} onChange={(e) => setText(e.target.value)} />
+            <textarea rows={Math.max(field === "note" ? 3 : 6, Math.ceil(text.length / 80) + 1)} value={text} maxLength={limit} onChange={(e) => setText(e.target.value)} />
           </label>
           {item.kind === "connect" && (
             <details className="today-later">

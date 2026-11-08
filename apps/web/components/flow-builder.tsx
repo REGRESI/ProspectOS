@@ -140,10 +140,12 @@ export function FlowTasksSection({ base, write }: { base: string; write: Write }
                 <Icon size={16} />
               </span>
               <div className="flow-task-main">
-                <strong>{task.title}</strong>
+                <strong>
+                  {task.contact?.name || task.title}
+                  {task.company ? <span className="flow-task-company"> · {task.company.name}</span> : null}
+                </strong>
                 <small>
-                  {task.contact?.name}
-                  {task.company ? ` · ${task.company.name}` : ""}
+                  {task.title}
                   {task.campaign ? ` · ${task.campaign.name}` : ""}
                 </small>
                 {task.state === "blocked" && <small className="flow-task-blocked">Gesperrt: {task.blocked_reason}</small>}
@@ -151,7 +153,7 @@ export function FlowTasksSection({ base, write }: { base: string; write: Write }
               </div>
               <div className="flow-task-actions">
                 {task.kind === "linkedin_task" && task.contact?.linkedin_url && task.state === "open" && (
-                  <a className="button ghost small" href={task.contact.linkedin_url} target="_blank" rel="noreferrer">
+                  <a className="button primary small" href={task.contact.linkedin_url} target="_blank" rel="noreferrer">
                     Profil öffnen
                   </a>
                 )}
@@ -159,14 +161,20 @@ export function FlowTasksSection({ base, write }: { base: string; write: Write }
                   <span className="flow-task-phone">{task.contact.phone}</span>
                 )}
                 <button
-                  className="button primary small"
+                  className={`button ${task.kind === "linkedin_task" && task.contact?.linkedin_url ? "secondary" : "primary"} small`}
                   disabled={!!busy || task.state !== "open"}
                   onClick={() => act(task.id, "done")}
                 >
                   <Check size={14} /> Erledigt
                 </button>
-                <button className="button ghost small" disabled={!!busy} onClick={() => act(task.id, "skip")}>
-                  <SkipForward size={14} /> Überspringen
+                <button
+                  className="icon-button"
+                  aria-label="Überspringen"
+                  title="Überspringen"
+                  disabled={!!busy}
+                  onClick={() => act(task.id, "skip")}
+                >
+                  <SkipForward size={15} />
                 </button>
               </div>
             </li>
@@ -195,18 +203,26 @@ function StepCard({
   onRemove: () => void;
 }) {
   const Icon = stepIcons[step.kind];
+  const [open, setOpen] = useState(false);
   return (
-    <li className={`flow-step kind-${step.kind}`} data-testid={`flow-step-${index}`}>
+    <li className={`flow-step kind-${step.kind} ${open ? "open" : ""}`} data-testid={`flow-step-${index}`}>
       <span className="flow-step-icon" aria-hidden>
         <Icon size={16} />
       </span>
       <div className="flow-step-body">
         <div className="flow-step-head">
           <strong>{kindLabels[step.kind]}</strong>
+          {step.kind !== "wait" && step.kind !== "condition" && step.title && step.title !== kindLabels[step.kind] && (
+            <span className="flow-step-summary">{step.title}</span>
+          )}
+          {step.kind === "wait" && <span className="flow-step-summary">{step.wait_days} Tage</span>}
           {step.route !== "any" && <Badge tone={step.route === "linkedin" ? "purple" : "amber"}>{routeLabels[step.route]}</Badge>}
           {!!step.open_tasks && <Badge tone="green">{step.open_tasks} offen</Badge>}
           {!!step.waiting && <Badge>{step.waiting} warten</Badge>}
           <span className="flow-step-tools">
+            <button className="link-button flow-step-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+              {open ? "Schließen" : "Bearbeiten"}
+            </button>
             <button className="icon-button" aria-label="Nach oben" disabled={index === 0} onClick={() => onMove(-1)}>
               <ArrowUp size={14} />
             </button>
@@ -260,6 +276,15 @@ function StepCard({
               </small>
             </div>
           ) : step.kind === "condition" ? (
+            <>
+            <div className="flow-lanes" aria-hidden>
+              <span className="flow-lane yes">
+                Reaktion da → {step.config.if_reaction === "stop" || step.config.if_reaction === undefined ? "Kampagne stoppt, Anruf-Aufgabe" : `Schritt ${positions.indexOf(step.config.if_reaction as number) + 1}`}
+              </span>
+              <span className="flow-lane no">
+                Keine Reaktion → {step.config.if_none === "next" || step.config.if_none === undefined ? "nächster Schritt" : `Schritt ${positions.indexOf(step.config.if_none as number) + 1}`}
+              </span>
+            </div>
             <div className="flow-branches">
               <label>
                 Reaktion da
@@ -304,9 +329,10 @@ function StepCard({
                 </select>
               </label>
             </div>
+            </>
           ) : (
             <>
-              <label>
+              <label className="span-2">
                 Aufgabe
                 <input value={step.title} maxLength={200} onChange={(e) => onChange({ ...step, title: e.target.value })} />
               </label>
@@ -357,6 +383,13 @@ export function FlowBuilderPage({
   const recipes = useData<{ items: Recipe[] }>(`${base}/flow-recipes`, 0);
   const summary = useData<{ routes: Record<string, number> }>(`${base}/channels/summary`, revision);
   const active = chosen || campaigns.data?.items[0]?.id || "";
+  const routes = summary.data?.routes || {};
+  const audienceCount =
+    audience === "routed"
+      ? (routes.linkedin || 0) + (routes.letter || 0)
+      : audience
+        ? routes[audience] || 0
+        : 0;
   const flow = useOptionalData<Flow>(active ? `${base}/campaigns/${active}/flow` : null, revision);
   // Unsaved edits belong to one campaign and one loaded version of it.
   const flowKey = `${active}:${revision}`;
@@ -434,6 +467,7 @@ export function FlowBuilderPage({
                 : " "}
             </p>
           </div>
+          <div className="recipe-head-actions">
           <button
             className="button ghost small"
             disabled={busy}
@@ -455,6 +489,7 @@ export function FlowBuilderPage({
               <option value="">Noch niemand</option>
             </select>
           </label>
+          </div>
         </div>
         <div className="recipe-grid">
           {recipes.data?.items.map((r) => (
@@ -463,19 +498,31 @@ export function FlowBuilderPage({
               <p>{r.description}</p>
               <ol className="recipe-steps">
                 {r.steps
-                  .filter((s) => s.kind !== "condition")
                   .map((s, i) => {
                     const Icon = stepIcons[s.kind];
-                    return (
-                      <li key={i} title={s.title || s.kind_label}>
-                        <Icon size={13} aria-hidden /> {s.kind === "wait" ? `${s.wait_days} T` : s.kind_label}
+                    return s.kind === "condition" ? (
+                      <li key={i} className="recipe-branch">
+                        <span className="badge green">Reaktion: stoppt alles</span>
+                        <span className="badge">sonst weiter</span>
+                      </li>
+                    ) : s.kind === "wait" ? (
+                      <li key={i} className="recipe-wait">
+                        nach {s.wait_days} {s.wait_days === 1 ? "Tag" : "Tagen"}
+                      </li>
+                    ) : (
+                      <li key={i} className="recipe-step" title={s.title || s.kind_label}>
+                        <span className="recipe-step-icon">
+                          <Icon size={13} aria-hidden />
+                        </span>
+                        {s.title || s.kind_label}
                       </li>
                     );
                   })}
               </ol>
               <button
-                className="button secondary small"
-                disabled={busy}
+                className="button primary small"
+                disabled={busy || (!!summary.data && audience !== "" && audienceCount === 0)}
+                title={summary.data && audience !== "" && audienceCount === 0 ? "Niemand mit passendem Weg" : undefined}
                 onClick={() =>
                   run(
                     () =>
@@ -490,13 +537,16 @@ export function FlowBuilderPage({
                   )
                 }
               >
-                <Play size={14} /> Starten
+                <Play size={14} /> Starten{audience !== "" && summary.data ? ` · ${audienceCount} Kontakte` : ""}
               </button>
             </article>
           ))}
         </div>
       </section>
 
+      {campaigns.data && !campaigns.data.items.length ? (
+        <p className="muted flow-none">Noch keine Kampagne. Wähle oben ein Rezept und klicke „Starten“.</p>
+      ) : (
       <div className="flow-layout">
         <aside className="panel flow-list">
           <h2>Deine Kampagnen</h2>
@@ -533,7 +583,7 @@ export function FlowBuilderPage({
                   <div className="flow-run-stats">
                     <Badge tone="green">{flow.data.runs.active} aktiv</Badge>
                     <Badge>{flow.data.runs.waiting} warten</Badge>
-                    <Badge tone="red">{flow.data.runs.stopped} gestoppt</Badge>
+                    <Badge tone={flow.data.runs.stopped ? "amber" : "neutral"}>{flow.data.runs.stopped} gestoppt</Badge>
                   </div>
                 </div>
                 <ol className="flow-steps">
@@ -609,6 +659,7 @@ export function FlowBuilderPage({
           )}
         </section>
       </div>
+      )}
     </>
   );
 }

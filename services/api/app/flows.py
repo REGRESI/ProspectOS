@@ -469,6 +469,11 @@ def start_runs(db, ws, campaign: Campaign, contact_ids=None) -> dict:
         if contact.channel_route == "none":
             _stop(run, "Kein Weg: weder geprüftes Profil noch Postadresse")
         else:
+            # The campaign now owns this contact's steps: withdraw open proposals in Heute
+            # so nobody is contacted twice.
+            from app.multichannel import _stop_today_queue
+
+            _stop_today_queue(db, ws, contact.id, "In Kampagne")
             advance(db, ws, run)
         started += 1
     if campaign.status == "draft":

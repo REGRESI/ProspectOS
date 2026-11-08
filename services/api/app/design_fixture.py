@@ -268,8 +268,46 @@ def main() -> int:
             )
         )
         strategy_fixture(db, ws.id, user.id)
+        flow_fixture(db, ws.id)
     print("Synthetische Screenshot-Daten angelegt.")
     return 0
+
+
+def flow_fixture(db, ws):
+    """One running recipe campaign so the builder shows real steps and tasks (fictional)."""
+    from app.flows import RECIPES, FlowStep, start_runs
+    from app.multichannel import apply_route, sync_points
+    from app.platform_models import Campaign, Enrollment
+
+    contacts = db.scalars(select(Contact).where(Contact.workspace_id == ws)).all()
+    for contact in contacts:
+        apply_route(db, ws, contact, sync_points(db, ws, contact))
+    recipe = RECIPES["office_linkedin"]
+    campaign = Campaign(workspace_id=ws, name=recipe["name"], goal=recipe["goal"])
+    db.add(campaign)
+    db.flush()
+    for position, (kind, route, days, title, template) in enumerate(recipe["steps"]):
+        db.add(
+            FlowStep(
+                workspace_id=ws,
+                campaign_id=campaign.id,
+                position=position * 10,
+                kind=kind,
+                route=route,
+                wait_days=days,
+                title=title,
+                template=template,
+                config={"if_reaction": "stop", "if_none": "next"} if kind == "condition" else {},
+            )
+        )
+    routed = [c for c in sorted(contacts, key=lambda c: c.last_name) if c.channel_route != "none"]
+    for contact in routed[:3]:
+        db.add(Enrollment(workspace_id=ws, campaign_id=campaign.id, contact_id=contact.id))
+    db.flush()
+    start_runs(db, ws, campaign)
+    # A few fictional contacts further along, so list states show their colours.
+    for contact, stage in zip(routed[3:], ("sent", "connected", "replied"), strict=False):
+        contact.outreach_stage = stage
 
 
 def strategy_fixture(db, ws, user_id):
