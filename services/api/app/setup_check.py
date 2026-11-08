@@ -276,6 +276,48 @@ def writing_style(db, ws) -> dict:
     )
 
 
+def external_tools(db, ws):
+    """Light for M9 external outreach tools; only shown when the product switch is on."""
+    from app.connectors import OutreachConnector, product_enabled, settings_of
+
+    if not product_enabled():
+        return None
+    settings = settings_of(db, ws)
+    if not settings or not settings.enabled:
+        return _item(
+            "external_tools",
+            "Externe Outreach-Tools",
+            "off",
+            "Aus",
+            "Nur bei Bedarf und auf eigene Gefahr einschalten.",
+            link="/settings/connectors",
+        )
+    rows = db.scalars(
+        select(OutreachConnector).where(
+            OutreachConnector.workspace_id == ws, OutreachConnector.active.is_(True)
+        )
+    ).all()
+    failed = [r.tool for r in rows if r.last_test_ok is False]
+    untested = [r.tool for r in rows if r.last_test_ok is None]
+    light = "red" if failed else ("yellow" if untested or not rows else "green")
+    status = (
+        f"Fehler: {', '.join(failed)}"
+        if failed
+        else (f"Nicht getestet: {', '.join(untested)}" if untested else f"{len(rows)} verbunden")
+        if rows
+        else "Eingeschaltet, kein Tool verbunden"
+    )
+    return _item(
+        "external_tools",
+        "Externe Outreach-Tools (eigene Gefahr)",
+        light,
+        status,
+        "Verbindung testen." if light != "green" else "Nichts zu tun.",
+        link="/settings/connectors",
+        detail=f"Bestätigt von {settings.acknowledged_name}",
+    )
+
+
 def setup_check(db, ws, user_id=None) -> dict:
     if credentials.is_demo(db, ws):
         items = [
@@ -298,6 +340,9 @@ def setup_check(db, ws, user_id=None) -> dict:
         mailbox(db, ws),
         writing_style(db, ws),
     ]
+    tools = external_tools(db, ws)
+    if tools:
+        items.append(tools)
     summary = {k: sum(i["light"] == k for i in items) for k in ("green", "yellow", "red", "off")}
     return {"items": items, "summary": summary}
 

@@ -1506,3 +1506,7 @@ register_onboarding_v3_routes(app, db_session, scope, audit)
 from app.sources import register_source_routes  # noqa: E402
 
 register_source_routes(app, db_session, scope)
+
+from app.connectors import register_connector_routes  # noqa: E402
+
+register_connector_routes(app, db_session, scope, record, audit)

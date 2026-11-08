@@ -4,6 +4,7 @@ from sqlalchemy import create_engine
 
 from alembic import context
 from app import (
+    connectors,  # noqa: F401
     experience,  # noqa: F401
     flows,  # noqa: F401
     identity,  # noqa: F401

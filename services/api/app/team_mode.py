@@ -121,6 +121,9 @@ def pace(db, ws, user_id) -> dict:
         and contacts.get(a.contact_id)
         and contacts[a.contact_id].outreach_stage == "sent"
     ]
+    from app.connectors import tool_activity
+
+    tool_day, tool_week = tool_activity(db, ws, user_id, day), tool_activity(db, ws, user_id, week)
     sent_day = sum(a.created_at >= day for a in actions)
     sent_week = sum(a.created_at >= week for a in actions)
     return {
@@ -132,6 +135,8 @@ def pace(db, ws, user_id) -> dict:
             0, min(settings.daily_invite_limit - sent_day, settings.weekly_invite_limit - sent_week)
         ),
         "sent_total": len(actions),
+        "tool_invites_24h": tool_day,
+        "tool_invites_7d": tool_week,
         "accepted": len(accepted),
         "acceptance_rate": round(len(accepted) / len(actions), 2) if actions else None,
         "stale_open": [

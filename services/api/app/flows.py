@@ -43,6 +43,7 @@ STEP_KINDS = {
     "email": "E-Mail",
     "wait": "Warten",
     "condition": "Bedingung",
+    "tool_handoff": "An Tool übergeben",
 }
 ACTION_CHANNEL = {
     "linkedin_task": "linkedin",
@@ -205,6 +206,14 @@ class StepInput(BaseModel):
             raise ValueError("Unbekannte Schrittart oder Weg")
         if self.kind == "wait" and self.wait_days < 1:
             raise ValueError("Warten braucht mindestens einen Tag")
+        if self.kind == "tool_handoff":
+            from app.providers.outreach_tools import ADAPTERS
+
+            tool, target = str(self.config.get("tool", "")), str(self.config.get("target", ""))
+            if tool not in ADAPTERS or not target.strip() or len(target) > 500:
+                raise ValueError("Übergabe braucht Tool und Ziel-Kampagne")
+            self.config = {"tool": tool, "target": target.strip()}
+            return self
         if self.kind == "condition":
             reaction = self.config.get("if_reaction", "stop")
             none = self.config.get("if_none", "next")
@@ -312,7 +321,7 @@ def advance(db, ws, run: FlowRun, at: datetime | None = None) -> FlowRun:
         return run
     if db.scalar(
         select(FlowTask.id).where(
-            FlowTask.run_id == run.id, FlowTask.state.in_(["open", "blocked"])
+            FlowTask.run_id == run.id, FlowTask.state.in_(["open", "blocked", "pending_tool"])
         )
     ):
         return run
@@ -327,6 +336,42 @@ def advance(db, ws, run: FlowRun, at: datetime | None = None) -> FlowRun:
         if step.route != "any" and step.route != contact.channel_route:
             run.cursor = step.position + 1
             continue
+        if step.kind == "linkedin_task" and contact.channel_route == "tool":
+            # Handed to an external tool: no manual LinkedIn task (no double contact).
+            run.cursor = step.position + 1
+            continue
+        if step.kind == "tool_handoff":
+            from app.connectors import blockers, start_handoff
+
+            tool, target = step.config.get("tool", ""), step.config.get("target", "")
+            problems = blockers(db, ws, contact, tool)
+            task = FlowTask(
+                workspace_id=ws,
+                run_id=run.id,
+                campaign_id=run.campaign_id,
+                contact_id=contact.id,
+                step_position=step.position,
+                kind="tool_handoff",
+                title=step.title or STEP_KINDS["tool_handoff"],
+                due_at=at,
+                state="blocked" if problems else "pending_tool",
+                blocked_reason=" ".join(problems)[:300],
+                assignee_id=contact.owner_id,
+            )
+            db.add(task)
+            db.flush()
+            if not problems:
+                start_handoff(
+                    db,
+                    ws,
+                    contact,
+                    tool,
+                    target,
+                    contact.owner_id or _campaign_actor(db, ws),
+                    task.id,
+                )
+            run.state, run.next_due_at = "active", at
+            return run
         if step.kind == "wait":
             if run.wait_until is None:
                 run.wait_until = at + timedelta(days=step.wait_days)
@@ -369,6 +414,16 @@ def advance(db, ws, run: FlowRun, at: datetime | None = None) -> FlowRun:
         return run
     _stop(run, "Zu viele Schritte ohne Aufgabe")
     return run
+
+
+def _campaign_actor(db, ws):
+    from app.models import Membership
+
+    return db.scalar(
+        select(Membership.user_id)
+        .where(Membership.workspace_id == ws, Membership.role == "owner")
+        .limit(1)
+    )
 
 
 def tick(db, ws, at=None, limit=500) -> int:

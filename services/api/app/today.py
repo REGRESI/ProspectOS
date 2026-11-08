@@ -598,6 +598,12 @@ def build_queue(db, ws, member_id, sender: Sender) -> dict:
     suppressed = set(
         db.scalars(select(Suppression.contact_id).where(Suppression.workspace_id == ws))
     )
+    # Contacts handed to an external tool get no manual LinkedIn items (no double contact).
+    suppressed |= set(
+        db.scalars(
+            select(Contact.id).where(Contact.workspace_id == ws, Contact.channel_route == "tool")
+        )
+    )
     position = len(existing)
     created = {"connect": 0, "message": 0, "followup": 0, "followup2": 0}
 

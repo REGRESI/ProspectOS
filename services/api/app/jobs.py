@@ -384,6 +384,13 @@ def _execute_one(ws):
                 context = prepare_email(db, job)
                 job.side_effect_started = True
                 job.dispatched_at = now()
+            elif job.kind in ("connector_push", "connector_pause"):
+                from app.connectors import prepare_connector
+
+                # Checks run again at dispatch; the marker is set before the external call.
+                context = prepare_connector(db, job)
+                job.side_effect_started = True
+                job.dispatched_at = now()
             elif job.kind in ("social_text", "social_image", "social_reply"):
                 from app.experience import validate_generation_config
 
@@ -456,6 +463,11 @@ def _execute_one(ws):
 
             result = send_authorized_email(context, job_id)
             usage = None
+        elif job.kind in ("connector_push", "connector_pause"):
+            from app.connectors import send_connector
+
+            result = send_connector(context, job.kind)
+            usage = None
         elif job.kind == "discovery":
             with SessionLocal() as db, db.begin():
                 tenant(db, ws)
@@ -523,6 +535,10 @@ def _execute_one(ws):
                 from app.today import finalize_reply_analysis
 
                 result = finalize_reply_analysis(db, current, result)
+            if current.kind in ("connector_push", "connector_pause"):
+                from app.connectors import finalize_connector
+
+                result = finalize_connector(db, current, result)
             if current.kind == "profile_check":
                 from app.profile_check import finalize as finalize_profiles
 
@@ -610,6 +626,10 @@ def _execute_one(ws):
                 post = db.get(Post, job.payload["post_id"])
                 if post and post.state == "publishing":
                     post.state = "failed"
+            if job.kind in ("connector_push", "connector_pause") and job.status != "retry":
+                from app.connectors import fail_connector
+
+                fail_connector(db, job, code)
             db.add(
                 Audit(
                     workspace_id=ws,

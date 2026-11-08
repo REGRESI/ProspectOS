@@ -48,7 +48,7 @@ from app.models import Contact, TenantMixin
 from app.platform_models import Consent, Suppression
 
 CHANNELS = ("linkedin", "postal", "email", "phone")
-ROUTES = {"linkedin": "LinkedIn", "letter": "Brief", "none": "Kein Weg"}
+ROUTES = {"linkedin": "LinkedIn", "letter": "Brief", "tool": "Externes Tool", "none": "Kein Weg"}
 VERIFIED_PROFILE = ("verified", "confirmed")
 GENERIC_LOCAL = re.compile(
     r"^(info|kontakt|contact|office|mail|post|hallo|hello|service|team|empfang|zentrale|"
@@ -640,6 +640,10 @@ def register_multichannel_routes(app, db_session, scope, record, audit):
             return channels_output(db, ws, contact)
         if body.route not in ROUTES:
             raise HTTPException(422, "Unbekannter Weg.")
+        if body.route == "tool":
+            raise HTTPException(
+                409, "Der Weg „Externes Tool“ entsteht durch eine Übergabe an ein verbundenes Tool."
+            )
         points = sync_points(db, ws, contact)
         perms = channel_permissions(db, ws, contact, points)
         needed = {"linkedin": "linkedin", "letter": "letter"}.get(body.route)
