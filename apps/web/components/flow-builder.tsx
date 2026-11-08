@@ -18,7 +18,6 @@ import {
   Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { dateTime } from "@/lib/api";
 import { useData } from "@/lib/use-data";
 import { Badge, Empty, ErrorNote, Heading, Spinner } from "./ui";
 import { useOptionalData } from "./journey-shared";
@@ -543,7 +542,6 @@ export function FlowBuilderPage({
           )}
         </section>
       </div>
-      <p className="muted small-print">Stand {dateTime(new Date().toISOString())}</p>
     </>
   );
 }

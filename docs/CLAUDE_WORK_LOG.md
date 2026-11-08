@@ -176,3 +176,12 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
   - Backend: 232 (12 new).
   - E2E: 27 on the isolated stack (5 new).
   - Screenshots: `docs/design/neue-seiten/`.
+
+## 2026-11-08 — V3 multichannel, M1 + M2 (branch `claude/v3-multichannel` from `92c12e1`)
+
+- Plan and inventory: `docs/PLAN_V3.md` (`297edc3`).
+- **M1** (`67ed8e8`): contact points with source/date, channel switch (verified profile → LinkedIn, else postal address → letter), per-channel permissions (objection blocks all; phone only with concrete interest; e-mail keeps per-country legal basis), cold-email switch off by default (owner + legal note), objection stops all planned steps, duplicate merge with reason. Migration 0022.
+- **M2** (`e3b6bc9`): flow steps/runs/tasks, route-filtered recipes, live edits from the next step, conditions, blocked tasks with reason, worker tick, builder page "Ansprache", due steps in Heute. Migration 0023.
+- Environment: no Docker here → `infra/scripts/e2e-local.sh` reproduces the isolated E2E stack with a throw-away DB on ports 8100/3100. Found while building it: Next.js bakes `API_URL` into the build, so the script builds the web app against the E2E API.
+- Baseline E2E on the first (broken-proxy) attempt is not meaningful; a full E2E run follows after M3.
+- Tests: backend **245 passed** (232 + 13); V3 E2E 2/2; lint/typecheck/format clean. Screenshots `docs/design/v3/`.
