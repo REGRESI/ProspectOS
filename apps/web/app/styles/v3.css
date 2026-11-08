@@ -643,3 +643,101 @@
 .pace-settings .checkbox-line {
   width: auto;
 }
+
+/* M6: guided start */
+.start-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--text);
+  margin: 0 0 var(--space-4);
+}
+.start-banner .link-button {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--accent);
+  font-weight: 600;
+}
+.start-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+  max-width: 760px;
+}
+.start-step {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.start-step.current {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+}
+.start-step-head {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  width: 100%;
+  padding: var(--space-4);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.start-step-head > span:last-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.start-step-number {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: var(--font-sm);
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  color: var(--secondary);
+}
+.start-step.current .start-step-number {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+}
+.start-step.done .start-step-number {
+  background: var(--green-soft);
+  border-color: var(--green);
+  color: var(--green);
+}
+.start-step-body {
+  padding: 0 var(--space-4) var(--space-4) calc(28px + var(--space-3) + var(--space-4));
+}
+.start-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.start-choice p {
+  flex-basis: 100%;
+  margin: 0 0 var(--space-2);
+  max-width: 60ch;
+}
+@media (max-width: 640px) {
+  .start-step-body {
+    padding-left: var(--space-4);
+  }
+}

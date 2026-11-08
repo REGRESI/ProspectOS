@@ -72,6 +72,7 @@ export const sections: Section[] = [
     label: "Einstellungen",
     icon: Settings,
     tabs: [
+      { path: "/start", label: "Geführter Start" },
       { path: "/settings/setup", label: "Status" },
       { path: "/settings/outreach", label: "Anschreiben" },
       { path: "/agent", label: "Autopilot" },

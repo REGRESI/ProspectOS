@@ -288,3 +288,44 @@ test("M5: two people work in parallel without sharing a contact", async ({ page,
   await expect(g.getByTestId("flow-tasks").locator("li")).toHaveCount(2);
   await guest.close();
 });
+
+test("M6: a new user goes through the guided start to the first task in Heute in under 5 minutes", async ({ page }) => {
+  const started = Date.now();
+  const ctx = await setup(page, "E2E V3 Start");
+  // Two contacts as from an import (a postal address each), so the recipe has someone to start with.
+  for (const name of ["Erste", "Zweite"]) {
+    const c = await (
+      await page.request.post(`${ctx.base}/contacts`, {
+        headers: ctx.headers,
+        data: { first_name: name, last_name: "Fiktiv", company: `Fiktive Kanzlei ${name}` },
+      })
+    ).json();
+    await page.request.post(`${ctx.base}/companies/${c.company_id}/facts`, {
+      headers: ctx.headers,
+      data: { field: "Adresse (Impressum)", value: "Startweg 1, 77933 Lahr", source_url: "https://fiktiv.example.test/impressum" },
+    });
+  }
+  await page.reload();
+  const banner = page.getByTestId("start-banner");
+  await expect(banner).toContainText("0 von 5");
+  await banner.getByRole("button", { name: /Weitermachen/ }).click();
+  await expect(page).toHaveURL(/\/start/);
+  const steps = page.getByTestId("start-steps");
+  await steps.getByLabel("Firma").fill("CleanStar (Test)");
+  await steps.getByLabel("Dein Name").fill("Nico Test");
+  await steps.getByRole("button", { name: "Weiter" }).click();
+  await steps.getByLabel("Orte oder PLZ-Anfänge").fill("Lahr, 779");
+  await steps.getByRole("button", { name: "Weiter" }).click();
+  await steps.getByRole("button", { name: "Vorlage übernehmen" }).click();
+  await steps.getByRole("button", { name: "Später" }).click();
+  await page.screenshot({ path: "test-results/v3-m6-start.png", fullPage: true });
+  await steps.getByRole("button", { name: "Wege neu berechnen" }).click();
+  await steps.getByRole("button", { name: /Büro Ortenau mit LinkedIn/ }).click();
+  await expect(page).toHaveURL(/\/today/);
+  await expect(page.getByTestId("flow-tasks").locator("li")).toHaveCount(2);
+  await expect(page.getByTestId("start-banner")).toHaveCount(0);
+  expect(Date.now() - started).toBeLessThan(5 * 60 * 1000);
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto("/start");
+  await noOverflow(page);
+});

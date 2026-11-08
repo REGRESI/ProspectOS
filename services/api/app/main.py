@@ -1498,3 +1498,7 @@ register_letter_routes(app, db_session, scope, record, audit)
 from app.team_mode import register_team_mode_routes  # noqa: E402
 
 register_team_mode_routes(app, db_session, scope, record, audit)
+
+from app.onboarding_v3 import register_onboarding_v3_routes  # noqa: E402
+
+register_onboarding_v3_routes(app, db_session, scope, audit)

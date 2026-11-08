@@ -3,6 +3,7 @@ import { TopCandidates } from "./top-candidates";
 import { OutreachSettingsPage, TodayView } from "./today-view";
 import { FlowBuilderPage } from "./flow-builder";
 import { InboxPage } from "./inbox";
+import { StartPage } from "./start-page";
 import { LettersPage } from "./letters-page";
 import { SetupCheck } from "./setup-check";
 import { AgentConsole } from "./agent-console";
@@ -515,6 +516,7 @@ export default function WorkspaceApp() {
               {route === "/today" && <TodayView base={base} write={write} onNavigate={go} />}
               {route === "/flows" && <FlowBuilderPage base={base} write={write} notify={notify} />}
               {route === "/inbox" && <InboxPage base={base} write={write} notify={notify} onNavigate={go} />}
+              {route === "/start" && <StartPage base={base} write={write} notify={notify} onNavigate={go} />}
               {route === "/letters" && (
                 <LettersPage base={base} write={write} notify={notify} csrf={session.csrf_token} />
               )}

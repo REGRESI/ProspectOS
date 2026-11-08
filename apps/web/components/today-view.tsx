@@ -1,4 +1,5 @@
 "use client";
+import { StartBanner } from "./start-page";
 import { FlowTasksSection } from "./flow-builder";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -293,6 +294,7 @@ export function TodayView({
 
       <StyleNotice base={base} write={write} compact />
 
+      <StartBanner base={base} onNavigate={onNavigate} />
       <FlowTasksSection base={base} write={write} />
 
       {d && d.profile_check.unchecked > 0 && (
