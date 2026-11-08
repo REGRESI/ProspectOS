@@ -185,3 +185,10 @@ Tenant RLS/composite FKs (migrations 0001–0008), identity, team, CSV import, c
 - Environment: no Docker here → `infra/scripts/e2e-local.sh` reproduces the isolated E2E stack with a throw-away DB on ports 8100/3100. Found while building it: Next.js bakes `API_URL` into the build, so the script builds the web app against the E2E API.
 - Baseline E2E on the first (broken-proxy) attempt is not meaningful; a full E2E run follows after M3.
 - Tests: backend **245 passed** (232 + 13); V3 E2E 2/2; lint/typecheck/format clean. Screenshots `docs/design/v3/`.
+
+## 2026-11-08 — V3 M3 + M4
+
+- **M3** (`94949f4`): reactions (IMAP reply, LinkedIn click, QR scan, inquiry code, call, other); every reaction except an accepted invitation stops runs, tasks, scheduled e-mails and Heute items, documents concrete interest for phone and creates one follow-up task; inbox with statuses; public `/r/<code>` resolved by a SECURITY DEFINER function returning ids only. Migration 0024.
+- **M4** (this commit): DIN 5008 form B letter PDF (reportlab) in CleanStar look (logo, Instrument Sans/Serif from the repo's OFL fonts, brand blue), QR code per company, batch print PDF of approved letters only, Zweckform 3474 labels, mark printed completes the campaign's letter tasks; print-and-mail service off (options listed, nothing called). Migration 0025. New deps: reportlab, fonttools, brotli.
+- Attaching `REGRESI/cleanstar-rebrand` was denied in this session; the brand assets already copied into this repo (`apps/web/public/brand/cleanstar`) were used instead.
+- Full E2E on the local isolated stack after M3: **30 passed, 3 skipped** (design-screenshot specs). V3 E2E after M4: 4/4. Backend **253 passed**.

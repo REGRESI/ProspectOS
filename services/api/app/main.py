@@ -1490,3 +1490,7 @@ register_flow_routes(app, db_session, scope, record, audit)
 from app.reactions import register_reaction_routes  # noqa: E402
 
 register_reaction_routes(app, db_session, scope, record, audit)
+
+from app.letters import register_letter_routes  # noqa: E402
+
+register_letter_routes(app, db_session, scope, record, audit)

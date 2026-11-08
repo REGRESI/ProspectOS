@@ -8,6 +8,7 @@ from app import (
     flows,  # noqa: F401
     identity,  # noqa: F401
     journeys,  # noqa: F401
+    letters,  # noqa: F401
     linkedin_channel,  # noqa: F401
     multichannel,  # noqa: F401
     reactions,  # noqa: F401

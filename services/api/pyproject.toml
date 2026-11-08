@@ -17,6 +17,9 @@ dependencies = [
     "pillow>=13.0.0,<14",
     "osmium>=4.3.2",
     "dnspython>=2.9.2",
+    "reportlab>=4.2",
+    "fonttools>=4.53",
+    "brotli>=1.1",
 ]
 [dependency-groups]
 dev = ["pytest>=8,<10", "httpx>=0.28,<1", "ruff>=0.11,<1"]

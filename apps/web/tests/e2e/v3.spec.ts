@@ -164,3 +164,70 @@ test("M3: a QR scan stops the letter path, lands in the inbox and creates a task
   await expect(tasks.getByTestId("flow-task-Leo Fiktiv")).toContainText("Termin vereinbaren");
   await expect(tasks).not.toContainText("Persönlichen Brief schicken");
 });
+
+test("M4: ten letters as one print PDF with labels; a scan creates a call task", async ({ page }) => {
+  const ctx = await setup(page, "E2E V3 Briefe");
+  const ids: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const c = await (
+      await page.request.post(`${ctx.base}/contacts`, {
+        headers: ctx.headers,
+        data: { first_name: `Person${i}`, last_name: "Fiktiv", company: `Fiktive Praxis Brief ${i}` },
+      })
+    ).json();
+    for (const [field, value] of [
+      ["Adresse (Impressum)", `Briefweg ${i + 1}, 77933 Lahr`],
+      ["Telefon (Impressum)", `+49 7821 00000${i}`],
+    ]) {
+      await page.request.post(`${ctx.base}/companies/${c.company_id}/facts`, {
+        headers: ctx.headers,
+        data: { field, value, source_url: "https://fiktiv.example.test/impressum" },
+      });
+    }
+    ids.push(c.id);
+  }
+  await page.request.post(`${ctx.base}/channels/refresh`, { headers: ctx.headers });
+  const run = await page.request.post(`${ctx.base}/campaigns/from-recipe`, {
+    headers: ctx.headers,
+    data: { recipe: "letter_only", audience: "letter" },
+  });
+  expect((await run.json()).started.started).toBe(10);
+
+  await page.goto("/letters");
+  const settings = page.locator(".letter-settings");
+  await settings.getByLabel("Firma").fill("CleanStar (Test)");
+  await settings.getByLabel("Unterschrift").fill("Nico Test");
+  await settings.getByLabel("Zielseite für den QR-Code").fill("https://www.cleanstar.example.test/reinigungs-check/");
+  await settings.getByRole("button", { name: "Speichern" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Brief-Einstellungen gespeichert" })).toBeVisible();
+  await page.getByRole("button", { name: "Briefe vorbereiten" }).click();
+  await expect(page.getByTestId("letter-list").locator("li")).toHaveCount(10);
+  await page.getByRole("button", { name: "Alle Entwürfe freigeben" }).click();
+  await expect(page.getByTestId("letter-toolbar")).toContainText("10 freigegeben");
+  await page.screenshot({ path: "test-results/v3-m4-letters.png", fullPage: true });
+
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Sammel-PDF" }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe("briefe-druck.pdf");
+  const pdf = (await (await import("node:fs/promises")).readFile(await download.path())).toString("latin1");
+  expect(pdf.startsWith("%PDF")).toBe(true);
+  expect((pdf.match(/\/Type \/Page[^s]/g) || []).length).toBe(10);
+  const [labels] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Etiketten" }).click()]);
+  expect(labels.suggestedFilename()).toBe("adressetiketten-3474.pdf");
+  await page.getByRole("button", { name: "Als gedruckt markieren" }).click();
+  await expect(page.getByTestId("letter-toolbar")).toContainText("10 gedruckt");
+
+  const letters = await (await page.request.get(`${ctx.base}/letters`)).json();
+  const first = letters.items.find((l: { contact: { name: string } }) => l.contact.name === "Person0 Fiktiv");
+  const anonymous = await (await import("@playwright/test")).request.newContext({
+    baseURL: process.env.E2E_BASE_URL || "http://localhost:3100",
+  });
+  expect((await anonymous.get(`/r/${first.code}`, { maxRedirects: 0 })).status()).toBe(302);
+  await anonymous.dispose();
+  await page.goto("/today");
+  await expect(page.getByTestId("flow-tasks").getByTestId("flow-task-Person0 Fiktiv")).toContainText(
+    "Anrufen und Termin vereinbaren",
+  );
+});
