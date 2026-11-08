@@ -1478,3 +1478,7 @@ register_voice_learning_routes(app, db_session, scope, record, audit)
 from app.team import register_team_routes  # noqa: E402
 
 register_team_routes(app, db_session, scope, audit)
+
+from app.multichannel import register_multichannel_routes  # noqa: E402
+
+register_multichannel_routes(app, db_session, scope, record, audit)

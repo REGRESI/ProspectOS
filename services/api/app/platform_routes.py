@@ -625,6 +625,10 @@ def register_platform_routes(app, db_session, scope, record, paginate, audit):
         item = Suppression(workspace_id=ws, **body.model_dump())
         db.add(item)
         db.flush()
+        from app.multichannel import stop_everything
+
+        # An objection blocks every channel: stop all planned steps at once.
+        stop_everything(db, ws, body.contact_id, f"Widerspruch: {body.reason}", member.user_id)
         audit(db, ws, member.user_id, "contact_suppressed", "Kontakt für Werbeversand gesperrt")
         return {"id": item.id}
 

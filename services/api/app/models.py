@@ -102,6 +102,11 @@ class Contact(TenantMixin, Base):
         DateTime(timezone=True), nullable=True
     )
     owner_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # V3 channel switch: linkedin, letter or none; auto (rule) or manual (user choice).
+    channel_route: Mapped[str] = mapped_column(String(20), default="none")
+    route_reason: Mapped[str] = mapped_column(String(300), default="")
+    route_mode: Mapped[str] = mapped_column(String(10), default="auto")
+    route_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     __table_args__ = (
         UniqueConstraint("workspace_id", "id"),
         UniqueConstraint("workspace_id", "linkedin_url"),

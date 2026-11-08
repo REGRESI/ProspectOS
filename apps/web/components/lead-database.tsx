@@ -1,4 +1,5 @@
 "use client";
+import { ChannelPanel } from "./channel-panel";
 import { FormEvent, useState } from "react";
 import { ArrowRight, Building2, ExternalLink, FileText, Filter, History, ListFilter, Plus, Search, Users } from "lucide-react";
 import { dateTime, stageLabels } from "@/lib/api";
@@ -759,6 +760,7 @@ export function LeadProfile(
               <div className="tabs journey-tabs">
                 {[
                   ["profile", "Profil & Qualifizierung"],
+                  ["channels", "Kanäle"],
                   ["history", "Notizen & Aufgaben"],
                   ["outreach", "Nachrichten & Verlauf"],
                 ].map(([id, label]) => (
@@ -861,6 +863,9 @@ export function LeadProfile(
                   </form>
                   <ScoreDetails lead={lead} />
                 </div>
+              )}
+              {tab === "channels" && (
+                <ChannelPanel {...props} contactId={contactId} onChanged={refresh} />
               )}
               {tab === "history" && (
                 <div className="journey-profile-grid">
