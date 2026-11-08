@@ -1229,6 +1229,17 @@ def register_today_routes(app, db_session, scope, record, audit):
         authoring(member)
         contact = record(db, Contact, ws, entity_id, True)
         changed = set_stage(contact, body.stage, forward_only=False)
+        if changed and body.stage in ("connected", "replied"):
+            from app.reactions import record_reaction
+
+            # A click in Heute is a reaction: "replied" stops every planned step.
+            record_reaction(
+                db,
+                ws,
+                contact,
+                "linkedin_replied" if body.stage == "replied" else "linkedin_accepted",
+                actor_id=member.user_id,
+            )
         skipped = 0
         if body.stage in ("not_interested", "meeting"):
             # Nothing more to send: open items for this contact are skipped.

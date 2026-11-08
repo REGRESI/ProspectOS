@@ -1486,3 +1486,7 @@ register_multichannel_routes(app, db_session, scope, record, audit)
 from app.flows import register_flow_routes  # noqa: E402
 
 register_flow_routes(app, db_session, scope, record, audit)
+
+from app.reactions import register_reaction_routes  # noqa: E402
+
+register_reaction_routes(app, db_session, scope, record, audit)

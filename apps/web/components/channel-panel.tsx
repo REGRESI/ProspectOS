@@ -5,6 +5,7 @@ import { dateTime } from "@/lib/api";
 import { useData } from "@/lib/use-data";
 import { Badge, ErrorNote, Spinner } from "./ui";
 import type { JourneyProps } from "./journey-types";
+import { ReactionForm } from "./inbox";
 
 type Permission = { allowed: boolean; basis: string | null; reason: string | null };
 export type Channels = {
@@ -223,6 +224,18 @@ export function ChannelPanel(
             </button>
           </form>
         </details>
+      )}
+
+      {!c.objection && (
+        <ReactionForm
+          contactId={contactId}
+          write={write}
+          onDone={(message) => {
+            setLocal((v) => v + 1);
+            onChanged?.();
+            notify(message);
+          }}
+        />
       )}
 
       {!c.objection && (

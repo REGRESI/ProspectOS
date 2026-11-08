@@ -18,7 +18,15 @@ export type Section = {
 };
 
 export const sections: Section[] = [
-  { key: "today", label: "Heute", icon: CheckCircle2, tabs: [{ path: "/today", label: "Heute" }] },
+  {
+    key: "today",
+    label: "Heute",
+    icon: CheckCircle2,
+    tabs: [
+      { path: "/today", label: "Heute" },
+      { path: "/inbox", label: "Posteingang" },
+    ],
+  },
   {
     key: "companies",
     label: "Firmen",

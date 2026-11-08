@@ -185,6 +185,15 @@ def test_full_email_flow(context, admin, env, monkeypatch):
     admin.expire_all()
     assert admin.get(EmailMessage, m0.id).state == "replied"
     assert admin.get(Mailbox, box_id).imap_last_uid == 7
+    # V3: the reply is a reaction in the inbox and created a follow-up task.
+    from app.flows import FlowTask
+    from app.reactions import Reaction
+
+    reaction = admin.scalar(select(Reaction).where(Reaction.contact_id == contacts[0].id))
+    assert reaction.kind == "email_reply" and "Gerne" in reaction.text
+    assert admin.scalar(
+        select(FlowTask).where(FlowTask.contact_id == contacts[0].id, FlowTask.origin == "reaction")
+    )
     client.post(f"{c}/drafts", json={"step_position": 1, "subject": "Nachgehakt"})
     client.post(f"{c}/approve", json={"all_for_step": 1})
     again = client.post(f"{c}/schedule", json={"step_position": 1}).json()

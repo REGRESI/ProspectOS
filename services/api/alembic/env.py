@@ -10,6 +10,7 @@ from app import (
     journeys,  # noqa: F401
     linkedin_channel,  # noqa: F401
     multichannel,  # noqa: F401
+    reactions,  # noqa: F401
     sales_agent,  # noqa: F401
     studio,  # noqa: F401
 )

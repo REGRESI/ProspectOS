@@ -27,6 +27,11 @@ const nextConfig: NextConfig = {
         source: "/v1/integrations/linkedin/callback",
         destination: `${api}/v1/integrations/linkedin/callback`,
       },
+      // Public QR scan from a letter: records the scan, then redirects.
+      {
+        source: "/r/:code",
+        destination: `${process.env.API_URL || "http://127.0.0.1:8000"}/v1/r/:code`,
+      },
       {
         source: "/api/:path*",
         destination: `${api}/:path*`,

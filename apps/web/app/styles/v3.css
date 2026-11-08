@@ -370,3 +370,81 @@
     justify-content: flex-start;
   }
 }
+
+/* M3: inbox */
+.inbox-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--space-4);
+  align-items: start;
+}
+.inbox-list,
+.inbox-side {
+  padding: var(--space-4);
+  min-width: 0;
+}
+.inbox-side h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-md);
+}
+.inbox-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+.reaction-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.reaction {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.reaction.status-new {
+  border-left: 3px solid var(--accent);
+}
+.reaction-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-alt);
+  color: var(--secondary);
+}
+.reaction-main {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.reaction-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.reaction-text {
+  margin: 0;
+  white-space: pre-wrap;
+  max-width: 65ch;
+}
+.reaction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: flex-end;
+}
+@media (max-width: 860px) {
+  .inbox-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

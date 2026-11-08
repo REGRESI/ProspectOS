@@ -128,3 +128,39 @@ test("M2: campaign from a recipe in one click; due steps appear in Heute; edits 
   await page.goto("/flows");
   await noOverflow(page);
 });
+
+test("M3: a QR scan stops the letter path, lands in the inbox and creates a task in Heute", async ({ page }) => {
+  const ctx = await setup(page, "E2E V3 Reaktion");
+  const { leo } = await seedPeople(page, ctx);
+  const started = await page.request.post(`${ctx.base}/campaigns/from-recipe`, {
+    headers: ctx.headers,
+    data: { recipe: "letter_only", contact_ids: [leo.id] },
+  });
+  expect(started.ok()).toBeTruthy();
+  const code = await (
+    await page.request.post(`${ctx.base}/companies/${leo.company_id}/ref-code`, {
+      headers: ctx.headers,
+      data: { target_url: "https://www.cleanstar.example.test/reinigungs-check/" },
+    })
+  ).json();
+  // Public scan, no session: a fresh request context without cookies.
+  const anonymous = await (await import("@playwright/test")).request.newContext({
+    baseURL: process.env.E2E_BASE_URL || "http://localhost:3100",
+  });
+  const scan = await anonymous.get(`/r/${code.code}`, { maxRedirects: 0 });
+  expect(scan.status()).toBe(302);
+  expect(scan.headers()["location"]).toBe(`https://www.cleanstar.example.test/reinigungs-check/?ref=${code.code}`);
+  await anonymous.dispose();
+
+  await page.goto("/inbox");
+  const item = page.getByTestId("inbox").getByTestId("reaction-Leo Fiktiv");
+  await expect(item).toContainText("QR-Code gescannt");
+  await page.screenshot({ path: "test-results/v3-m3-inbox.png", fullPage: true });
+  await item.getByLabel("Status für Leo Fiktiv").selectOption("meeting");
+  await expect(item).toContainText("Termin");
+
+  await page.goto("/today");
+  const tasks = page.getByTestId("flow-tasks");
+  await expect(tasks.getByTestId("flow-task-Leo Fiktiv")).toContainText("Termin vereinbaren");
+  await expect(tasks).not.toContainText("Persönlichen Brief schicken");
+});

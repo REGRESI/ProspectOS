@@ -593,6 +593,19 @@ def _apply_event(db, ws, kind, ids, detail=None):
     for m in rows:
         if kind == "reply":
             m.state = "replied"
+            from app.reactions import record_reaction
+
+            contact = db.get(Contact, m.contact_id)
+            if contact is not None:
+                # Stops every planned step on every channel and creates a call task.
+                record_reaction(
+                    db,
+                    ws,
+                    contact,
+                    "email_reply",
+                    (detail or {}).get("text", ""),
+                    source_ref=m.message_id,
+                )
         elif kind == "bounce":
             m.state = "bounced"
         elif kind == "complaint":
@@ -673,7 +686,9 @@ def finalize_sync(db, job, result) -> dict:
                 ws,
                 ev["kind"],
                 ev["ids"],
-                {"hard": ev.get("hard", False)} if ev["kind"] == "bounce" else None,
+                {"hard": ev.get("hard", False)}
+                if ev["kind"] == "bounce"
+                else ({"text": ev.get("text", "")} if ev["kind"] == "reply" else None),
             )
     box.imap_last_uid = max(box.imap_last_uid, result["last_uid"])
     paused = health_check(db, ws, box)

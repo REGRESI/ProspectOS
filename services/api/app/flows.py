@@ -260,12 +260,11 @@ def steps_of(db, ws, campaign_id) -> list[FlowStep]:
 
 def has_reaction(db, ws, contact_id, since) -> bool:
     """Any reaction of this contact since ``since`` (all channels)."""
-    try:
-        from app.reactions import Reaction
-    except ImportError:  # before M3: the LinkedIn stage is the only reaction signal
-        contact = db.get(Contact, contact_id)
-        return bool(contact and contact.outreach_stage in ("replied", "meeting"))
+    from app.reactions import Reaction
 
+    contact = db.get(Contact, contact_id)
+    if contact and contact.outreach_stage in ("replied", "meeting"):
+        return True
     return bool(
         db.scalar(
             select(Reaction.id).where(
@@ -456,7 +455,7 @@ def task_output(db, task: FlowTask, contact: Contact | None = None, company=None
     return {
         "id": task.id,
         "kind": task.kind,
-        "kind_label": STEP_KINDS.get(task.kind, task.kind),
+        "kind_label": STEP_KINDS.get(task.kind, "Termin vereinbaren"),
         "title": task.title,
         "body": task.body,
         "due_at": task.due_at,
