@@ -1510,3 +1510,7 @@ register_source_routes(app, db_session, scope)
 from app.connectors import register_connector_routes  # noqa: E402
 
 register_connector_routes(app, db_session, scope, record, audit)
+
+from app.register_gap import register_gap_routes  # noqa: E402
+
+register_gap_routes(app, db_session, scope, record, audit)

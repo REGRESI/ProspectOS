@@ -133,3 +133,37 @@ Alle fünf Anbieter-Adapter. Kein echter API-Aufruf ist erfolgt; im Cloud-Contai
 Doku-Seiten erreichbar, nicht die APIs. Vor dem ersten Einsatz pro Tool: verbinden, „Testen“, einen
 synthetischen oder eigenen Kontakt übergeben, im Tool nachsehen, Webhook-Adresse eintragen und ein
 Ereignis auslösen.
+
+## Berufsregister (M9e): nur Links, keine automatische Abfrage
+
+Im Firmenprofil stehen Links auf die Suchseiten und der Suchbegriff (Firmenname + Ort) zum
+Kopieren. ProspectOS fragt diese Register nicht automatisch ab: Ihre Nutzungsbedingungen für
+automatisierte Abfragen wurden nicht geprüft (die Seiten waren aus dem Cloud-Container nicht
+erreichbar). Solange das so ist, bleibt es bei der Suche von Hand. Gefundene Namen mit Quelle und
+Datum als Kontakt eintragen.
+
+| Register | Link (Startseite) | Passt zu | Status |
+| --- | --- | --- | --- |
+| Arztsuche der KV Baden-Württemberg | https://www.arztsuche-bw.de/ | Praxis | URL **unverifiziert**, keine Abfrage |
+| Bundesweites Amtliches Anwaltsverzeichnis (BRAK) | https://www.bea-brak.de/bravsearch/index.brak | Kanzlei | URL **unverifiziert**, keine Abfrage |
+| Steuerberaterverzeichnis (Bundessteuerberaterkammer) | https://www.bstbk.de/de/steuerberatersuche | Kanzlei | URL **unverifiziert**, keine Abfrage |
+| Betriebssuche der Handwerkskammer (Freiburg) | https://www.hwk-freiburg.de/betriebssuche | Handwerk | URL **unverifiziert**, keine Abfrage |
+
+Vorbelegte Such-Parameter (Name/Ort direkt in der URL) sind nicht gebaut, weil die
+Parameternamen nicht geprüft werden konnten. Vor dem Einsatz: Links einmal im Browser öffnen,
+falsche URLs in `services/api/app/register_gap.py` (`REGISTERS`) korrigieren, Nutzungsbedingungen
+lesen. Eine automatische Abfrage kommt nur in Frage, wenn die Bedingungen sie ausdrücklich
+erlauben.
+
+Nicht gebaut und nicht vorgesehen: Scraper für Gelbe Seiten, Das Örtliche, Google Maps, North
+Data oder andere Datenanbieter (auch keine Apify-Actors). North Data nur über die lizenzierte Data
+API (`app/providers/northdata.py`).
+
+## Website-Finder (M9e)
+
+Brave-Websuche „"Firmenname" Ort“ mit dem Brave-Schlüssel des Nutzers. Verzeichnisse, Social
+Media und Registerportale werden übersprungen, nie abgerufen. Für höchstens drei Kandidaten läuft
+die normale Impressum-Recherche (robots.txt, Egress-Schutz). Übernommen wird eine Website nur, wenn
+das Impressum den Firmennamen (mind. 60 % der unterscheidbaren Wörter) und die bekannte Adresse
+(PLZ und Straße) zeigt. Jede Firma bekommt im Bericht einen Grund. Bis zu 25 Firmen je Lauf; jede
+Suche kostet eine Brave-Anfrage.

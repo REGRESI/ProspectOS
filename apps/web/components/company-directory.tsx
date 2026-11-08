@@ -5,6 +5,7 @@ import { dateTime, money, stageLabels } from "@/lib/api";
 import type { Page } from "@/lib/api";
 import { useData } from "@/lib/use-data";
 import { Badge, Empty, ErrorNote, Heading, Modal, Spinner } from "./ui";
+import { RegisterLinks } from "./sources-page";
 import type { JourneyProps, Lead, Company } from "./journey-types";
 import { CompanyEvidence } from "./sales-agent";
 import { Pager, safeDomain, useOptionalData } from "./journey-shared";
@@ -253,6 +254,7 @@ export function CompanyProfile(props: JourneyProps & { companyId: string }) {
                 </button>
               </div>
             </section>
+            <RegisterLinks base={base} companyId={companyId} />
             <div className="journey-profile-grid">
               <section className="panel">
                 <div className="panel-head">

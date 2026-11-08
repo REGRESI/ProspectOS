@@ -519,7 +519,7 @@ export default function WorkspaceApp() {
               {route === "/flows" && <FlowBuilderPage base={base} write={write} notify={notify} />}
               {route === "/inbox" && <InboxPage base={base} write={write} notify={notify} onNavigate={go} />}
               {route === "/start" && <StartPage base={base} write={write} notify={notify} onNavigate={go} />}
-              {route === "/sources" && <SourcesPage base={base} onNavigate={go} />}
+              {route === "/sources" && <SourcesPage base={base} onNavigate={go} write={write} notify={notify} />}
               {route === "/letters" && (
                 <LettersPage base={base} write={write} notify={notify} csrf={session.csrf_token} />
               )}

@@ -422,6 +422,11 @@ def _execute_one(ws):
             elif job.kind == "research" and job.payload.get("mode") == "site":
                 # Read-only website fetches; run outside the transaction.
                 context = None
+            elif job.kind == "website_find":
+                from app.website_finder import prepare as prepare_finder
+
+                # Read-only Brave searches and Impressum fetches; run outside the transaction.
+                context = prepare_finder(db, job)
             elif job.kind == "profile_check":
                 from app.profile_check import prepare as prepare_profiles
 
@@ -486,6 +491,10 @@ def _execute_one(ws):
 
             job.payload = {**job.payload, **context}
             result, usage = sync_mailbox(job), None
+        elif job.kind == "website_find":
+            from app.website_finder import run as run_finder
+
+            result, usage = run_finder(context), None
         elif job.kind == "profile_check":
             from app.profile_check import run as run_profiles
 
@@ -539,6 +548,10 @@ def _execute_one(ws):
                 from app.connectors import finalize_connector
 
                 result = finalize_connector(db, current, result)
+            if current.kind == "website_find":
+                from app.website_finder import finalize as finalize_finder
+
+                result = finalize_finder(db, current, result)
             if current.kind == "profile_check":
                 from app.profile_check import finalize as finalize_profiles
 

@@ -285,11 +285,13 @@ zusammengesetzte Mandanten-Fremdschlüssel auf `connector_settings`, `outreach_c
 | --- | --- |
 | Anschluss-Rahmen (M9a) | Produktschalter `EXTERNAL_OUTREACH_TOOLS_ENABLED` (aus), Owner-Bestätigung mit genauem Risikotext, Verlaufseintrag mit Name/Zeit/Text, jederzeit ausschaltbar, Schlüssel verschlüsselt und maskiert, Verbindungstest je Tool, Ampel im Status |
 | Adapter (M9b) | HeyReach, Waalaxy, La Growth Machine, Expandi, lemlist, allgemeiner Webhook (signiert, frisch); Preis-, Doku- und Kann/Kann-nicht-Angaben in der Oberfläche |
+| Registerlücke (M9d) | CLI `python -m app.register_gap`, Karte auf Quellen: Firmen ohne Ansprechpartner nach registerpflichtiger Rechtsform (GmbH, UG, AG, KG, OHG, e.K., GmbH & Co. KG) und vermutlich ohne Register (Praxis, Kanzlei, GbR, Einzelunternehmen); North-Data-Schätzung gemessen oder als Annahme gekennzeichnet; Brief „An die Geschäftsführung“ über Rollen-Adressen |
+| Lücken schließen (M9e) | Website-Finder (Brave + Impressum, nur bei Name und Adresse), Namen aus Firmennamen per Regeln (Quelle „Firmenname“ mit Sicherheit; nur „hoch“ wird Kontakt), Rollen-Adresse Geschäftsführung/Praxisleitung/Kita-Leitung mit Besuchsaufgabe, Berufsregister als Links, Art.-14-Hinweis im ersten Brief je Firma (Quelle und Datum der Adresse, Widerspruch → Sperrliste wie bisher) |
 | Einbindung (M9c) | Weg „Externes Tool“ nur mit geprüftem LinkedIn, Prüfungen vor jeder Übergabe und beim Versand, nur nötige Felder, Schritt „An Tool übergeben“ im Baukasten, keine manuellen LinkedIn-Aufgaben danach, Rückmeldungen in die Reaktionslogik, Pause oder Aufgabe „In <Tool> stoppen“, Tempo zählt Tool-Einladungen |
 
 ### Nur gegen Mocks / nicht live geprüft
 
-Alle fünf Anbieter-Adapter (kein echtes Konto, keine echte API erreicht). Unverifiziert laut
+Alle fünf Anbieter-Adapter (kein echtes Konto, keine echte API erreicht). Website-Finder: Brave und Websites nur als Fakes in Tests. Register-Links: URLs nicht geprüft. Unverifiziert laut
 CONNECTORS.md: HeyReach-Host und Webhook-Inhalt, Expandi-Webhook-Feldnamen, Waalaxy-Pause und
 -Webhooks, La-Growth-Machine-Test, -Pause und -Webhooks. Preisangaben sind ungeprüft.
 
@@ -297,3 +299,9 @@ CONNECTORS.md: HeyReach-Host und Webhook-Inhalt, Expandi-Webhook-Feldnamen, Waal
 
 Externe Tools insgesamt (Produktschalter aus, je Workspace aus). ProspectOS sendet weiterhin selbst
 keine LinkedIn-Einladungen oder -Nachrichten.
+
+### Zurückgestellt
+
+KI-Rückfall für unklare Firmennamen: Prüffunktion vorhanden (`checked_model_name`, Name muss
+wörtlich im Firmennamen stehen), aber nicht an Budget und Job-Warteschlange angeschlossen; unklare
+Namen bleiben deshalb unklar. Automatische Abfrage von Berufsregistern (Bedingungen ungeprüft).

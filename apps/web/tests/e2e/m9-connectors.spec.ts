@@ -130,3 +130,66 @@ test("M9: risk dialog, encrypted keys, one-time webhook URL, signed event, hando
   await page.getByRole("button", { name: "Ausschalten" }).click();
   await expect(page.getByTestId("connector-switch")).toContainText("sind aus");
 });
+
+test("M9d/e: Quellen shows the register gap; a role address gets a letter 'An die Geschäftsführung'", async ({ page }) => {
+  const { base, headers } = await setup(page);
+  const make = async (company: string) => {
+    // Companies are created with a contact; removing the placeholder leaves a company
+    // without a contact person.
+    const tmp = await (
+      await page.request.post(`${base}/contacts`, {
+        headers,
+        data: { first_name: "Platzhalter", last_name: "Fiktiv", company, location: "77652 Offenburg" },
+      })
+    ).json();
+    expect((await page.request.delete(`${base}/contacts/${tmp.id}`, { headers })).ok()).toBeTruthy();
+    const c = { id: tmp.company_id as string };
+    const fact = await page.request.post(`${base}/companies/${c.id}/facts`, {
+      headers,
+      data: { field: "Adresse (Impressum)", value: "Testweg 5, 77652 Offenburg", source_url: "https://fiktiv.example.test/impressum" },
+    });
+    expect(fact.ok()).toBeTruthy();
+    return c;
+  };
+  const bau = await make("Fiktiv Bau GmbH");
+  await make("Praxis Dr. med. Anna Fiktiv");
+  await make("Sonnenschein");
+
+  await page.goto("/sources");
+  const card = page.getByTestId("register-gap");
+  await expect(card).toContainText("von 3 Firmen ohne Ansprechpartner");
+  await expect(card).toContainText("registerpflichtig");
+  await expect(card).toContainText("Annahme");
+  await card.getByRole("button", { name: "Namen aus Firmennamen" }).click();
+  await expect(page.getByTestId("name-result")).toContainText("1 Kontakte aus Firmennamen angelegt");
+  await card.getByRole("button", { name: "Brief an die Geschäftsführung vorbereiten" }).click();
+  await expect(card).toContainText("Bereits angelegt: 2");
+  await page.screenshot({ path: "test-results/m9-register-gap.png", fullPage: true });
+
+  const contacts = await (await page.request.get(`${base}/contacts?limit=50`)).json();
+  const items = (contacts.items || contacts) as { id: string; last_name: string; company_id: string }[];
+  const role = items.find((c) => c.company_id === bau.id && c.last_name === "Geschäftsführung");
+  expect(role).toBeTruthy();
+  await page.request.put(`${base}/letters/settings`, {
+    headers,
+    data: {
+      sender_company: "Fiktiv Reinigung (Test)",
+      sender_street: "Musterweg 3",
+      sender_city: "77933 Lahr",
+      qr_target_url: "https://fiktiv-reinigung.example.test/check/",
+    },
+  });
+  const response = await page.request.post(`${base}/letters/prepare`, { headers, data: { contact_ids: [role!.id] } });
+  const prepared = await response.json();
+  expect(prepared.created?.length, JSON.stringify(prepared)).toBe(1);
+  expect(prepared.created[0].recipient.slice(0, 2)).toEqual(["Fiktiv Bau GmbH", "An die Geschäftsführung"]);
+  expect(prepared.created[0].privacy_note).toContain("Art. 14 DSGVO");
+  await page.goto("/letters");
+  await expect(page.locator(".letter-privacy").first()).toContainText("widersprechen");
+
+  await page.goto("/companies");
+  await page.getByText("Praxis Dr. med. Anna Fiktiv").first().click();
+  const links = page.getByTestId("register-links");
+  await expect(links).toContainText("Arztsuche der KV Baden-Württemberg");
+  await expect(links).toContainText("passt");
+});

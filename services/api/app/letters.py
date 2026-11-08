@@ -100,6 +100,8 @@ class Letter(TenantMixin, Base):
     task_id: Mapped[str | None] = mapped_column(String(36))
     code: Mapped[str] = mapped_column(String(20))
     recipient: Mapped[list] = mapped_column(JSON, default=list)
+    # Art. 14 GDPR notice, only on the first letter to a company (M9e).
+    privacy_note: Mapped[str] = mapped_column(String(700), default="")
     subject: Mapped[str] = mapped_column(String(120))
     body: Mapped[str] = mapped_column(String(3000))
     qr_url: Mapped[str] = mapped_column(String(600))
@@ -314,7 +316,7 @@ def draw_letter(
         f"{salutation(contact)}\n\n{letter.body}\n\n{settings.closing}\n\n\n{settings.sender_name}"
     )
     canvas.setFont(f["sans"], 10.5)
-    top, limit, leading = 110, 238, 5.2
+    top, limit, leading = 110, (226 if letter.privacy_note else 238), 5.2
     lines = _wrap(canvas, body, f["sans"], 10.5, 165 * mm)
     for i, text in enumerate(lines):
         pos = top + i * leading
@@ -323,6 +325,13 @@ def draw_letter(
             canvas.drawString(25 * mm, y(pos), "[Text gekürzt: maximal eine Seite]")
             break
         canvas.drawString(25 * mm, y(pos), text)
+
+    if letter.privacy_note:
+        canvas.setFont(f["sans"], 6.5)
+        canvas.setFillColor(muted)
+        for i, text in enumerate(_wrap(canvas, letter.privacy_note, f["sans"], 6.5, 128 * mm)[:6]):
+            canvas.drawString(25 * mm, y(232 + i * 3.1), text)
+        canvas.setFillColor(ink)
 
     # QR code with caption, bottom right.
     size = 28 * mm
@@ -442,9 +451,12 @@ def compose_letter(db, ws, contact: Contact, settings: LetterSettings, task_id=N
         raise HTTPException(409, "Ein Brief braucht eine Firma mit Adresse.")
     postal = next(p for p in points_of(db, ws, contact.id) if p.channel == "postal")
     name = f"{contact.first_name} {contact.last_name}".strip()
+    from app.register_gap import recipient_role_line
+
+    role_line = recipient_role_line(contact)
     recipient = [
         company.name,
-        *([f"z. Hd. {name}"] if contact.first_name else []),
+        *([f"z. Hd. {name}"] if contact.first_name else ([role_line] if role_line else [])),
         *split_address(postal.value),
     ]
     facts = [
@@ -465,6 +477,13 @@ def compose_letter(db, ws, contact: Contact, settings: LetterSettings, task_id=N
     }.items():
         body = body.replace("{" + key + "}", value or "")
     ref = code_for(db, ws, company.id, settings.qr_target_url)
+    first_letter = not db.scalar(
+        select(Letter.id).where(
+            Letter.workspace_id == ws,
+            Letter.company_id == company.id,
+            Letter.state != "cancelled",
+        )
+    )
     return Letter(
         workspace_id=ws,
         contact_id=contact.id,
@@ -475,8 +494,27 @@ def compose_letter(db, ws, contact: Contact, settings: LetterSettings, task_id=N
         subject=settings.subject,
         body=style.clean(body)[:3000],
         qr_url=qr_url(settings, ref.code),
+        privacy_note=privacy_note(settings, base, postal) if first_letter else "",
         state="draft",
     )
+
+
+def privacy_note(settings: "LetterSettings", base, postal) -> str:
+    """Art. 14 GDPR: who we are, where the address comes from (with date), purpose, legal
+    basis and the right to object. Printed small above the footer of the first letter."""
+    sender = settings.sender_company or base.sender_company or "Absender"
+    place = ", ".join(x for x in (settings.sender_street, settings.sender_city) if x)
+    reach = settings.sender_email or settings.sender_phone or "die oben genannte Adresse"
+    source = (postal.source or "öffentliche Quelle").split(" · ")[0]
+    source = {"Adresse (Impressum)": "dem Impressum Ihrer Website"}.get(source, source)
+    return (
+        f"Datenschutz (Art. 14 DSGVO): Verantwortlich ist {sender}"
+        f"{', ' + place if place else ''}. Ihre Geschäftsanschrift stammt aus {source} "
+        f"(abgerufen am {postal.observed_at:%d.%m.%Y}). Zweck: einmalige geschäftliche "
+        "Kontaktaufnahme, Rechtsgrundlage Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse). "
+        f"Sie können jederzeit widersprechen ({reach}); dann sperren wir Ihre Daten für "
+        "Werbung. Speicherung bis zum Widerspruch, höchstens 24 Monate ohne Antwort."
+    )[:700]
 
 
 def letter_output(db, letter: Letter) -> dict:
@@ -487,6 +525,7 @@ def letter_output(db, letter: Letter) -> dict:
         if contact
         else None,
         "recipient": letter.recipient,
+        "privacy_note": letter.privacy_note,
         "subject": letter.subject,
         "body": letter.body,
         "code": letter.code,

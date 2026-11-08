@@ -16,6 +16,7 @@ type Letter = {
   state: "draft" | "approved" | "printed" | "cancelled";
   revision: number;
   style_issues: string[];
+  privacy_note: string;
 };
 type Settings = Record<
   | "sender_name"
@@ -247,7 +248,10 @@ export function LettersPage({
                       </button>
                     </form>
                   ) : (
-                    <p className="letter-body">{l.body}</p>
+                    <>
+                      <p className="letter-body">{l.body}</p>
+                      {l.privacy_note && <p className="muted small-print letter-privacy">{l.privacy_note}</p>}
+                    </>
                   )}
                   {l.state !== "printed" && (
                     <div className="letter-row-actions">
